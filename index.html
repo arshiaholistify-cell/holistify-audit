@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Holistify School Audit Platform</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -12664,9 +12665,10 @@ function saveAuditState(){
       auditor:(document.getElementById('inp-auditor')||{}).value||''};
     localStorage.setItem(key,JSON.stringify(data));
     localStorage.setItem('hol_last_school_key',key);
+    var _sbn=(document.getElementById('inp-school')||{}).value||''; syncAuditStateToCloud(_sbn, data);
   }catch(e){}
 }
-function loadAuditStateForSchool(schoolName){
+async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditStateFromCloud(schoolName); if (_fc) return true;
   try{
     var key='hol_audit_state_'+schoolKey(schoolName||'default');
     var raw=localStorage.getItem(key);
@@ -12712,6 +12714,69 @@ function offerJourneyMilestone(actionTitle){
   journeyRecords.push({id:'sip_'+Date.now(),date:today,type:'milestone',summary:'SIP milestone: '+actionTitle,agenda:[],_fromSip:true});
   queueSave();
   toast('Milestone added to Journey map','success');
+}
+
+
+// === SUPABASE INTEGRATION ===
+var _sbUrl = '__SUPABASE_URL__';
+var _sbKey = '__SUPABASE_ANON_KEY__';
+var _sb = null;
+
+function _sbClient() {
+  if (!_sb && window.supabase && _sbUrl.indexOf('supabase.co') >= 0) {
+    _sb = window.supabase.createClient(_sbUrl, _sbKey);
+  }
+  return _sb;
+}
+
+// Save audit state to Supabase (called from queueSave after localStorage)
+async function syncAuditStateToCloud(schoolName, data) {
+  var sb = _sbClient(); if (!sb || !schoolName) return;
+  try {
+    var sid = schoolKey(schoolName);
+    // Ensure school row exists
+    await sb.from('schools').upsert({ id: sid, name: schoolName }, { onConflict: 'id' });
+    // Upsert audit state
+    await sb.from('audit_states').upsert({
+      school_id: sid, school_name: schoolName,
+      data: data, updated_at: new Date().toISOString()
+    }, { onConflict: 'school_id' });
+  } catch(e) { console.warn('Supabase sync error:', e); }
+}
+
+// Load audit state from Supabase (falls back to localStorage)
+async function loadAuditStateFromCloud(schoolName) {
+  var sb = _sbClient(); if (!sb || !schoolName) return false;
+  try {
+    var sid = schoolKey(schoolName);
+    var res = await sb.from('audit_states').select('data').eq('school_id', sid).single();
+    if (res.data && res.data.data) {
+      var d = res.data.data;
+      scores = d.scores || {}; notes = d.notes || {}; planDone = d.planDone || {};
+      clChecked = d.clChecked || {}; clLinks = d.clLinks || {};
+      customChecklists = d.customChecklists || {};
+      sipProgress = d.sipProgress || {};
+      if (d.sipOverrides) sipOverrides = d.sipOverrides;
+      if (d.sipCustomActions) sipCustomActions = d.sipCustomActions;
+      teachers = d.teachers || []; teacherScores = d.teacherScores || {}; lpScores = d.lpScores || {};
+      if (d.journeyRecords) journeyRecords = d.journeyRecords;
+      if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
+      // Update local cache
+      try { localStorage.setItem('hol_audit_state_' + sid, JSON.stringify(d)); } catch(e) {}
+      return true;
+    }
+  } catch(e) { console.warn('Supabase load error:', e); }
+  return false;
+}
+
+// Load schools list from Supabase
+async function getHubSchoolsFromCloud() {
+  var sb = _sbClient(); if (!sb) return null;
+  try {
+    var res = await sb.from('schools').select('id,name,city,board,created_at').order('name');
+    if (res.data) return res.data;
+  } catch(e) {}
+  return null;
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
