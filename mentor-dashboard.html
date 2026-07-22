@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#60A500">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mentor">
+<title>Holistify – Mentor Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --g:#60A500;--gh:#A8D08D;--gd:#4a8000;--gl:#f0f7e6;--gll:#f8fdf2;
+  --pu:#7030A0;--pul:#f3eaf9;
+  --r4:#4a8000;--r3:#60A500;--r2:#E8A33D;--r1:#D64545;
+  --r4l:#eaf3df;--r3l:#eef7e0;--r2l:#fdf1e0;--r1l:#fbe9e9;
+  --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkll:#948C7F;
+  --sur:#F5F2EC;--card:#fff;--bdr:rgba(120,100,70,0.16);--bdrs:rgba(120,100,70,0.28);
+  --rsm:8px;--rmd:12px;--rlg:18px;
+  --sh:0 2px 8px rgba(0,0,0,0.06);--shm:0 8px 24px rgba(0,0,0,0.10);
+  --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+}
+html,body{background:var(--sur);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;max-width:640px;margin:0 auto;position:relative;padding-bottom:calc(64px + var(--safe-b))}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:10px 12px;width:100%;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(96,165,0,.12)}
+textarea{resize:vertical;min-height:60px;line-height:1.4}
+label{display:block;font-size:11.5px;font-weight:700;color:var(--inkm);letter-spacing:.02em;text-transform:uppercase;margin-bottom:5px}
+.fld{margin-bottom:12px}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:50;background:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);border-bottom:2.5px solid var(--g)}
+.topbar .back{width:34px;height:34px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.topbar h1{font-size:16px;font-weight:800;color:var(--ink);flex:1;line-height:1.25}
+.topbar .sub{font-size:11px;color:var(--inkl);font-weight:500}
+.topbar .brand{font-size:11px;font-weight:700;color:var(--g);letter-spacing:.03em}
+
+/* Content */
+.wrap{padding:14px 14px 24px}
+.card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+
+/* Stats strip */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:var(--rmd);padding:12px 8px;text-align:center;box-shadow:var(--sh)}
+.stat b{display:block;font-size:20px;font-weight:800;color:var(--g)}
+.stat span{font-size:10px;color:var(--inkl);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+
+/* Search */
+.search-row{display:flex;gap:8px;margin-bottom:12px}
+.search-row input{flex:1}
+
+/* Observation list card */
+.obs-card{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.obs-card .info{flex:1;min-width:0}
+.obs-card .name{font-size:14.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obs-card .meta{font-size:11.5px;color:var(--inkl);margin-top:2px}
+.obs-badge{min-width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+.obs-badge.draft{background:var(--pul);color:var(--pu);font-size:10px}
+.chev{color:var(--inkll);font-size:16px}
+
+.empty{text-align:center;padding:50px 20px;color:var(--inkl)}
+.empty .ico{font-size:40px;margin-bottom:10px}
+.empty h3{color:var(--ink);font-size:15px;margin-bottom:5px}
+.empty p{font-size:13px;line-height:1.5}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:var(--rsm);font-size:14px;font-weight:700;width:100%}
+.btn-p{background:var(--g);color:#fff;box-shadow:0 4px 14px rgba(96,165,0,.3)}
+.btn-p:active{background:var(--gd)}
+.btn-s{background:var(--gl);color:var(--gd)}
+.btn-o{background:#fff;border:1.5px solid var(--bdrs);color:var(--inkm)}
+.btn-d{background:var(--r1l);color:var(--r1)}
+.btn-sm{padding:8px 12px;font-size:12.5px;width:auto}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+
+/* FAB */
+.fab{position:fixed;right:18px;bottom:calc(78px + var(--safe-b));width:56px;height:56px;border-radius:50%;background:var(--g);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(96,165,0,.4);z-index:60}
+
+/* Bottom nav */
+.nav{position:fixed;left:0;right:0;bottom:0;max-width:640px;margin:0 auto;background:#fff;border-top:1px solid var(--bdr);display:flex;padding-bottom:var(--safe-b);z-index:55;box-shadow:0 -2px 10px rgba(0,0,0,.05)}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 8px;font-size:10px;font-weight:600;color:var(--inkl)}
+.nav button.on{color:var(--g)}
+.nav button .ic{font-size:19px}
+
+/* Section (form) */
+details.sec{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden}
+details.sec summary{list-style:none;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
+details.sec summary::-webkit-details-marker{display:none}
+.sec-tt{flex:1}
+.sec-grp{font-size:10px;font-weight:700;color:var(--pu);text-transform:uppercase;letter-spacing:.03em}
+.sec-name{font-size:14.5px;font-weight:700;color:var(--ink)}
+.sec-count{font-size:11.5px;font-weight:700;color:var(--g);background:var(--gl);padding:3px 9px;border-radius:20px;white-space:nowrap}
+.sec-arrow{color:var(--inkll);transition:transform .2s;font-size:13px}
+details[open] .sec-arrow{transform:rotate(180deg)}
+.sec-body{padding:0 14px 12px;border-top:1px solid var(--bdr)}
+.item{padding:13px 0;border-bottom:1px solid var(--bdr)}
+.item:last-child{border-bottom:none}
+.item-txt{font-size:13.5px;color:var(--inkm);line-height:1.45;margin-bottom:9px}
+.rate-group{display:flex;gap:6px;align-items:center}
+.rate-btn{flex:1;height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-weight:800;font-size:15px;color:var(--inkl);display:flex;align-items:center;justify-content:center}
+.rate-btn[data-score="4"].active{background:var(--r4);border-color:var(--r4);color:#fff}
+.rate-btn[data-score="3"].active{background:var(--r3);border-color:var(--r3);color:#fff}
+.rate-btn[data-score="2"].active{background:var(--r2);border-color:var(--r2);color:#fff}
+.rate-btn[data-score="1"].active{background:var(--r1);border-color:var(--r1);color:#fff}
+.cmt-btn{width:40px;height:40px;border-radius:9px;background:var(--sur);border:1.5px solid var(--bdr);font-size:15px;flex-shrink:0}
+.cmt-btn.has{background:var(--pul);border-color:var(--pu)}
+.cmt-wrap{margin-top:8px}
+.scale-hint{display:flex;gap:6px;margin-top:6px}
+.scale-hint span{flex:1;font-size:8.5px;text-align:center;color:var(--inkll);font-weight:600}
+
+/* Progress bar (sticky) */
+.progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
+.progress-top{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--inkm);margin-bottom:6px}
+.progress-bar{height:7px;background:var(--bdr);border-radius:20px;overflow:hidden}
+.progress-fill{height:100%;background:var(--g);border-radius:20px;transition:width .25s}
+
+/* Score ring / summary */
+.score-hero{text-align:center;padding:20px 10px 6px}
+.score-num{font-size:46px;font-weight:800;line-height:1}
+.score-band{font-size:13px;font-weight:700;margin-top:4px;padding:4px 14px;border-radius:20px;display:inline-block}
+.score-sub{font-size:11.5px;color:var(--inkl);margin-top:8px}
+.sec-bar-row{display:flex;align-items:center;gap:10px;padding:9px 0}
+.sec-bar-label{width:150px;font-size:12px;color:var(--inkm);font-weight:600;flex-shrink:0}
+.sec-bar-track{flex:1;height:9px;background:var(--bdr);border-radius:20px;overflow:hidden}
+.sec-bar-fill{height:100%;border-radius:20px}
+.sec-bar-pct{width:36px;text-align:right;font-size:11.5px;font-weight:700;color:var(--inkm)}
+
+.review-item{padding:10px 0;border-bottom:1px solid var(--bdr)}
+.review-item:last-child{border-bottom:none}
+.review-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.review-txt{font-size:12.5px;color:var(--inkm);flex:1;line-height:1.4}
+.review-score{width:26px;height:26px;border-radius:7px;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.review-cmt{font-size:11.5px;color:var(--inkl);margin-top:5px;font-style:italic;background:var(--sur);padding:6px 8px;border-radius:6px}
+
+.chip-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px}
+.chip-row::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:7px 13px;border-radius:20px;background:var(--card);border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);white-space:nowrap}
+.chip.on{background:var(--g);border-color:var(--g);color:#fff}
+
+.teacher-row{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:9px}
+.teacher-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.teacher-top .name{font-size:14px;font-weight:700}
+.teacher-top .cnt{font-size:11px;color:var(--inkl)}
+.trend{display:flex;gap:4px;align-items:flex-end;height:34px}
+.trend-bar{flex:1;border-radius:4px 4px 0 0;min-height:4px}
+
+.section-title{font-size:12px;font-weight:800;color:var(--inkl);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px}
+.section-title:first-child{margin-top:0}
+
+@media print{
+  .nav,.fab,.topbar .back,.topbar .brand{display:none!important}
+  body{max-width:100%;padding-bottom:0}
+  .topbar{position:static;box-shadow:none}
+  .card,.review-item{box-shadow:none!important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ---------- Rubric data (from "Lesson Observations" workbook) ---------- */
+function mk(prefix, arr){ return arr.map((t,i)=>({id:prefix+(i+1), text:t})); }
+
+const SECTIONS = [
+  {key:'phys', group:'Learning Environment', title:'Physical & Organisational Support', items: mk('phys',[
+    "The classroom environment is safe, accessible and conducive to all students.",
+    "The seating arrangement is flexible and allows free movement in class (semi-circle/rows/groups).",
+    "The teacher's seating/teaching place allows eye contact with all students.",
+    "Classroom displays are student-centric and make the classroom appealing.",
+    "Classroom displays reflect current learning in class.",
+    "Word wall displayed for all languages.",
+    "Displays celebrating students' work displayed in class.",
+    "The classroom board has class details recorded (date, grade, student details, subject, topic/learning outcome).",
+    "Writing on board is visible to all students."
+  ])},
+  {key:'social', group:'Learning Environment', title:'Social & Emotional Support', items: mk('social',[
+    "The teacher greets the students/responds to students' greetings with warmth.",
+    "All learners get an opportunity to voice their thoughts, opinions and feelings about the topic through speaking or non-verbal listening (post-its, exit slips or other tools).",
+    "Mistakes and wrong answers are dealt with encouragingly.",
+    "The teacher creates an environment that motivates students to interact freely without fear.",
+    "The teacher sets clear expectations for behavior and models positive habits.",
+    "Students demonstrate self-monitoring and collective responsibility."
+  ])},
+  {key:'exp', group:null, title:'Learning Experiences', items: mk('exp',[
+    "The teacher shares the learning outcomes with the children.",
+    "The teacher uses different strategies to recap previous learning.",
+    "The teacher uses resources appropriately as the lesson plan suggests; learners are given equal access to all learning materials like handouts, texts, technology, labs or other resources.",
+    "Activities are directly related to the learning outcomes.",
+    "The teacher explains important ideas in simple, child-friendly language.",
+    "Teacher uses questioning and discussion techniques to promote critical thinking.",
+    "The teacher connects the lesson to future learnings/real-life experiences/applications.",
+    "Teacher's subject knowledge is good.",
+    "The language used by the teacher is fluent.",
+    "There is more learner talk time than teacher talk time.",
+    "The teacher creates opportunities for individual and group participation.",
+    "The teacher goes around monitoring and supporting during group or individual activity.",
+    "The teacher recognizes when learners are struggling with a concept or instructions and supports when needed.",
+    "The teacher uses class time effectively.",
+    "All learners are given opportunities to reflect upon their learning and experiences.",
+    "The teacher uses praise appropriately."
+  ])},
+  {key:'tech', group:null, title:'Technology Integration', items: mk('tech',[
+    "The teacher effectively integrates technology into the lesson to enhance learning."
+  ])},
+  {key:'reflect', group:null, title:'Reflection & Assessment', items: mk('reflect',[
+    "The teacher summarizes the lesson using different strategies.",
+    "The teacher uses effective questioning skills to check understanding.",
+    "Learners are given the opportunity to self- and peer-assess their work and review it.",
+    "The teacher uses many informal ways to check understanding.",
+    "The teacher seeks student feedback on the taught lesson through exit slips or other tools, without taking their names."
+  ])},
+  {key:'assign', group:null, title:'Assignment', items: mk('assign',[
+    "Teacher plans assignments that reinforce/extend learning.",
+    "Assignments are engaging and motivate students to work independently."
+  ])},
+  {key:'post', group:null, title:'Post-Observation Discussion', items: mk('post',[
+    "Awareness of students' progress.",
+    "Evidence of informal recording of ongoing assessment."
+  ])}
+];
+const ALL_ITEMS = SECTIONS.flatMap(s=>s.items.map(it=>({...it, section:s.key})));
+const TOTAL_ITEMS = ALL_ITEMS.length;
+const RATING = {4:"Extended",3:"Good",2:"Satisfactory",1:"Needs Improvement"};
+
+/* ---------- Storage ---------- */
+const OBS_KEY='holistify_mentor_observations_v1';
+const SET_KEY='holistify_mentor_settings_v1';
+function loadObs(){ try{ return JSON.parse(localStorage.getItem(OBS_KEY))||[]; }catch(e){ return []; } }
+function saveObs(list){ localStorage.setItem(OBS_KEY, JSON.stringify(list)); }
+function loadSettings(){ try{ return JSON.parse(localStorage.getItem(SET_KEY))||{observer:''}; }catch(e){ return {observer:''}; } }
+function saveSettings(s){ localStorage.setItem(SET_KEY, JSON.stringify(s)); }
+
+let OBS = loadObs();
+let SETTINGS = loadSettings();
+let VIEW = {name:'home', id:null, teacherFilter:null};
+
+/* ---------- Helpers ---------- */
+function uid(){ return 'obs_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ if(!d) return ''; const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function findObs(id){ return OBS.find(o=>o.id===id); }
+function newObsObj(){
+  return {
+    id: uid(), teacher:'', grade:'', subject:'', topic:'', date: todayStr(), observer: SETTINGS.observer||'',
+    ratings:{}, targets:'', notes:'', status:'draft',
+    createdAt: Date.now(), updatedAt: Date.now()
+  };
+}
+function computeScore(obs){
+  let sum=0, rated=0;
+  const sectionScores = SECTIONS.map(sec=>{
+    let ssum=0, scnt=0;
+    sec.items.forEach(it=>{
+      const r = obs.ratings[it.id];
+      if(r && r.score){ ssum+=r.score; scnt++; sum+=r.score; rated++; }
+    });
+    return { key:sec.key, title:sec.title, group:sec.group, count:scnt, total:sec.items.length,
+      pct: scnt? Math.round(ssum/(scnt*4)*100) : null };
+  });
+  return { rated, total: TOTAL_ITEMS, pct: rated? Math.round(sum/(rated*4)*100) : 0, sectionScores };
+}
+function band(pct){
+  if(pct>=90) return {label:'Outstanding Practice', c:'var(--r4)', bg:'var(--r4l)'};
+  if(pct>=75) return {label:'Strong Practice', c:'var(--r3)', bg:'var(--r3l)'};
+  if(pct>=60) return {label:'Developing Practice', c:'var(--r2)', bg:'var(--r2l)'};
+  return {label:'Needs Focused Support', c:'var(--r1)', bg:'var(--r1l)'};
+}
+function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ---------- Router ---------- */
+function go(name, id){ VIEW = {name, id, teacherFilter: name==='teacherObs'?VIEW.teacherFilter:null}; render(); window.scrollTo(0,0); }
+function goHome(){ go('home'); }
+function newObservation(){ const o=newObsObj(); OBS.unshift(o); saveObs(OBS); go('form', o.id); }
+function openObservation(id){ const o=findObs(id); go(o.status==='draft'?'form':'summary', id); }
+function editObservation(id){ go('form', id); }
+function deleteObservation(id){
+  if(!confirm('Delete this observation? This cannot be undone.')) return;
+  OBS = OBS.filter(o=>o.id!==id); saveObs(OBS); goHome();
+}
+function filterByTeacher(name){ VIEW={name:'home', id:null, teacherFilter:name}; render(); window.scrollTo(0,0); }
+
+/* ---------- Render: shell ---------- */
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  if(VIEW.name==='home') html = renderHome();
+  else if(VIEW.name==='form') html = renderForm(VIEW.id);
+  else if(VIEW.name==='summary') html = renderSummary(VIEW.id);
+  else if(VIEW.name==='teachers') html = renderTeachers();
+  else if(VIEW.name==='settings') html = renderSettings();
+  app.innerHTML = html + renderNav();
+}
+
+function renderNav(){
+  const n = (v)=>VIEW.name===v?'on':'';
+  return `<div class="nav">
+    <button class="${n('home')}" onclick="goHome()"><span class="ic">🏠</span>Home</button>
+    <button class="${n('form')}" onclick="newObservation()"><span class="ic">➕</span>New</button>
+    <button class="${n('teachers')}" onclick="go('teachers')"><span class="ic">👩‍🏫</span>Teachers</button>
+    <button class="${n('settings')}" onclick="go('settings')"><span class="ic">⚙️</span>Settings</button>
+  </div>`;
+}
+
+/* ---------- Home ---------- */
+function renderHome(){
+  const total = OBS.length;
+  const teachers = new Set(OBS.map(o=>o.teacher.trim()).filter(Boolean)).size;
+  const completed = OBS.filter(o=>o.status==='complete');
+  const avg = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).pct,0)/completed.length) : 0;
+
+  let list = OBS.slice().sort((a,b)=>b.updatedAt-a.updatedAt);
+  if(VIEW.teacherFilter) list = list.filter(o=>o.teacher===VIEW.teacherFilter);
+
+  let cards = list.map(o=>{
+    const sc = computeScore(o);
+    const b = band(sc.pct);
+    const badge = o.status==='draft'
+      ? `<div class="obs-badge draft">DRAFT</div>`
+      : `<div class="obs-badge" style="background:${b.c}">${sc.pct}%</div>`;
+    return `<div class="obs-card" onclick="openObservation('${o.id}')">
+      <div class="info">
+        <div class="name">${esc(o.teacher)||'Untitled observation'}</div>
+        <div class="meta">${esc(o.subject)||'—'} ${o.grade?'· Grade '+esc(o.grade):''} · ${fmtDate(o.date)}</div>
+      </div>
+      ${badge}
+      <div class="chev">›</div>
+    </div>`;
+  }).join('');
+
+  if(!list.length){
+    cards = `<div class="empty">
+      <div class="ico">📋</div>
+      <h3>${VIEW.teacherFilter? 'No observations for '+esc(VIEW.teacherFilter) : 'No observations yet'}</h3>
+      <p>Tap the + button below to start your first lesson observation.</p>
+    </div>`;
+  }
+
+  const filterChip = VIEW.teacherFilter
+    ? `<div class="chip-row"><span class="chip on" onclick="filterByTeacher(null)">${esc(VIEW.teacherFilter)} ✕</span></div>`
+    : '';
+
+  return `<div class="topbar">
+      <div><div class="brand">HOLISTIFY</div><h1>Mentor Dashboard</h1></div>
+    </div>
+    <div class="wrap">
+      <div class="stats">
+        <div class="stat"><b>${total}</b><span>Observations</span></div>
+        <div class="stat"><b>${teachers}</b><span>Teachers</span></div>
+        <div class="stat"><b>${avg}%</b><span>Avg Score</span></div>
+      </div>
+      ${filterChip}
+      ${cards}
+    </div>
+    <div class="fab" onclick="newObservation()">+</div>`;
+}
+
+/* ---------- Form (observation entry) ---------- */
+function renderForm(id){
+  const o = findObs(id);
+  if(!o) { go('home'); return ''; }
+  const sc = computeScore(o);
+
+  const fieldsHtml = `<div class="card">
+    <div class="fld"><label>Teacher name</label><input value="${esc(o.teacher)}" placeholder="e.g. Priya Menon" oninput="updateField('${id}','teacher',this.value)"></div>
+    <div style="display:flex;gap:10px">
+      <div class="fld" style="flex:1"><label>Grade</label><input value="${esc(o.grade)}" placeholder="e.g. 4B" oninput="updateField('${id}','grade',this.value)"></div>
+      <div class="fld" style="flex:1"><label>Date</label><input type="date" value="${esc(o.date)}" oninput="updateField('${id}','date',this.value)"></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="fld" style="flex:1"><label>Subject</label><input value="${esc(o.subject)}" placeholder="e.g. Science" oninput="updateField('${id}','subject',this.value)"></div>
+      <div class="fld" style="flex:1"><label>Topic</label><input value="${esc(o.topic)}" placeholder="e.g. Photosynthesis" oninput="updateField('${id}','topic',this.value)"></div>
+    </div>
+    <div class="fld" style="margin-bottom:0"><label>Observer (mentor)</label><input value="${esc(o.observer)}" placeholder="Your name" oninput="updateField('${id}','observer',this.value)"></div>
+  </div>`;
+
+  const sectionsHtml = SECTIONS.map((sec,si)=>{
+    const itemsHtml = sec.items.map(it=>{
+      const r = o.ratings[it.id] || {};
+      const hasCmt = !!(r.comment && r.comment.trim());
+      const btns = [4,3,2,1].map(n=>`<button class="rate-btn${r.score===n?' active':''}" data-score="${n}" onclick="rate(this,'${id}','${it.id}',${n})">${n}</button>`).join('');
+      return `<div class="item" id="item-${it.id}">
+        <div class="item-txt">${esc(it.text)}</div>
+        <div class="rate-group">
+          ${btns}
+          <button class="cmt-btn ${hasCmt?'has':''}" id="cmtbtn-${it.id}" onclick="toggleComment('${it.id}')">💬</button>
+        </div>
+        <div class="scale-hint"><span>Extended</span><span>Good</span><span>Satisfactory</span><span>Needs Imp.</span></div>
+        <div class="cmt-wrap" id="cmtwrap-${it.id}" style="display:${hasCmt?'block':'none'}">
+          <textarea placeholder="Optional note or evidence..." oninput="updateComment(this,'${id}','${it.id}')">${esc(r.comment||'')}</textarea>
+        </div>
+      </div>`;
+    }).join('');
+    const cnt = sec.items.filter(it=>o.ratings[it.id]&&o.ratings[it.id].score).length;
+    return `<details class="sec" ${si<2?'open':''}>
+      <summary>
+        <div class="sec-tt">
+          ${sec.group?`<div class="sec-grp">${esc(sec.group)}</div>`:''}
+          <div class="sec-name">${esc(sec.title)}</div>
+        </div>
+        <div class="sec-count" id="seccount-${sec.key}">${cnt}/${sec.items.length}</div>
+        <div class="sec-arrow">▾</div>
+      </summary>
+      <div class="sec-body">${itemsHtml}</div>
+    </details>`;
+  }).join('');
+
+  const notesHtml = `<div class="card">
+    <div class="fld"><label>Targets for the teacher</label><textarea placeholder="Key next steps to focus on..." oninput="updateField('${id}','targets',this.value)">${esc(o.targets)}</textarea></div>
+    <div class="fld" style="margin-bottom:0"><label>Post-observation discussion notes</label><textarea placeholder="Notes from the debrief conversation..." oninput="updateField('${id}','notes',this.value)">${esc(o.notes)}</textarea></div>
+  </div>`;
+
+  return `<div class="topbar">
+      <div class="back" onclick="goHome()">←</div>
+      <div><h1>${esc(o.teacher)||'New Observation'}</h1><div class="sub">${o.status==='draft'?'Draft · autosaved':'Completed'}</div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-top"><span id="progress-label">${sc.rated}/${TOTAL_ITEMS} items rated</span><span id="progress-pct">${sc.pct}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:${sc.rated?Math.round(sc.rated/TOTAL_ITEMS*100):0}%"></div></div>
+    </div>
+    <div class="wrap" style="padding-top:8px">
+      ${fieldsHtml}
+      ${sectionsHtml}
+      ${notesHtml}
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="goHome()">Save &amp; Exit</button>
+        <button class="btn btn-p" onclick="finishObservation('${id}')">Finish Observation</button>
+      </div>
+    </div>`;
+}
+
+function updateField(id, field, val){
+  const o = findObs(id); if(!o) return;
+  o[field]=val; o.updatedAt=Date.now(); saveObs(OBS);
+  if(field==='teacher'){ const h=document.querySelector('.topbar h1'); if(h) h.textContent = val || 'New Observation'; }
+}
+function rate(btn, obsId, itemId, score){
+  const o = findObs(obsId); if(!o) return;
+  if(!o.ratings[itemId]) o.ratings[itemId]={};
+  o.ratings[itemId].score = (o.ratings[itemId].score===score)? null : score;
+  o.updatedAt = Date.now(); saveObs(OBS);
+  const group = btn.closest('.rate-group');
+  group.querySelectorAll('.rate-btn').forEach(b=>b.classList.remove('active'));
+  if(o.ratings[itemId].score) btn.classList.add('active');
+  updateProgressUI(obsId);
+}
+function toggleComment(itemId){
+  const wrap = document.getElementById('cmtwrap-'+itemId);
+  wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
+  if(wrap.style.display==='block'){ const ta=wrap.querySelector('textarea'); if(ta) ta.focus(); }
+}
+function updateComment(ta, obsId, itemId){
+  const o = findObs(obsId); if(!o) return;
+  if(!o.ratings[itemId]) o.ratings[itemId]={};
+  o.ratings[itemId].comment = ta.value;
+  o.updatedAt = Date.now(); saveObs(OBS);
+  const btn = document.getElementById('cmtbtn-'+itemId);
+  if(btn) btn.classList.toggle('has', !!ta.value.trim());
+}
+function updateProgressUI(obsId){
+  const o = findObs(obsId); if(!o) return;
+  const sc = computeScore(o);
+  const lbl = document.getElementById('progress-label'); if(lbl) lbl.textContent = sc.rated+'/'+TOTAL_ITEMS+' items rated';
+  const pct = document.getElementById('progress-pct'); if(pct) pct.textContent = sc.pct+'%';
+  const fill = document.getElementById('progress-fill'); if(fill) fill.style.width = (sc.rated?Math.round(sc.rated/TOTAL_ITEMS*100):0)+'%';
+  sc.sectionScores.forEach(s=>{
+    const el = document.getElementById('seccount-'+s.key);
+    if(el) el.textContent = s.count+'/'+s.total;
+  });
+}
+function finishObservation(id){
+  const o = findObs(id); if(!o) return;
+  o.status='complete'; o.updatedAt=Date.now(); saveObs(OBS);
+  go('summary', id);
+}
+
+/* ---------- Summary ---------- */
+function renderSummary(id){
+  const o = findObs(id);
+  if(!o){ go('home'); return ''; }
+  const sc = computeScore(o);
+  const b = band(sc.pct);
+
+  const secBars = sc.sectionScores.map(s=>{
+    const p = s.pct===null? 0 : s.pct;
+    const c = p>=90?'var(--r4)':p>=75?'var(--r3)':p>=60?'var(--r2)':'var(--r1)';
+    return `<div class="sec-bar-row">
+      <div class="sec-bar-label">${esc(s.title)}</div>
+      <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${p}%;background:${c}"></div></div>
+      <div class="sec-bar-pct">${s.pct===null?'—':s.pct+'%'}</div>
+    </div>`;
+  }).join('');
+
+  const reviewHtml = SECTIONS.map(sec=>{
+    const rows = sec.items.map(it=>{
+      const r = o.ratings[it.id]||{};
+      if(!r.score) return '';
+      const c = r.score>=4?'var(--r4)':r.score===3?'var(--r3)':r.score===2?'var(--r2)':'var(--r1)';
+      return `<div class="review-item">
+        <div class="review-top">
+          <div class="review-txt">${esc(it.text)}</div>
+          <div class="review-score" style="background:${c}">${r.score}</div>
+        </div>
+        ${r.comment?`<div class="review-cmt">${esc(r.comment)}</div>`:''}
+      </div>`;
+    }).join('');
+    if(!rows) return '';
+    return `<div class="section-title">${sec.group?esc(sec.group)+' · ':''}${esc(sec.title)}</div>${rows}`;
+  }).join('');
+
+  return `<div class="topbar">
+      <div class="back" onclick="goHome()">←</div>
+      <div><h1>${esc(o.teacher)||'Observation'}</h1><div class="sub">${esc(o.subject)||''} ${o.grade?'· Grade '+esc(o.grade):''} · ${fmtDate(o.date)}</div></div>
+    </div>
+    <div class="wrap">
+      <div class="card">
+        <div class="score-hero">
+          <div class="score-num" style="color:${b.c}">${sc.pct}%</div>
+          <div class="score-band" style="color:${b.c};background:${b.bg}">${b.label}</div>
+          <div class="score-sub">${sc.rated}/${TOTAL_ITEMS} items rated · Observed by ${esc(o.observer)||'—'}</div>
+        </div>
+        ${secBars}
+      </div>
+
+      ${o.targets? `<div class="card"><div class="section-title" style="margin-top:0">Targets</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.targets)}</div></div>` : ''}
+      ${o.notes? `<div class="card"><div class="section-title" style="margin-top:0">Post-Observation Discussion Notes</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.notes)}</div></div>` : ''}
+
+      <div class="card">${reviewHtml || '<div style="font-size:13px;color:var(--inkl)">No items rated.</div>'}</div>
+
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="editObservation('${id}')">Edit</button>
+        <button class="btn btn-s" onclick="shareObservation('${id}')">Share</button>
+      </div>
+      <div style="height:8px"></div>
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="window.print()">Print / Save PDF</button>
+        <button class="btn btn-d" onclick="deleteObservation('${id}')">Delete</button>
+      </div>
+    </div>`;
+}
+
+function shareObservation(id){
+  const o = findObs(id); if(!o) return;
+  const sc = computeScore(o);
+  const b = band(sc.pct);
+  let txt = `Lesson Observation Summary\n`;
+  txt += `Teacher: ${o.teacher||'—'}\nGrade: ${o.grade||'—'} | Subject: ${o.subject||'—'} | Topic: ${o.topic||'—'}\nDate: ${fmtDate(o.date)}\nObserver: ${o.observer||'—'}\n\n`;
+  txt += `Overall Score: ${sc.pct}% (${b.label})\n\n`;
+  sc.sectionScores.forEach(s=>{ txt += `${s.title}: ${s.pct===null?'—':s.pct+'%'}\n`; });
+  if(o.targets) txt += `\nTargets:\n${o.targets}\n`;
+  if(o.notes) txt += `\nDiscussion Notes:\n${o.notes}\n`;
+
+  if(navigator.share){
+    navigator.share({title:'Lesson Observation – '+(o.teacher||''), text:txt}).catch(()=>{});
+  } else {
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    alert('Summary copied to clipboard.');
+  }
+}
+
+/* ---------- Teachers ---------- */
+function renderTeachers(){
+  const byTeacher = {};
+  OBS.filter(o=>o.status==='complete').forEach(o=>{
+    const t = o.teacher.trim()||'Unnamed';
+    (byTeacher[t]=byTeacher[t]||[]).push(o);
+  });
+  const names = Object.keys(byTeacher).sort();
+
+  let rows = names.map(name=>{
+    const list = byTeacher[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const scores = list.map(o=>computeScore(o).pct);
+    const last = scores[scores.length-1];
+    const bars = scores.slice(-8).map(p=>{
+      const c = p>=90?'var(--r4)':p>=75?'var(--r3)':p>=60?'var(--r2)':'var(--r1)';
+      return `<div class="trend-bar" style="height:${Math.max(8,p*0.34)}px;background:${c}"></div>`;
+    }).join('');
+    return `<div class="teacher-row" onclick="filterByTeacher('${esc(name).replace(/'/g,"\\'")}')">
+      <div class="teacher-top">
+        <div class="name">${esc(name)}</div>
+        <div class="cnt">${list.length} observation${list.length>1?'s':''} · latest ${last}%</div>
+      </div>
+      <div class="trend">${bars}</div>
+    </div>`;
+  }).join('');
+
+  if(!names.length){
+    rows = `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed observations yet</h3><p>Finish an observation to start tracking teacher progress here.</p></div>`;
+  }
+
+  return `<div class="topbar"><div><div class="brand">HOLISTIFY</div><h1>Teachers</h1></div></div>
+    <div class="wrap">${rows}</div>`;
+}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  return `<div class="topbar"><div><div class="brand">HOLISTIFY</div><h1>Settings</h1></div></div>
+    <div class="wrap">
+      <div class="card">
+        <div class="fld" style="margin-bottom:0"><label>Default observer name</label>
+          <input value="${esc(SETTINGS.observer)}" placeholder="Your name" oninput="updateSettingsField('observer',this.value)">
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-top:0">Data</div>
+        <div class="btn-row"><button class="btn btn-o" onclick="exportData()">Export backup (.json)</button></div>
+        <div style="height:8px"></div>
+        <div class="btn-row">
+          <button class="btn btn-o" onclick="document.getElementById('importFile').click()">Import backup</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this)">
+        <div style="height:8px"></div>
+        <div class="btn-row"><button class="btn btn-d" onclick="clearData()">Clear all data</button></div>
+      </div>
+      <div class="card" style="font-size:12px;color:var(--inkl);line-height:1.6">
+        Data is stored only on this device's browser. Export a backup regularly, especially before switching phones or clearing browser data.
+      </div>
+    </div>`;
+}
+function updateSettingsField(field,val){ SETTINGS[field]=val; saveSettings(SETTINGS); }
+function exportData(){
+  const blob = new Blob([JSON.stringify({observations:OBS, settings:SETTINGS}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'holistify-mentor-backup-'+todayStr()+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function importData(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(Array.isArray(data.observations)){
+        OBS = data.observations; saveObs(OBS);
+        if(data.settings){ SETTINGS = data.settings; saveSettings(SETTINGS); }
+        alert('Backup imported successfully.');
+        go('home');
+      } else { alert('This file does not look like a valid backup.'); }
+    }catch(err){ alert('Could not read this file.'); }
+  };
+  reader.readAsText(file);
+}
+function clearData(){
+  if(!confirm('This will permanently delete all observations on this device. Continue?')) return;
+  OBS = []; saveObs(OBS); go('home');
+}
+
+/* ---------- Init ---------- */
+render();
+</script>
+</body>
+</html>
