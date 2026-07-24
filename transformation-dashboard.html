@@ -522,6 +522,14 @@ function band(avg){
 }
 function scoreColor(avg){ return avg>=3.5?'var(--r4)':avg>=2.75?'var(--r3)':avg>=2.0?'var(--r2)':'var(--r1)'; }
 function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function fieldSummary(o){
+  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const parts = [];
+  if(o.subject && o.subject.trim()) parts.push(esc(o.subject));
+  if(o.grade && o.grade.trim()) parts.push(esc((type.gradeLabel||'Grade')+' '+o.grade));
+  if(o.topic && o.topic.trim()) parts.push(esc(o.topic));
+  return parts.join(' · ');
+}
 function logoImg(cls){ return `<img src="holistify-logo.png" alt="Holistify" class="${cls||''}" onerror="this.style.display='none'">`; }
 
 /* ---------- Router ---------- */
@@ -583,7 +591,7 @@ function renderHome(){
       <div class="info">
         <div class="type-pill">${type.icon} ${esc(type.short)}</div>
         <div class="name">${esc(o.teacher)||'Untitled report'}</div>
-        <div class="meta">${esc(o.subject)||'—'} ${o.grade?'· '+esc(o.grade):''} · ${fmtDate(o.date)}</div>
+        <div class="meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}${fmtDate(o.date)}</div>
       </div>
       ${badge}
       <div class="chev">›</div>
@@ -804,7 +812,7 @@ function renderSummary(id){
         <div class="score-hero">
           <div class="score-num" style="color:${b.c}">${sc.avg.toFixed(1)}<small>/4</small></div>
           <div class="score-band" style="color:${b.c};background:${b.bg}">${b.label}</div>
-          <div class="score-sub">${esc(o.subject)||'—'} ${o.grade?'· '+esc(o.grade):''} ${o.topic?'· '+esc(o.topic):''}</div>
+          ${fieldSummary(o)? `<div class="score-sub">${fieldSummary(o)}</div>` : ''}
           <div class="score-sub">${sc.rated}/${sc.total} items rated · Observed by ${esc(o.observer)||'—'}</div>
         </div>
         ${secBars}
@@ -941,7 +949,7 @@ function renderTeacherProfile(name){
         <div class="timeline-dot">${type.icon}</div>
         <div class="timeline-body">
           <div class="timeline-top"><span class="timeline-type">${esc(type.name)}</span><span class="timeline-avg" style="color:${scoreColor(sc.avg)}">${sc.avg.toFixed(1)}/4</span></div>
-          <div class="timeline-meta">${esc(o.subject)||'—'} ${o.topic?'· '+esc(o.topic):''} · by ${esc(o.observer)||'—'}</div>
+          <div class="timeline-meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}by ${esc(o.observer)||'—'}</div>
           <div class="timeline-score" style="color:${scoreColor(sc.avg)}">${band(sc.avg).label}</div>
         </div>
       </div>`;
