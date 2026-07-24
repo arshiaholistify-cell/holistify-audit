@@ -130,7 +130,10 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 
 /* Score ring / summary */
 .report-logo{display:block;height:30px;margin:0 auto 12px}
-.report-title{text-align:center;font-size:11px;font-weight:800;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.report-title{text-align:center;font-size:11px;font-weight:800;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.report-head{text-align:left;margin-bottom:10px}
+.report-teacher{font-size:17px;font-weight:800;color:var(--ink);line-height:1.3}
+.report-date{font-size:12px;font-weight:600;color:var(--inkl);margin-top:1px}
 .report-meta{text-align:center;font-size:14px;font-weight:600;color:var(--inkm);margin-bottom:4px}
 .report-meta b{color:var(--ink);font-weight:800}
 .score-hero{text-align:center;padding:6px 10px 6px}
@@ -794,7 +797,10 @@ function renderSummary(id){
       <div class="card">
         ${logoImg('report-logo')}
         <div class="report-title">${esc(type.name)}</div>
-        <div class="report-meta"><b>Teacher:</b> ${esc(o.teacher)||'—'} &nbsp;&nbsp;·&nbsp;&nbsp; <b>Date:</b> ${fmtDate(o.date)}</div>
+        <div class="report-head">
+          <div class="report-teacher">${esc(o.teacher)||'—'}</div>
+          <div class="report-date">Date: ${fmtDate(o.date)}</div>
+        </div>
         <div class="score-hero">
           <div class="score-num" style="color:${b.c}">${sc.avg.toFixed(1)}<small>/4</small></div>
           <div class="score-band" style="color:${b.c};background:${b.bg}">${b.label}</div>
