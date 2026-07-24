@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#60A500">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Transformation">
+<title>Holistify – Transformation Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --g:#60A500;--gh:#A8D08D;--gd:#4a8000;--gl:#f0f7e6;--gll:#f8fdf2;
+  --pu:#7030A0;--pul:#f3eaf9;
+  --r4:#4a8000;--r3:#60A500;--r2:#E8A33D;--r1:#D64545;
+  --r4l:#eaf3df;--r3l:#eef7e0;--r2l:#fdf1e0;--r1l:#fbe9e9;
+  --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkll:#948C7F;
+  --sur:#F5F2EC;--card:#fff;--bdr:rgba(120,100,70,0.16);--bdrs:rgba(120,100,70,0.28);
+  --rsm:8px;--rmd:12px;--rlg:18px;
+  --sh:0 2px 8px rgba(0,0,0,0.06);--shm:0 8px 24px rgba(0,0,0,0.10);
+  --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+}
+html,body{background:var(--sur);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;max-width:640px;margin:0 auto;position:relative;padding-bottom:calc(64px + var(--safe-b))}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:10px 12px;width:100%;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(96,165,0,.12)}
+textarea{resize:vertical;min-height:60px;line-height:1.4}
+label{display:block;font-size:11.5px;font-weight:700;color:var(--inkm);letter-spacing:.02em;text-transform:uppercase;margin-bottom:5px}
+.fld{margin-bottom:12px}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:50;background:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);border-bottom:2.5px solid var(--g)}
+.topbar .back{width:34px;height:34px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.topbar h1{font-size:16px;font-weight:800;color:var(--ink);flex:1;line-height:1.25}
+.topbar .sub{font-size:11px;color:var(--inkl);font-weight:500}
+.topbar .brand{display:flex;align-items:center;gap:7px}
+.topbar .brand img{height:20px;display:block}
+.topbar .brand-txt{font-size:11px;font-weight:700;color:var(--g);letter-spacing:.03em}
+
+/* Content */
+.wrap{padding:14px 14px 24px}
+.card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+
+/* Stats strip */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:var(--rmd);padding:12px 8px;text-align:center;box-shadow:var(--sh)}
+.stat b{display:block;font-size:20px;font-weight:800;color:var(--g)}
+.stat span{font-size:10px;color:var(--inkl);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+
+/* Observation list card */
+.obs-card{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.obs-card .info{flex:1;min-width:0}
+.obs-card .name{font-size:14.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obs-card .meta{font-size:11.5px;color:var(--inkl);margin-top:2px}
+.obs-badge{min-width:44px;height:44px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;line-height:1}
+.obs-badge span{font-size:7px;font-weight:700;opacity:.85;margin-top:1px}
+.obs-badge.draft{background:var(--pul);color:var(--pu);font-size:9px}
+.chev{color:var(--inkll);font-size:16px}
+.type-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--pu);background:var(--pul);padding:2px 8px;border-radius:20px;margin-bottom:4px}
+
+.empty{text-align:center;padding:50px 20px;color:var(--inkl)}
+.empty .ico{font-size:40px;margin-bottom:10px}
+.empty h3{color:var(--ink);font-size:15px;margin-bottom:5px}
+.empty p{font-size:13px;line-height:1.5}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:var(--rsm);font-size:14px;font-weight:700;width:100%}
+.btn-p{background:var(--g);color:#fff;box-shadow:0 4px 14px rgba(96,165,0,.3)}
+.btn-p:active{background:var(--gd)}
+.btn-s{background:var(--gl);color:var(--gd)}
+.btn-o{background:#fff;border:1.5px solid var(--bdrs);color:var(--inkm)}
+.btn-d{background:var(--r1l);color:var(--r1)}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+
+/* FAB */
+.fab{position:fixed;right:18px;bottom:calc(78px + var(--safe-b));width:56px;height:56px;border-radius:50%;background:var(--g);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(96,165,0,.4);z-index:60}
+
+/* Bottom nav */
+.nav{position:fixed;left:0;right:0;bottom:0;max-width:640px;margin:0 auto;background:#fff;border-top:1px solid var(--bdr);display:flex;padding-bottom:var(--safe-b);z-index:55;box-shadow:0 -2px 10px rgba(0,0,0,.05)}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 8px;font-size:10px;font-weight:600;color:var(--inkl)}
+.nav button.on{color:var(--g)}
+.nav button .ic{font-size:19px}
+
+/* Type picker cards */
+.type-card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px;display:flex;gap:14px;align-items:center}
+.type-card .ico{width:46px;height:46px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.type-card .tt{flex:1}
+.type-card .tt b{font-size:14.5px;font-weight:700;display:block;margin-bottom:2px}
+.type-card .tt span{font-size:11.5px;color:var(--inkl);line-height:1.4}
+
+/* Section (form) */
+details.sec{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden}
+details.sec summary{list-style:none;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
+details.sec summary::-webkit-details-marker{display:none}
+.sec-tt{flex:1}
+.sec-grp{font-size:10px;font-weight:700;color:var(--pu);text-transform:uppercase;letter-spacing:.03em}
+.sec-name{font-size:14.5px;font-weight:700;color:var(--ink)}
+.sec-count{font-size:11.5px;font-weight:700;color:var(--g);background:var(--gl);padding:3px 9px;border-radius:20px;white-space:nowrap}
+.sec-arrow{color:var(--inkll);transition:transform .2s;font-size:13px}
+details[open] .sec-arrow{transform:rotate(180deg)}
+.sec-body{padding:0 14px 12px;border-top:1px solid var(--bdr)}
+.item{padding:13px 0;border-bottom:1px solid var(--bdr)}
+.item:last-child{border-bottom:none}
+.item-txt{font-size:13.5px;color:var(--inkm);line-height:1.45;margin-bottom:9px}
+.rate-group{display:flex;gap:6px;align-items:center}
+.rate-btn{flex:1;height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-weight:800;font-size:15px;color:var(--inkl);display:flex;align-items:center;justify-content:center}
+.rate-btn[data-score="4"].active{background:var(--r4);border-color:var(--r4);color:#fff}
+.rate-btn[data-score="3"].active{background:var(--r3);border-color:var(--r3);color:#fff}
+.rate-btn[data-score="2"].active{background:var(--r2);border-color:var(--r2);color:#fff}
+.rate-btn[data-score="1"].active{background:var(--r1);border-color:var(--r1);color:#fff}
+.cmt-btn{width:40px;height:40px;border-radius:9px;background:var(--sur);border:1.5px solid var(--bdr);font-size:15px;flex-shrink:0}
+.cmt-btn.has{background:var(--pul);border-color:var(--pu)}
+.cmt-wrap{margin-top:8px}
+.scale-hint{display:flex;gap:6px;margin-top:6px}
+.scale-hint span{flex:1;font-size:8.5px;text-align:center;color:var(--inkll);font-weight:600}
+.info-toggle{font-size:11px;font-weight:700;color:var(--pu);margin-top:8px;display:inline-flex;align-items:center;gap:4px}
+.info-wrap{margin-top:8px;background:var(--sur);border-radius:var(--rsm);padding:9px 10px}
+.info-row{display:flex;gap:8px;padding:5px 0;font-size:11.5px;color:var(--inkm);line-height:1.4}
+.info-row b{width:18px;height:18px;border-radius:5px;color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* Progress bar (sticky) */
+.progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
+.progress-top{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--inkm);margin-bottom:6px}
+.progress-bar{height:7px;background:var(--bdr);border-radius:20px;overflow:hidden}
+.progress-fill{height:100%;background:var(--g);border-radius:20px;transition:width .25s}
+
+/* Score ring / summary */
+.report-logo{display:block;height:30px;margin:0 auto 12px}
+.score-hero{text-align:center;padding:6px 10px 6px}
+.score-num{font-size:46px;font-weight:800;line-height:1}
+.score-num small{font-size:19px;font-weight:700;color:var(--inkl)}
+.score-band{font-size:13px;font-weight:700;margin-top:4px;padding:4px 14px;border-radius:20px;display:inline-block}
+.score-sub{font-size:11.5px;color:var(--inkl);margin-top:8px}
+.sec-bar-row{display:flex;align-items:center;gap:10px;padding:9px 0}
+.sec-bar-label{width:150px;font-size:12px;color:var(--inkm);font-weight:600;flex-shrink:0}
+.sec-bar-track{flex:1;height:9px;background:var(--bdr);border-radius:20px;overflow:hidden}
+.sec-bar-fill{height:100%;border-radius:20px}
+.sec-bar-pct{width:38px;text-align:right;font-size:11.5px;font-weight:700;color:var(--inkm)}
+
+.review-item{padding:10px 0;border-bottom:1px solid var(--bdr)}
+.review-item:last-child{border-bottom:none}
+.review-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.review-txt{font-size:12.5px;color:var(--inkm);flex:1;line-height:1.4}
+.review-score{width:26px;height:26px;border-radius:7px;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.review-cmt{font-size:11.5px;color:var(--inkl);margin-top:5px;font-style:italic;background:var(--sur);padding:6px 8px;border-radius:6px}
+.review-lvl{font-size:11px;color:var(--inkl);margin-top:5px;background:var(--sur);padding:6px 8px;border-radius:6px;line-height:1.4}
+
+.chip-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px}
+.chip-row::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:7px 13px;border-radius:20px;background:var(--card);border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);white-space:nowrap}
+.chip.on{background:var(--g);border-color:var(--g);color:#fff}
+
+.teacher-row{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:9px}
+.teacher-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.teacher-top .name{font-size:14px;font-weight:700}
+.teacher-top .cnt{font-size:11px;color:var(--inkl)}
+.trend{display:flex;gap:4px;align-items:flex-end;height:34px}
+.trend-bar{flex:1;border-radius:4px 4px 0 0;min-height:4px}
+
+.timeline-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--bdr)}
+.timeline-item:last-child{border-bottom:none}
+.timeline-dot{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:var(--gl)}
+.timeline-body{flex:1;min-width:0}
+.timeline-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.timeline-type{font-size:12.5px;font-weight:700;color:var(--ink)}
+.timeline-date{font-size:10.5px;color:var(--inkl);white-space:nowrap}
+.timeline-meta{font-size:11px;color:var(--inkl);margin-top:2px}
+.timeline-score{font-size:11.5px;font-weight:700;margin-top:3px}
+
+.section-title{font-size:12px;font-weight:800;color:var(--inkl);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px}
+.section-title:first-child{margin-top:0}
+
+@media print{
+  .nav,.fab,.topbar .back,.topbar .brand-txt{display:none!important}
+  body{max-width:100%;padding-bottom:0}
+  .topbar{position:static;box-shadow:none}
+  .card,.review-item{box-shadow:none!important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ---------- Rubric data ---------- */
+function mk(prefix, arr){ return arr.map((t,i)=>({id:prefix+(i+1), text:t})); }
+function mkD(prefix, arr){ return arr.map((pair,i)=>({id:prefix+(i+1), text:pair[0], levels:pair[1]})); }
+
+const LESSON_OBS_SECTIONS = [
+  {key:'phys', group:'Learning Environment', title:'Physical & Organisational Support', items: mk('phys',[
+    "The classroom environment is safe, accessible and conducive to all students.",
+    "The seating arrangement is flexible and allows free movement in class (semi-circle/rows/groups).",
+    "The teacher's seating/teaching place allows eye contact with all students.",
+    "Classroom displays are student-centric and make the classroom appealing.",
+    "Classroom displays reflect current learning in class.",
+    "Word wall displayed for all languages.",
+    "Displays celebrating students' work displayed in class.",
+    "The classroom board has class details recorded (date, grade, student details, subject, topic/learning outcome).",
+    "Writing on board is visible to all students."
+  ])},
+  {key:'social', group:'Learning Environment', title:'Social & Emotional Support', items: mk('social',[
+    "The teacher greets the students/responds to students' greetings with warmth.",
+    "All learners get an opportunity to voice their thoughts, opinions and feelings about the topic through speaking or non-verbal listening (post-its, exit slips or other tools).",
+    "Mistakes and wrong answers are dealt with encouragingly.",
+    "The teacher creates an environment that motivates students to interact freely without fear.",
+    "The teacher sets clear expectations for behavior and models positive habits.",
+    "Students demonstrate self-monitoring and collective responsibility."
+  ])},
+  {key:'exp', group:null, title:'Learning Experiences', items: mk('exp',[
+    "The teacher shares the learning outcomes with the children.",
+    "The teacher uses different strategies to recap previous learning.",
+    "The teacher uses resources appropriately as the lesson plan suggests; learners are given equal access to all learning materials like handouts, texts, technology, labs or other resources.",
+    "Activities are directly related to the learning outcomes.",
+    "The teacher explains important ideas in simple, child-friendly language.",
+    "Teacher uses questioning and discussion techniques to promote critical thinking.",
+    "The teacher connects the lesson to future learnings/real-life experiences/applications.",
+    "Teacher's subject knowledge is good.",
+    "The language used by the teacher is fluent.",
+    "There is more learner talk time than teacher talk time.",
+    "The teacher creates opportunities for individual and group participation.",
+    "The teacher goes around monitoring and supporting during group or individual activity.",
+    "The teacher recognizes when learners are struggling with a concept or instructions and supports when needed.",
+    "The teacher uses class time effectively.",
+    "All learners are given opportunities to reflect upon their learning and experiences.",
+    "The teacher uses praise appropriately."
+  ])},
+  {key:'tech', group:null, title:'Technology Integration', items: mk('tech',[
+    "The teacher effectively integrates technology into the lesson to enhance learning."
+  ])},
+  {key:'reflect', group:null, title:'Reflection & Assessment', items: mk('reflect',[
+    "The teacher summarizes the lesson using different strategies.",
+    "The teacher uses effective questioning skills to check understanding.",
+    "Learners are given the opportunity to self- and peer-assess their work and review it.",
+    "The teacher uses many informal ways to check understanding.",
+    "The teacher seeks student feedback on the taught lesson through exit slips or other tools, without taking their names."
+  ])},
+  {key:'assign', group:null, title:'Assignment', items: mk('assign',[
+    "Teacher plans assignments that reinforce/extend learning.",
+    "Assignments are engaging and motivate students to work independently."
+  ])},
+  {key:'post', group:null, title:'Post-Observation Discussion', items: mk('post',[
+    "Awareness of students' progress.",
+    "Evidence of informal recording of ongoing assessment."
+  ])}
+];
+
+const WALKTHROUGH_SECTIONS = [
+  {key:'align', group:null, title:'Curriculum Alignment (Intended Curriculum)', items: mk('wt_align',[
+    "Learning outcome is clear and communicated.",
+    "Lesson follows the planned sequence.",
+    "Learning resources are prepared and appropriate."
+  ])},
+  {key:'teach', group:null, title:'Teaching & Learning (Taught Curriculum)', items: mk('wt_teach',[
+    "Students are actively engaged.",
+    "Teacher uses effective questioning.",
+    "Active learning strategies are evident.",
+    "Real-life connections are made.",
+    "Teacher checks for understanding.",
+    "Overall rating for this section."
+  ])},
+  {key:'learn', group:null, title:'Student Learning (Learned Curriculum)', items: mk('wt_learn',[
+    "Students know what they are learning.",
+    "Students understand why they are learning it.",
+    "Students explain the concept in their own words."
+  ])}
+];
+
+const LESSON_PLAN_SECTIONS = [
+  {key:'prep', group:null, title:'Planning & Preparation', items: mkD('lp_prep',[
+    ["Promptness in submission of lesson plans", [
+      "Frequently misses deadlines or submits incomplete/inadequate lesson plans.",
+      "Sometimes submits late or with incomplete sections; plans need improvement.",
+      "Usually submits on time with minor delays; plans are mostly complete and clear.",
+      "Always submits lesson plans on or before the deadline; plans are complete and well-organised."
+    ]],
+    ["Participation in planning meetings", [
+      "Rarely attends or shows limited participation in meetings.",
+      "Attends meetings but contributes little; needs encouragement to engage.",
+      "Participates regularly; shares some ideas and shows cooperation.",
+      "Actively participates in all planning meetings; contributes helpful ideas and collaborates well."
+    ]],
+    ["Reflection on teaching and learning", [
+      "Reflections of teaching and learning not shared.",
+      "Reflections shared but not consistent; reflections do not reflect on the achievement of the shared learning outcomes.",
+      "Reflections are regularly shared; the teacher is able to reflect on the achievement of the outcomes with clarity.",
+      "Reflections are regularly shared and deeply reflective; the teacher uses the data to rework the next day's plans."
+    ]]
+  ])},
+  {key:'ckped', group:'Quality of Planning', title:'Content Knowledge & Pedagogy', items: mkD('lp_ckped',[
+    ["Lesson plan demonstrates deep understanding of content and pedagogy.", [
+      "Lesson plan shows weak understanding of content or inappropriate teaching methods.",
+      "Lesson plan shows basic understanding of content but limited teaching strategies.",
+      "Lesson plan shows good understanding of content and teaching methods, with minor gaps.",
+      "Lesson plan clearly shows strong understanding of subject content and effective teaching methods."
+    ]],
+    ["All elements of the lesson plan addressed by the teacher.", [
+      "Many elements are missing or not addressed at all.",
+      "Some elements are incomplete or missing detail.",
+      "Most lesson plan elements are covered, with minor parts missing or unclear.",
+      "All lesson plan elements (objectives, activities, assessment, reflection, etc.) are complete and clearly addressed."
+    ]],
+    ["Does the lesson plan show evidence of activating or building on students' prior knowledge?", [
+      "Lesson plan shows little or no attempt to connect with students' prior knowledge.",
+      "Lesson plan mentions prior knowledge but does not clearly build upon it.",
+      "Lesson plan includes some reference to students' prior knowledge, though not consistently applied.",
+      "Lesson plan clearly includes activities or questions that connect new learning to students' prior knowledge."
+    ]]
+  ])},
+  {key:'design', group:'Quality of Planning', title:'Learning Design & Instructions', items: mkD('lp_design',[
+    ["Are learning outcomes aligned with the curriculum and are clear and measurable?", [
+      "Learning outcomes are unclear, vague, or not aligned with the curriculum.",
+      "Learning outcomes are somewhat aligned but lack clarity or measurability.",
+      "Learning outcomes are mostly aligned with the curriculum and clear, with minor gaps in measurability.",
+      "Learning outcomes are fully aligned with the curriculum, clearly stated, specific, and measurable."
+    ]],
+    ["Is the main teaching activity engaging, age-appropriate, and aligned with the learning outcome?", [
+      "Activities are unengaging, unclear, or not aligned with outcomes.",
+      "Activities are partly engaging or not fully suitable for age or outcomes.",
+      "Activities are mostly engaging and suitable, with some alignment gaps.",
+      "Activities are highly engaging, age-appropriate, and well aligned with learning outcomes."
+    ]],
+    ["Is there evidence of active learning strategies used to engage all learners individually or in groups?", [
+      "Little or no active learning; mostly teacher-led.",
+      "Involves a few students; strategies are limited.",
+      "Involves most students with some active learning strategies.",
+      "Actively involves all students using a variety of strategies and group work."
+    ]],
+    ["Are instructional tasks and activities well-organized and logically sequenced?", [
+      "Tasks are disorganised or confusing for learners.",
+      "Tasks show some organisation but lack logical flow.",
+      "Tasks are mostly well-organised with minor sequencing issues.",
+      "Tasks are clearly structured, logical, and flow smoothly."
+    ]],
+    ["Does the plan show how the concept can be applied in real life?", [
+      "No connection made to real-life contexts.",
+      "Minimal attempt to relate content to real life.",
+      "Some real-life links are made but not consistently.",
+      "Lesson clearly connects learning to real-life situations and experiences."
+    ]],
+    ["Is there evidence of the teacher providing support for diverse student needs?", [
+      "No evidence of support for diverse student needs.",
+      "Limited support or differentiation visible.",
+      "Some strategies are included to support different learners.",
+      "Lesson includes clear differentiation and support for all learners."
+    ]],
+    ["Is there evidence of flexible learning and student collaboration in the plan?", [
+      "No flexibility or student collaboration evident.",
+      "Limited flexibility or collaboration observed.",
+      "Some flexibility and collaboration are encouraged.",
+      "Lesson encourages flexibility, choice, and strong collaboration among students."
+    ]]
+  ])},
+  {key:'resources', group:'Quality of Planning', title:'Resources & Skills', items: mkD('lp_res',[
+    ["Are required teaching aids/materials listed and appropriate?", [
+      "Teaching aids/materials are missing, unclear, or unsuitable for the lesson.",
+      "Some materials are listed but may be incomplete or not fully appropriate.",
+      "Most teaching aids/materials are listed and suitable, with minor omissions.",
+      "All required teaching aids/materials are clearly listed, well-prepared, and appropriate for the lesson."
+    ]],
+    ["Are the targeted skills mentioned in the plan?", [
+      "Skills are not identified or missing from the lesson plan.",
+      "Skills are vaguely mentioned with little connection to lesson activities.",
+      "Targeted skills are mentioned but not fully integrated into activities.",
+      "All key skills (e.g., thinking, communication, problem-solving) are clearly identified and integrated into the lesson."
+    ]]
+  ])},
+  {key:'assess', group:'Quality of Planning', title:'Assessments', items: mkD('lp_assess',[
+    ["Assessments are related to the learning outcomes and provide useful feedback.", [
+      "Assessments are not aligned with outcomes or lack feedback.",
+      "Assessments show limited connection to outcomes or feedback is general.",
+      "Assessments are mostly linked to learning outcomes and provide some feedback.",
+      "Assessments are clearly linked to learning outcomes and provide meaningful, timely feedback to students."
+    ]],
+    ["Teacher uses multiple modes of assessment to assess the performance of the students (Assessment of Learning).", [
+      "Rarely assesses or uses only a single, ineffective method.",
+      "Relies mainly on one type of assessment.",
+      "Uses more than one type of assessment but not consistently.",
+      "Uses a variety of assessments (quizzes, observation, oral responses, written tasks) to check learning effectively."
+    ]],
+    ["Lesson plan incorporates student feedback and perspectives to inform instruction.", [
+      "No evidence of student feedback being used for instruction.",
+      "Gathers feedback rarely or without clear follow-up.",
+      "Occasionally gathers feedback and uses it for improvement.",
+      "Actively collects and uses student feedback to improve instruction and engagement."
+    ]]
+  ])},
+  {key:'assign', group:'Quality of Planning', title:'Assignment', items: mkD('lp_assign',[
+    ["Is the assignment relevant and designed to reinforce or extend learning?", [
+      "Assignment is unrelated to the lesson or missing.",
+      "Assignment has limited connection to lesson goals or lacks depth.",
+      "Assignment is mostly relevant and supports learning, though not very challenging.",
+      "Assignment is meaningful, clearly reinforces or extends lesson objectives, and encourages independent thinking."
+    ]],
+    ["Does the plan encourage reflection or peer sharing of what was learned?", [
+      "No reflection or peer sharing included in the lesson plan.",
+      "Minimal opportunity for reflection or sharing.",
+      "Some reflection or peer sharing is included, though not consistent.",
+      "Lesson includes structured reflection or sharing activities that help students think about and discuss their learning."
+    ]]
+  ])}
+];
+
+const FIELD_DEFS = {
+  teacher: {label:'Teacher name', placeholder:'e.g. Priya Menon'},
+  grade: {label:'Grade', placeholder:'e.g. 4B'},
+  subject: {label:'Subject', placeholder:'e.g. Science'},
+  topic: {label:'Topic', placeholder:'e.g. Photosynthesis'},
+  duration: {label:'Duration', placeholder:'e.g. 40 mins'},
+  date: {label:'Date', type:'date'},
+  observer: {label:'Observer (mentor)', placeholder:'Your name'}
+};
+
+const REPORT_TYPES = {
+  lesson_obs: {
+    key:'lesson_obs', name:'Lesson Observation', short:'Observation', icon:'📋',
+    desc:'Full classroom observation across 7 focus areas.',
+    fields:['teacher','grade','subject','topic','date','observer'],
+    sections: LESSON_OBS_SECTIONS
+  },
+  walkthrough: {
+    key:'walkthrough', name:'Curriculum Pulse Walkthrough', short:'Walkthrough', icon:'🚶',
+    desc:'Quick walkthrough of intended, taught & learned curriculum.',
+    fields:['teacher','grade','subject','topic','duration','date','observer'], gradeLabel:'Class',
+    sections: WALKTHROUGH_SECTIONS
+  },
+  lesson_plan: {
+    key:'lesson_plan', name:'Lesson Plan Checklist', short:'Lesson Plan', icon:'📝',
+    desc:'Behaviourally-anchored review of a teacher\'s lesson plan.',
+    fields:['teacher','grade','subject','date','observer'],
+    sections: LESSON_PLAN_SECTIONS
+  }
+};
+function typeItems(typeKey){ return REPORT_TYPES[typeKey].sections.flatMap(s=>s.items.map(it=>({...it, section:s.key}))); }
+function typeTotal(typeKey){ return typeItems(typeKey).length; }
+const RATING = {4:"Extended",3:"Good",2:"Satisfactory",1:"Needs Improvement"};
+
+/* ---------- Storage ---------- */
+const OBS_KEY='holistify_transformation_observations_v1';
+const SET_KEY='holistify_transformation_settings_v1';
+const OLD_OBS_KEY='holistify_mentor_observations_v1';
+const OLD_SET_KEY='holistify_mentor_settings_v1';
+function loadObs(){
+  try{
+    const cur = localStorage.getItem(OBS_KEY);
+    if(cur) return JSON.parse(cur);
+    const old = localStorage.getItem(OLD_OBS_KEY);
+    if(old){
+      const list = JSON.parse(old).map(o=>({type:'lesson_obs', duration:'', ...o}));
+      localStorage.setItem(OBS_KEY, JSON.stringify(list));
+      return list;
+    }
+    return [];
+  }catch(e){ return []; }
+}
+function saveObs(list){ localStorage.setItem(OBS_KEY, JSON.stringify(list)); }
+function loadSettings(){
+  try{
+    const cur = localStorage.getItem(SET_KEY);
+    if(cur) return JSON.parse(cur);
+    const old = localStorage.getItem(OLD_SET_KEY);
+    if(old) return JSON.parse(old);
+    return {observer:''};
+  }catch(e){ return {observer:''}; }
+}
+function saveSettings(s){ localStorage.setItem(SET_KEY, JSON.stringify(s)); }
+
+let OBS = loadObs();
+let SETTINGS = loadSettings();
+let VIEW = {name:'home', id:null, teacherName:null};
+
+/* ---------- Helpers ---------- */
+function uid(){ return 'obs_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ if(!d) return ''; const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function findObs(id){ return OBS.find(o=>o.id===id); }
+function newObsObj(typeKey){
+  return {
+    id: uid(), type: typeKey, teacher:'', grade:'', subject:'', topic:'', duration:'', date: todayStr(), observer: SETTINGS.observer||'',
+    ratings:{}, targets:'', notes:'', status:'draft',
+    createdAt: Date.now(), updatedAt: Date.now()
+  };
+}
+function computeScore(obs){
+  const type = REPORT_TYPES[obs.type] || REPORT_TYPES.lesson_obs;
+  let sum=0, rated=0;
+  const sectionScores = type.sections.map(sec=>{
+    let ssum=0, scnt=0;
+    sec.items.forEach(it=>{
+      const r = obs.ratings[it.id];
+      if(r && r.score){ ssum+=r.score; scnt++; sum+=r.score; rated++; }
+    });
+    return { key:sec.key, title:sec.title, group:sec.group, count:scnt, total:sec.items.length,
+      avg: scnt? Math.round((ssum/scnt)*10)/10 : null };
+  });
+  const total = typeTotal(obs.type);
+  return { rated, total, avg: rated? Math.round((sum/rated)*10)/10 : 0, sectionScores };
+}
+function band(avg){
+  if(avg>=3.5) return {label:'Outstanding Practice', c:'var(--r4)', bg:'var(--r4l)'};
+  if(avg>=2.75) return {label:'Strong Practice', c:'var(--r3)', bg:'var(--r3l)'};
+  if(avg>=2.0) return {label:'Developing Practice', c:'var(--r2)', bg:'var(--r2l)'};
+  return {label:'Needs Focused Support', c:'var(--r1)', bg:'var(--r1l)'};
+}
+function scoreColor(avg){ return avg>=3.5?'var(--r4)':avg>=2.75?'var(--r3)':avg>=2.0?'var(--r2)':'var(--r1)'; }
+function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function logoImg(cls){ return `<img src="holistify-logo.png" alt="Holistify" class="${cls||''}" onerror="this.style.display='none'">`; }
+
+/* ---------- Router ---------- */
+function go(name, id){ VIEW = {name, id, teacherName: name==='teacherProfile'?VIEW.teacherName:null}; render(); window.scrollTo(0,0); }
+function goHome(){ go('home'); }
+function openPicker(){ go('picker'); }
+function createReport(typeKey){ const o=newObsObj(typeKey); OBS.unshift(o); saveObs(OBS); go('form', o.id); }
+function openObservation(id){ const o=findObs(id); go(o.status==='draft'?'form':'summary', id); }
+function editObservation(id){ go('form', id); }
+function deleteObservation(id){
+  if(!confirm('Delete this report? This cannot be undone.')) return;
+  OBS = OBS.filter(o=>o.id!==id); saveObs(OBS); goHome();
+}
+function openTeacherProfile(name){ VIEW={name:'teacherProfile', id:null, teacherName:name}; render(); window.scrollTo(0,0); }
+
+/* ---------- Render: shell ---------- */
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  if(VIEW.name==='home') html = renderHome();
+  else if(VIEW.name==='picker') html = renderPicker();
+  else if(VIEW.name==='form') html = renderForm(VIEW.id);
+  else if(VIEW.name==='summary') html = renderSummary(VIEW.id);
+  else if(VIEW.name==='teachers') html = renderTeachers();
+  else if(VIEW.name==='teacherProfile') html = renderTeacherProfile(VIEW.teacherName);
+  else if(VIEW.name==='settings') html = renderSettings();
+  app.innerHTML = html + renderNav();
+}
+
+function renderNav(){
+  const n = (v)=>VIEW.name===v?'on':'';
+  return `<div class="nav">
+    <button class="${n('home')}" onclick="goHome()"><span class="ic">🏠</span>Home</button>
+    <button class="${n('picker')}" onclick="openPicker()"><span class="ic">➕</span>New</button>
+    <button class="${n('teachers')}" onclick="go('teachers')"><span class="ic">👩‍🏫</span>Teachers</button>
+    <button class="${n('settings')}" onclick="go('settings')"><span class="ic">⚙️</span>Settings</button>
+  </div>`;
+}
+function brandBar(title){
+  return `<div class="topbar"><div class="brand">${logoImg()}<div><div class="brand-txt">HOLISTIFY</div><h1 style="margin-top:1px">${title}</h1></div></div></div>`;
+}
+
+/* ---------- Home ---------- */
+function renderHome(){
+  const total = OBS.length;
+  const teachers = new Set(OBS.map(o=>o.teacher.trim()).filter(Boolean)).size;
+  const completed = OBS.filter(o=>o.status==='complete');
+  const avg = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).avg,0)/completed.length*10)/10 : 0;
+
+  let list = OBS.slice().sort((a,b)=> new Date(b.date)-new Date(a.date) || b.updatedAt-a.updatedAt);
+
+  let cards = list.map(o=>{
+    const type = REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs;
+    const sc = computeScore(o);
+    const badge = o.status==='draft'
+      ? `<div class="obs-badge draft">DRAFT</div>`
+      : `<div class="obs-badge" style="background:${scoreColor(sc.avg)}">${sc.avg.toFixed(1)}<span>/4</span></div>`;
+    return `<div class="obs-card" onclick="openObservation('${o.id}')">
+      <div class="info">
+        <div class="type-pill">${type.icon} ${esc(type.short)}</div>
+        <div class="name">${esc(o.teacher)||'Untitled report'}</div>
+        <div class="meta">${esc(o.subject)||'—'} ${o.grade?'· '+esc(o.grade):''} · ${fmtDate(o.date)}</div>
+      </div>
+      ${badge}
+      <div class="chev">›</div>
+    </div>`;
+  }).join('');
+
+  if(!list.length){
+    cards = `<div class="empty">
+      <div class="ico">📋</div>
+      <h3>No reports yet</h3>
+      <p>Tap the + button below to start your first report.</p>
+    </div>`;
+  }
+
+  return `${brandBar('Transformation Dashboard')}
+    <div class="wrap">
+      <div class="stats">
+        <div class="stat"><b>${total}</b><span>Reports</span></div>
+        <div class="stat"><b>${teachers}</b><span>Teachers</span></div>
+        <div class="stat"><b>${avg.toFixed(1)}</b><span>Avg Rating</span></div>
+      </div>
+      ${cards}
+    </div>
+    <div class="fab" onclick="openPicker()">+</div>`;
+}
+
+/* ---------- New report picker ---------- */
+function renderPicker(){
+  const cards = Object.values(REPORT_TYPES).map(t=>`
+    <div class="type-card" onclick="createReport('${t.key}')">
+      <div class="ico">${t.icon}</div>
+      <div class="tt"><b>${esc(t.name)}</b><span>${esc(t.desc)} · ${typeTotal(t.key)} items</span></div>
+      <div class="chev">›</div>
+    </div>`).join('');
+  return `<div class="topbar"><div class="back" onclick="goHome()">←</div><div><h1>New Report</h1><div class="sub">Choose a report type</div></div></div>
+    <div class="wrap">${cards}</div>`;
+}
+
+/* ---------- Form (report entry) ---------- */
+function renderForm(id){
+  const o = findObs(id);
+  if(!o) { go('home'); return ''; }
+  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const sc = computeScore(o);
+
+  const fieldsHtml = `<div class="card">
+    <div class="fld"><label>${FIELD_DEFS.teacher.label}</label><input value="${esc(o.teacher)}" placeholder="${FIELD_DEFS.teacher.placeholder}" oninput="updateField('${id}','teacher',this.value)"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${type.fields.filter(f=>f!=='teacher'&&f!=='observer').map(f=>{
+        const def = FIELD_DEFS[f];
+        const label = f==='grade' && type.gradeLabel ? type.gradeLabel : def.label;
+        if(f==='date') return `<div class="fld"><label>${label}</label><input type="date" value="${esc(o.date)}" oninput="updateField('${id}','date',this.value)"></div>`;
+        return `<div class="fld"><label>${label}</label><input value="${esc(o[f])}" placeholder="${def.placeholder}" oninput="updateField('${id}','${f}',this.value)"></div>`;
+      }).join('')}
+    </div>
+    <div class="fld" style="margin-bottom:0"><label>${FIELD_DEFS.observer.label}</label><input value="${esc(o.observer)}" placeholder="${FIELD_DEFS.observer.placeholder}" oninput="updateField('${id}','observer',this.value)"></div>
+  </div>`;
+
+  const sectionsHtml = type.sections.map((sec,si)=>{
+    const itemsHtml = sec.items.map(it=>{
+      const r = o.ratings[it.id] || {};
+      const hasCmt = !!(r.comment && r.comment.trim());
+      const btns = [4,3,2,1].map(n=>`<button class="rate-btn${r.score===n?' active':''}" data-score="${n}" onclick="rate(this,'${id}','${it.id}',${n})">${n}</button>`).join('');
+      const infoBtn = it.levels ? `<button class="cmt-btn" id="infobtn-${it.id}" onclick="toggleInfo('${it.id}')">ℹ️</button>` : '';
+      const infoBlock = it.levels ? `<div class="info-wrap" id="infowrap-${it.id}" style="display:none">
+        ${[4,3,2,1].map(n=>`<div class="info-row"><b style="background:var(--r${n})">${n}</b><span>${esc(it.levels[n-1])}</span></div>`).join('')}
+      </div>` : '';
+      return `<div class="item" id="item-${it.id}">
+        <div class="item-txt">${esc(it.text)}</div>
+        <div class="rate-group">
+          ${btns}
+          <button class="cmt-btn ${hasCmt?'has':''}" id="cmtbtn-${it.id}" onclick="toggleComment('${it.id}')">💬</button>
+          ${infoBtn}
+        </div>
+        <div class="scale-hint"><span>Extended</span><span>Good</span><span>Satisfactory</span><span>Needs Imp.</span></div>
+        ${infoBlock}
+        <div class="cmt-wrap" id="cmtwrap-${it.id}" style="display:${hasCmt?'block':'none'}">
+          <textarea placeholder="Optional note or evidence..." oninput="updateComment(this,'${id}','${it.id}')">${esc(r.comment||'')}</textarea>
+        </div>
+      </div>`;
+    }).join('');
+    const cnt = sec.items.filter(it=>o.ratings[it.id]&&o.ratings[it.id].score).length;
+    return `<details class="sec" ${si<2?'open':''}>
+      <summary>
+        <div class="sec-tt">
+          ${sec.group?`<div class="sec-grp">${esc(sec.group)}</div>`:''}
+          <div class="sec-name">${esc(sec.title)}</div>
+        </div>
+        <div class="sec-count" id="seccount-${sec.key}">${cnt}/${sec.items.length}</div>
+        <div class="sec-arrow">▾</div>
+      </summary>
+      <div class="sec-body">${itemsHtml}</div>
+    </details>`;
+  }).join('');
+
+  const notesHtml = `<div class="card">
+    <div class="fld"><label>Targets for the teacher</label><textarea placeholder="Key next steps to focus on..." oninput="updateField('${id}','targets',this.value)">${esc(o.targets)}</textarea></div>
+    <div class="fld" style="margin-bottom:0"><label>Discussion / follow-up notes</label><textarea placeholder="Notes from the debrief conversation..." oninput="updateField('${id}','notes',this.value)">${esc(o.notes)}</textarea></div>
+  </div>`;
+
+  return `<div class="topbar">
+      <div class="back" onclick="goHome()">←</div>
+      <div><h1>${esc(o.teacher)||'New Report'}</h1><div class="sub">${type.icon} ${esc(type.name)} · ${o.status==='draft'?'Draft · autosaved':'Completed'}</div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-top"><span id="progress-label">${sc.rated}/${sc.total} items rated</span><span id="progress-avg">${sc.avg.toFixed(1)}/4</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:${sc.rated?Math.round(sc.rated/sc.total*100):0}%"></div></div>
+    </div>
+    <div class="wrap" style="padding-top:8px">
+      ${fieldsHtml}
+      ${sectionsHtml}
+      ${notesHtml}
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="goHome()">Save &amp; Exit</button>
+        <button class="btn btn-p" onclick="finishObservation('${id}')">Finish Report</button>
+      </div>
+    </div>`;
+}
+
+function updateField(id, field, val){
+  const o = findObs(id); if(!o) return;
+  o[field]=val; o.updatedAt=Date.now(); saveObs(OBS);
+  if(field==='teacher'){ const h=document.querySelector('.topbar h1'); if(h) h.textContent = val || 'New Report'; }
+}
+function rate(btn, obsId, itemId, score){
+  const o = findObs(obsId); if(!o) return;
+  if(!o.ratings[itemId]) o.ratings[itemId]={};
+  o.ratings[itemId].score = (o.ratings[itemId].score===score)? null : score;
+  o.updatedAt = Date.now(); saveObs(OBS);
+  const group = btn.closest('.rate-group');
+  group.querySelectorAll('.rate-btn').forEach(b=>b.classList.remove('active'));
+  if(o.ratings[itemId].score) btn.classList.add('active');
+  updateProgressUI(obsId);
+}
+function toggleComment(itemId){
+  const wrap = document.getElementById('cmtwrap-'+itemId);
+  wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
+  if(wrap.style.display==='block'){ const ta=wrap.querySelector('textarea'); if(ta) ta.focus(); }
+}
+function toggleInfo(itemId){
+  const wrap = document.getElementById('infowrap-'+itemId);
+  wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
+}
+function updateComment(ta, obsId, itemId){
+  const o = findObs(obsId); if(!o) return;
+  if(!o.ratings[itemId]) o.ratings[itemId]={};
+  o.ratings[itemId].comment = ta.value;
+  o.updatedAt = Date.now(); saveObs(OBS);
+  const btn = document.getElementById('cmtbtn-'+itemId);
+  if(btn) btn.classList.toggle('has', !!ta.value.trim());
+}
+function updateProgressUI(obsId){
+  const o = findObs(obsId); if(!o) return;
+  const sc = computeScore(o);
+  const lbl = document.getElementById('progress-label'); if(lbl) lbl.textContent = sc.rated+'/'+sc.total+' items rated';
+  const avgEl = document.getElementById('progress-avg'); if(avgEl) avgEl.textContent = sc.avg.toFixed(1)+'/4';
+  const fill = document.getElementById('progress-fill'); if(fill) fill.style.width = (sc.rated?Math.round(sc.rated/sc.total*100):0)+'%';
+  sc.sectionScores.forEach(s=>{
+    const el = document.getElementById('seccount-'+s.key);
+    if(el) el.textContent = s.count+'/'+s.total;
+  });
+}
+function finishObservation(id){
+  const o = findObs(id); if(!o) return;
+  o.status='complete'; o.updatedAt=Date.now(); saveObs(OBS);
+  go('summary', id);
+}
+
+/* ---------- Summary ---------- */
+function renderSummary(id){
+  const o = findObs(id);
+  if(!o){ go('home'); return ''; }
+  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const sc = computeScore(o);
+  const b = band(sc.avg);
+
+  const secBars = sc.sectionScores.map(s=>{
+    const a = s.avg===null? 0 : s.avg;
+    const c = scoreColor(a);
+    return `<div class="sec-bar-row">
+      <div class="sec-bar-label">${esc(s.title)}</div>
+      <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${a/4*100}%;background:${c}"></div></div>
+      <div class="sec-bar-pct">${s.avg===null?'—':s.avg.toFixed(1)}</div>
+    </div>`;
+  }).join('');
+
+  const reviewHtml = type.sections.map(sec=>{
+    const rows = sec.items.map(it=>{
+      const r = o.ratings[it.id]||{};
+      if(!r.score) return '';
+      const c = scoreColor(r.score);
+      const lvlText = it.levels ? `<div class="review-lvl">${esc(it.levels[r.score-1])}</div>` : '';
+      return `<div class="review-item">
+        <div class="review-top">
+          <div class="review-txt">${esc(it.text)}</div>
+          <div class="review-score" style="background:${c}">${r.score}</div>
+        </div>
+        ${lvlText}
+        ${r.comment?`<div class="review-cmt">${esc(r.comment)}</div>`:''}
+      </div>`;
+    }).join('');
+    if(!rows) return '';
+    return `<div class="section-title">${sec.group?esc(sec.group)+' · ':''}${esc(sec.title)}</div>${rows}`;
+  }).join('');
+
+  return `<div class="topbar">
+      <div class="back" onclick="goHome()">←</div>
+      <div><h1>${esc(o.teacher)||'Report'}</h1><div class="sub">${type.icon} ${esc(type.name)} · ${fmtDate(o.date)}</div></div>
+    </div>
+    <div class="wrap">
+      <div class="card">
+        ${logoImg('report-logo')}
+        <div class="score-hero">
+          <div class="score-num" style="color:${b.c}">${sc.avg.toFixed(1)}<small>/4</small></div>
+          <div class="score-band" style="color:${b.c};background:${b.bg}">${b.label}</div>
+          <div class="score-sub">${esc(o.subject)||'—'} ${o.grade?'· '+esc(o.grade):''} ${o.topic?'· '+esc(o.topic):''}</div>
+          <div class="score-sub">${sc.rated}/${sc.total} items rated · Observed by ${esc(o.observer)||'—'}</div>
+        </div>
+        ${secBars}
+      </div>
+
+      ${o.targets? `<div class="card"><div class="section-title" style="margin-top:0">Targets</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.targets)}</div></div>` : ''}
+      ${o.notes? `<div class="card"><div class="section-title" style="margin-top:0">Discussion / Follow-up Notes</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.notes)}</div></div>` : ''}
+
+      <div class="card">${reviewHtml || '<div style="font-size:13px;color:var(--inkl)">No items rated.</div>'}</div>
+
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="editObservation('${id}')">Edit</button>
+        <button class="btn btn-s" onclick="shareObservation('${id}')">Share</button>
+      </div>
+      <div style="height:8px"></div>
+      <div class="btn-row">
+        <button class="btn btn-o" onclick="window.print()">Print / Save PDF</button>
+        <button class="btn btn-d" onclick="deleteObservation('${id}')">Delete</button>
+      </div>
+    </div>`;
+}
+
+function shareObservation(id){
+  const o = findObs(id); if(!o) return;
+  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const sc = computeScore(o);
+  const b = band(sc.avg);
+  let txt = `Holistify – ${type.name}\n`;
+  txt += `Teacher: ${o.teacher||'—'}\nGrade/Class: ${o.grade||'—'} | Subject: ${o.subject||'—'} | Topic: ${o.topic||'—'}\nDate: ${fmtDate(o.date)}\nObserver: ${o.observer||'—'}\n\n`;
+  txt += `Overall Rating: ${sc.avg.toFixed(1)}/4 (${b.label})\n\n`;
+  sc.sectionScores.forEach(s=>{ txt += `${s.title}: ${s.avg===null?'—':s.avg.toFixed(1)+'/4'}\n`; });
+  if(o.targets) txt += `\nTargets:\n${o.targets}\n`;
+  if(o.notes) txt += `\nDiscussion Notes:\n${o.notes}\n`;
+
+  if(navigator.share){
+    navigator.share({title:'Holistify – '+(o.teacher||''), text:txt}).catch(()=>{});
+  } else {
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    alert('Summary copied to clipboard.');
+  }
+}
+
+/* ---------- Teachers ---------- */
+function renderTeachers(){
+  const byTeacher = {};
+  OBS.filter(o=>o.status==='complete').forEach(o=>{
+    const t = o.teacher.trim()||'Unnamed';
+    (byTeacher[t]=byTeacher[t]||[]).push(o);
+  });
+  const names = Object.keys(byTeacher).sort();
+
+  let rows = names.map(name=>{
+    const list = byTeacher[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const scores = list.map(o=>computeScore(o).avg);
+    const last = scores[scores.length-1];
+    const bars = scores.slice(-10).map(a=>{
+      const c = scoreColor(a);
+      return `<div class="trend-bar" style="height:${Math.max(6,a*8.5)}px;background:${c}"></div>`;
+    }).join('');
+    return `<div class="teacher-row" onclick="openTeacherProfile('${esc(name).replace(/'/g,"\\'")}')">
+      <div class="teacher-top">
+        <div class="name">${esc(name)}</div>
+        <div class="cnt">${list.length} report${list.length>1?'s':''} · latest ${last.toFixed(1)}/4</div>
+      </div>
+      <div class="trend">${bars}</div>
+    </div>`;
+  }).join('');
+
+  if(!names.length){
+    rows = `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports yet</h3><p>Finish a report to start tracking teacher progress here.</p></div>`;
+  }
+
+  return `${brandBar('Teachers')}
+    <div class="wrap">${rows}</div>`;
+}
+
+/* ---------- Teacher profile (consolidated, date-wise) ---------- */
+function renderTeacherProfile(name){
+  const list = OBS.filter(o=>o.status==='complete' && (o.teacher.trim()||'Unnamed')===name)
+    .slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+
+  const avg = list.length? Math.round(list.reduce((a,o)=>a+computeScore(o).avg,0)/list.length*10)/10 : 0;
+  const counts = {};
+  list.forEach(o=>{ counts[o.type]=(counts[o.type]||0)+1; });
+  const countChips = Object.keys(counts).map(k=>{
+    const t = REPORT_TYPES[k]||REPORT_TYPES.lesson_obs;
+    return `<span class="chip">${t.icon} ${counts[k]} ${esc(t.short)}</span>`;
+  }).join('');
+
+  const timeline = list.slice().reverse().map(o=>{
+    const type = REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs;
+    const sc = computeScore(o);
+    return `<div class="timeline-item" onclick="openObservation('${o.id}')" style="cursor:pointer">
+      <div class="timeline-dot">${type.icon}</div>
+      <div class="timeline-body">
+        <div class="timeline-top"><span class="timeline-type">${esc(type.name)}</span><span class="timeline-date">${fmtDate(o.date)}</span></div>
+        <div class="timeline-meta">${esc(o.subject)||'—'} ${o.topic?'· '+esc(o.topic):''}</div>
+        <div class="timeline-score" style="color:${scoreColor(sc.avg)}">${sc.avg.toFixed(1)}/4 · ${band(sc.avg).label}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="topbar"><div class="back" onclick="go('teachers')">←</div><div><h1>${esc(name)}</h1><div class="sub">Consolidated report history</div></div></div>
+    <div class="wrap">
+      <div class="card">
+        <div class="score-hero" style="padding-top:2px">
+          <div class="score-num" style="color:${scoreColor(avg)};font-size:36px">${avg.toFixed(1)}<small>/4</small></div>
+          <div class="score-sub">${list.length} report${list.length!==1?'s':''} across all types</div>
+        </div>
+        <div class="chip-row" style="margin-top:6px;margin-bottom:0">${countChips}</div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-top:0">Timeline (most recent first)</div>
+        ${timeline || '<div style="font-size:13px;color:var(--inkl)">No reports yet.</div>'}
+      </div>
+    </div>`;
+}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  return `${brandBar('Settings')}
+    <div class="wrap">
+      <div class="card">
+        <div class="fld" style="margin-bottom:0"><label>Default observer name</label>
+          <input value="${esc(SETTINGS.observer)}" placeholder="Your name" oninput="updateSettingsField('observer',this.value)">
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-top:0">Data</div>
+        <div class="btn-row"><button class="btn btn-o" onclick="exportData()">Export backup (.json)</button></div>
+        <div style="height:8px"></div>
+        <div class="btn-row">
+          <button class="btn btn-o" onclick="document.getElementById('importFile').click()">Import backup</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this)">
+        <div style="height:8px"></div>
+        <div class="btn-row"><button class="btn btn-d" onclick="clearData()">Clear all data</button></div>
+      </div>
+      <div class="card" style="font-size:12px;color:var(--inkl);line-height:1.6">
+        Data is stored only on this device's browser. Export a backup regularly, especially before switching phones or clearing browser data.
+      </div>
+    </div>`;
+}
+function updateSettingsField(field,val){ SETTINGS[field]=val; saveSettings(SETTINGS); }
+function exportData(){
+  const blob = new Blob([JSON.stringify({observations:OBS, settings:SETTINGS}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'holistify-transformation-backup-'+todayStr()+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function importData(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(Array.isArray(data.observations)){
+        OBS = data.observations.map(o=>({type:'lesson_obs', duration:'', ...o})); saveObs(OBS);
+        if(data.settings){ SETTINGS = data.settings; saveSettings(SETTINGS); }
+        alert('Backup imported successfully.');
+        go('home');
+      } else { alert('This file does not look like a valid backup.'); }
+    }catch(err){ alert('Could not read this file.'); }
+  };
+  reader.readAsText(file);
+}
+function clearData(){
+  if(!confirm('This will permanently delete all reports on this device. Continue?')) return;
+  OBS = []; saveObs(OBS); go('home');
+}
+
+/* ---------- Init ---------- */
+render();
+</script>
+</body>
+</html>
