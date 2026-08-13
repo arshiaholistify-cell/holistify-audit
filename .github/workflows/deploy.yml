@@ -25,6 +25,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnose secrets (no values written, only length/emptiness)
+        run: |
+          {
+            if [ -z "$ISLAMIC_STUDIES_SUPABASE_URL" ]; then echo "ISLAMIC_STUDIES_SUPABASE_URL is EMPTY/UNSET"; else echo "ISLAMIC_STUDIES_SUPABASE_URL is SET (length ${#ISLAMIC_STUDIES_SUPABASE_URL})"; fi
+            if [ -z "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" ]; then echo "ISLAMIC_STUDIES_SUPABASE_ANON_KEY is EMPTY/UNSET"; else echo "ISLAMIC_STUDIES_SUPABASE_ANON_KEY is SET (length ${#ISLAMIC_STUDIES_SUPABASE_ANON_KEY})"; fi
+          } > _diagnostic.txt
+          cat _diagnostic.txt
+        env:
+          ISLAMIC_STUDIES_SUPABASE_URL: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}
+          ISLAMIC_STUDIES_SUPABASE_ANON_KEY: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}
+
       - name: Inject environment variables
         run: |
           sed -i "s|__SUPABASE_URL__|${{ secrets.SUPABASE_URL }}|g" index.html
