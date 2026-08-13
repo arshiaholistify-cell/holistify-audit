@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holistify Islamic Studies — Lesson Plan Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g:#2D7A3A;--gd:#1A3028;--gl:#EAF3EA;--gh:#BFE0C4;
+  --gold:#C17E2A;--goldl:#E8A030;--goldp:#FEF6E6;
+  --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkf:#9A8F82;
+  --sur:#F5F2EC;--surr:#fff;--bdr:rgba(120,100,70,.14);--bdrs:rgba(120,100,70,.26);
+  --red:#C0392B;--redp:#FBEAE8;--blue:#2558B8;--bluep:#E8EEFB;--amb:#C47B1A;--ambp:#FEF5E3;
+  --rsm:8px;--rmd:12px;--rlg:16px;--rxl:20px;
+  --sh:0 2px 8px rgba(0,0,0,.07);--shm:0 10px 28px rgba(0,0,0,.12);
+}
+html,body{height:100%}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--sur);color:var(--ink);font-size:14px;line-height:1.55}
+h1,h2,h3,.serif{font-family:'DM Serif Display',Georgia,serif}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--bdrs);border-radius:8px}
+
+/* ===== Auth screen ===== */
+#authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 20% 20%,#22432f,#0f1f16 70%)}
+.auth-card{width:100%;max-width:420px;background:#fff;border-radius:var(--rxl);box-shadow:var(--shm);padding:32px 30px}
+.auth-logo{text-align:center;margin-bottom:6px}
+.auth-logo .m{font-size:30px}
+.auth-title{font-family:'DM Serif Display',serif;font-size:22px;color:var(--gd);text-align:center;margin-bottom:2px}
+.auth-sub{font-size:12.5px;color:var(--inkl);text-align:center;margin-bottom:22px}
+.auth-tabs{display:flex;background:var(--sur);border-radius:var(--rsm);padding:3px;margin-bottom:20px}
+.auth-tab{flex:1;text-align:center;padding:8px;font-size:12.5px;font-weight:600;color:var(--inkl);cursor:pointer;border-radius:6px}
+.auth-tab.on{background:#fff;color:var(--g);box-shadow:var(--sh)}
+.auth-pane{display:none}
+.auth-pane.on{display:block}
+.role-toggle{display:flex;gap:8px;margin-bottom:4px}
+.role-opt{flex:1;border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:10px;text-align:center;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--inkl)}
+.role-opt.on{border-color:var(--g);background:var(--gl);color:var(--g)}
+.auth-err{background:var(--redp);color:var(--red);border-radius:var(--rsm);padding:9px 12px;font-size:12px;margin-bottom:12px;display:none}
+.auth-err.show{display:block}
+.auth-ok{background:var(--gl);color:var(--g);border-radius:var(--rsm);padding:9px 12px;font-size:12px;margin-bottom:12px;display:none}
+.auth-ok.show{display:block}
+.sb-config-link{display:block;text-align:center;margin-top:16px;font-size:11.5px;color:var(--inkf);cursor:pointer;text-decoration:underline}
+.sb-config-box{display:none;margin-top:14px;padding:14px;background:var(--sur);border-radius:var(--rmd)}
+.sb-config-box.show{display:block}
+
+/* ===== App shell ===== */
+#appShell{display:none;grid-template-columns:224px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
+#appShell.show{display:grid}
+.topbar{grid-column:1/-1;background:var(--gd);color:#fff;display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.logo{font-family:'DM Serif Display',serif;font-size:18px;letter-spacing:-.2px}
+.logo b{color:var(--goldl)}
+.userchip{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px}
+.role-pill{background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:600;text-transform:capitalize}
+.pts-pill{background:var(--goldl);color:#3a2400;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.btn-logout{background:rgba(255,255,255,.14);border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-logout:hover{background:rgba(255,255,255,.24)}
+
+.sidebar{background:#FDFBF7;border-right:1px solid #E4DDD2;padding:14px 0;overflow-y:auto}
+.sb-lbl{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:var(--inkf);text-transform:uppercase;padding:12px 18px 5px}
+.ni{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:2px 8px;border-radius:10px;cursor:pointer;font-size:13px;color:var(--inkl);transition:.15s}
+.ni:hover{background:#F5EFE3;color:var(--inkm)}
+.ni.active{background:var(--goldp);color:#7A4A00;font-weight:600}
+
+.main{overflow-y:auto;padding:26px 30px}
+.page{display:none;max-width:1120px}
+.page.active{display:block}
+.pg-title{font-family:'DM Serif Display',serif;font-size:24px;color:var(--gd);margin-bottom:4px}
+.pg-sub{font-size:13px;color:var(--inkl);margin-bottom:20px;max-width:760px}
+
+/* ===== Cards / metrics ===== */
+.card{background:#fff;border:1px solid #EDE8E0;border-radius:var(--rxl);padding:20px 22px;margin-bottom:16px;box-shadow:var(--sh)}
+.card-t{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card-t .ci{width:24px;height:24px;background:var(--gl);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.mc{background:#fff;border:1px solid #EDE8E0;border-radius:var(--rlg);padding:15px 17px;box-shadow:var(--sh)}
+.mc-l{font-size:10px;color:var(--inkf);text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:6px}
+.mc-v{font-family:'DM Serif Display',serif;font-size:26px;color:var(--gd)}
+
+/* ===== Forms ===== */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.fg1{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+label{font-size:12px;font-weight:600;color:var(--inkm)}
+input,select,textarea{border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:9px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;outline:none;width:100%;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(45,122,58,.10)}
+textarea{resize:vertical}
+.hint{font-size:11.5px;color:var(--inkl);margin-bottom:10px;line-height:1.5}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:var(--rsm);font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-p{background:var(--g);color:#fff;box-shadow:0 2px 8px rgba(45,122,58,.28)}
+.btn-p:hover{background:var(--gd)}
+.btn-g{background:var(--goldl);color:#3a2400}
+.btn-g:hover{background:#d4901a}
+.btn-s{background:#fff;color:var(--inkm);border:1.5px solid var(--bdr)}
+.btn-s:hover{background:var(--sur)}
+.btn-d{background:var(--redp);color:var(--red)}
+.btn-d:hover{background:#f6d8d5}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+
+/* ===== Chips / pills ===== */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--gl);color:var(--g);margin:2px 4px 2px 0}
+.chip .x{cursor:pointer;opacity:.6;font-weight:700}
+.chip .x:hover{opacity:1}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700}
+.pill-draft{background:var(--ambp);color:var(--amb)}
+.pill-final{background:var(--gl);color:var(--g)}
+.pill-active{background:var(--bluep);color:var(--blue)}
+.pill-achieved{background:var(--gl);color:var(--g)}
+.pill-missed{background:var(--redp);color:var(--red)}
+
+/* ===== Tables ===== */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;padding:9px 10px;background:#FAF7F1;color:var(--inkl);font-weight:700;border-bottom:2px solid var(--bdr);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px}
+.tbl td{padding:10px 10px;border-bottom:1px solid var(--bdr);vertical-align:top}
+.tbl tr:hover td{background:#FBF9F5}
+.twrap{overflow-x:auto;border-radius:var(--rsm);border:1px solid var(--bdr)}
+
+/* ===== Tabs (paste/upload) ===== */
+.tabs{display:flex;border-bottom:2px solid var(--bdr);margin-bottom:14px}
+.tab{padding:8px 16px;font-size:12.5px;font-weight:600;color:var(--inkl);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab.on{color:var(--g);border-bottom-color:var(--g)}
+.tab-pane{display:none}
+.tab-pane.on{display:block}
+.dz{border:2px dashed var(--bdrs);border-radius:var(--rmd);padding:20px;text-align:center;cursor:pointer;background:#FAFAF7;position:relative}
+.dz:hover,.dz.over{border-color:var(--g);background:var(--gl)}
+.dz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:24px;margin-bottom:6px}
+.dz-t{font-size:13px;font-weight:600;color:var(--inkm)}
+.dz-s{font-size:11px;color:var(--inkl)}
+.file-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.file-item{display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--gl);border-radius:var(--rsm);font-size:12px;font-weight:500;color:var(--inkm)}
+.file-item .fi-rm{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--inkl);font-size:14px}
+
+/* ===== Section editor ===== */
+.sec-block{border:1.5px solid var(--bdr);border-radius:var(--rmd);padding:14px 16px;margin-bottom:12px;background:#FDFDFB}
+.sec-block.missing{border-color:var(--red);background:var(--redp)}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+.sec-lbl{font-size:13px;font-weight:700;color:var(--gd)}
+.sec-guide{font-size:11px;color:var(--inkf);font-style:italic;margin-bottom:8px}
+.sec-block textarea{min-height:90px;font-size:13px;line-height:1.55}
+
+/* ===== Steps ===== */
+.steps{display:flex;margin-bottom:24px}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;top:11px;left:50%;width:100%;height:2px;background:var(--bdr);z-index:0}
+.step.done::after,.step.active::after{background:var(--g)}
+.sd{width:22px;height:22px;border-radius:50%;border:2px solid var(--bdr);background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--inkl);position:relative;z-index:1}
+.step.done .sd{background:var(--g);border-color:var(--g);color:#fff}
+.step.active .sd{border-color:var(--g);color:var(--g);box-shadow:0 0 0 4px rgba(45,122,58,.14)}
+.sl{font-size:10px;font-weight:600;color:var(--inkl);margin-top:5px;text-align:center}
+.step.done .sl,.step.active .sl{color:var(--g)}
+
+/* ===== Rewards ===== */
+.rw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.rw-card{border-radius:var(--rlg);padding:16px;text-align:center;border:1.5px solid var(--bdr);background:#fff}
+.rw-card.earned{background:linear-gradient(160deg,#FEF9E6,#FDF1CA);border-color:var(--goldl)}
+.rw-card.locked{opacity:.4;filter:grayscale(.7)}
+.rw-icon{font-size:30px;margin-bottom:6px}
+.rw-title{font-size:12.5px;font-weight:700;color:var(--ink)}
+.rw-desc{font-size:11px;color:var(--inkl);margin-top:3px}
+.rw-pts{margin-top:7px;font-size:11px;font-weight:700;color:var(--gold)}
+.hasanat-banner{background:linear-gradient(120deg,var(--gd),#2D5240);color:#fff;border-radius:var(--rxl);padding:26px 28px;margin-bottom:20px;text-align:center}
+.hasanat-num{font-family:'DM Serif Display',serif;font-size:44px;color:var(--goldl)}
+.hasanat-lbl{font-size:12px;opacity:.8;letter-spacing:.5px;text-transform:uppercase}
+.motiv-line{margin-top:10px;font-size:13px;font-style:italic;opacity:.92}
+
+/* ===== Misc ===== */
+.empty{text-align:center;padding:40px 20px;color:var(--inkf);font-size:13px}
+.divider{height:1px;background:var(--bdr);margin:16px 0}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none}
+.spin.show{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.list-item{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--bdr)}
+.list-item:last-child{border-bottom:none}
+.clickable{cursor:pointer}
+.clickable:hover{color:var(--g)}
+.two-col{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}#appShell{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* ===== Toast ===== */
+#toast{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.tmsg{background:var(--gd);color:#fff;padding:11px 18px;border-radius:var(--rsm);font-size:13px;box-shadow:var(--shm);max-width:340px;animation:slidein .2s ease}
+.tmsg.err{background:var(--red)}
+@keyframes slidein{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ===== Print ===== */
+#printArea{display:none}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important;padding:20px}
+  #printArea h1{font-family:'DM Serif Display',serif;color:var(--gd);font-size:22px;margin-bottom:4px}
+  #printArea .pmeta{font-size:12px;color:var(--inkl);margin-bottom:18px}
+  #printArea .psec{margin-bottom:16px;page-break-inside:avoid}
+  #printArea .psec h3{font-size:14px;color:var(--g);border-bottom:2px solid var(--gh);padding-bottom:4px;margin-bottom:6px}
+  #printArea .psec p{font-size:12.5px;white-space:pre-wrap;line-height:1.6}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH SCREEN ================= -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo"><span class="m">🕌</span></div>
+    <div class="auth-title">Holistify Islamic Studies</div>
+    <div class="auth-sub">Lesson plans, tracked outcomes, and a pathway to Jannah</div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab on" id="tabLoginBtn" onclick="switchAuthTab('login')">Log In</div>
+      <div class="auth-tab" id="tabSignupBtn" onclick="switchAuthTab('signup')">Sign Up</div>
+    </div>
+
+    <div class="auth-err" id="authErr"></div>
+    <div class="auth-ok" id="authOk"></div>
+
+    <!-- Login -->
+    <div class="auth-pane on" id="paneLogin">
+      <div class="fg1"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com"></div>
+      <div class="fg1"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleLogin()">
+        <span class="spin" id="loginSpin"></span><span id="loginBtnTxt">Log In</span>
+      </button>
+    </div>
+
+    <!-- Signup -->
+    <div class="auth-pane" id="paneSignup">
+      <div class="fg1"><label>I am a...</label>
+        <div class="role-toggle">
+          <div class="role-opt on" id="roleFacBtn" onclick="pickRole('facilitator')">🧑‍🏫 Facilitator</div>
+          <div class="role-opt" id="roleStuBtn" onclick="pickRole('student')">🎓 Student</div>
+        </div>
+      </div>
+      <div class="fg1"><label>Full Name</label><input id="suName" placeholder="e.g. Ustadha Amina"></div>
+      <div class="fg1"><label>Email</label><input id="suEmail" type="email" placeholder="you@example.com"></div>
+      <div class="fg1"><label>Password</label><input id="suPassword" type="password" placeholder="At least 6 characters"></div>
+      <div class="fg1" id="suClassWrap" style="display:none"><label>Class / Group</label><input id="suClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleSignup()">
+        <span class="spin" id="suSpin"></span><span id="suBtnTxt">Create Account</span>
+      </button>
+    </div>
+
+    <div class="sb-config-link" onclick="toggleSbConfig()">⚙ Configure Supabase connection (local testing)</div>
+    <div class="sb-config-box" id="sbConfigBox">
+      <div class="fg1"><label>Supabase URL</label><input id="cfgSbUrl" placeholder="https://xxxx.supabase.co"></div>
+      <div class="fg1"><label>Supabase Anon Key</label><input id="cfgSbKey" placeholder="eyJhbGciOi..."></div>
+      <button class="btn btn-s btn-sm" onclick="saveSbConfig()">Save &amp; Reload</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="appShell">
+  <header class="topbar">
+    <div class="logo">🕌 Holistify <b>Islamic Studies</b></div>
+    <div class="userchip">
+      <span class="role-pill" id="topRolePill">—</span>
+      <span class="pts-pill" id="topPtsPill" style="display:none">✨ 0 Hasanat</span>
+      <span id="topUserName">—</span>
+      <button class="btn-logout" onclick="handleLogout()">⏻ Logout</button>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main" id="mainArea">
+
+    <!-- ===== FACILITATOR: OVERVIEW ===== -->
+    <div class="page" id="page-overview">
+      <div class="pg-title">Overview</div>
+      <div class="pg-sub">A snapshot of your curricula, formats, plans and students.</div>
+      <div class="metrics">
+        <div class="mc"><div class="mc-l">Curricula</div><div class="mc-v" id="ov-curricula">0</div></div>
+        <div class="mc"><div class="mc-l">Lesson Plan Formats</div><div class="mc-v" id="ov-formats">0</div></div>
+        <div class="mc"><div class="mc-l">Saved Plans</div><div class="mc-v" id="ov-plans">0</div></div>
+        <div class="mc"><div class="mc-l">Students</div><div class="mc-v" id="ov-students">0</div></div>
+      </div>
+      <div class="card">
+        <div class="card-t"><div class="ci">🚀</div>Get started</div>
+        <p class="hint">1. Add a curriculum with chapters &amp; learning outcomes. 2. Design (or upload a sample of) your lesson plan format. 3. Head to Generate Lesson Plan to produce a plan in your own format, ready to save and share.</p>
+        <div class="btn-row">
+          <button class="btn btn-p" onclick="goPage('curricula')">📚 Add Curriculum</button>
+          <button class="btn btn-s" onclick="goPage('formats')">🧩 Design Format</button>
+          <button class="btn btn-s" onclick="goPage('generator')">✨ Generate a Plan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FACILITATOR: CURRICULA ===== -->
+    <div class="page" id="page-curricula">
+      <div class="pg-title">Curricula</div>
+      <div class="pg-sub">Define chapters and their learning outcomes — manually, or by uploading/pasting a document for AI to structure.</div>
+
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <div class="card-t"><div class="ci">➕</div>New Curriculum</div>
+            <div class="fg1"><label>Title</label><input id="curTitle" placeholder="e.g. Grade 6 Islamic Studies"></div>
+            <div class="fg1"><label>Description</label><textarea id="curDesc" rows="2" placeholder="Optional summary"></textarea></div>
+            <button class="btn btn-p" style="width:100%;justify-content:center" onclick="createCurriculum()">Create Curriculum</button>
+          </div>
+          <div class="card">
+            <div class="card-t"><div class="ci">📚</div>Your Curricula</div>
+            <div id="curriculaList"><div class="empty">No curricula yet.</div></div>
+          </div>
+        </div>
+
+        <div id="curriculumDetail">
+          <div class="card"><div class="empty">Select or create a curriculum to manage its chapters.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FACILITATOR: LESSON PLAN FORMATS ===== -->
+    <div class="page" id="page-formats">
+      <div class="pg-title">Lesson Plan Formats</div>
+      <div class="pg-sub">Build the exact structure you want every lesson plan to follow — your own template, your own pedagogy.</div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-t"><div class="ci">🧩</div>Saved Formats</div>
+          <div id="formatsList"><div class="empty">No formats yet.</div></div>
+          <button class="btn btn-p btn-sm" style="width:100%;justify-content:center;margin-top:10px" onclick="newFormatBuilder()">➕ New Format</button>
+        </div>
+
+        <div class="card">
+          <div class="card-t"><div class="ci">✏️</div><span id="fmtBuilderTitle">Format Builder</span></div>
+
+          <div class="tabs">
+            <div class="tab on" id="fmtTabManual" onclick="switchFmtTab('manual')">🛠 Build Manually</div>
+            <div class="tab" id="fmtTabAI" onclick="switchFmtTab('ai')">🤖 Infer from Sample</div>
+          </div>
+
+          <div class="tab-pane on" id="fmtPaneManual">
+            <div class="fg1"><label>Format Name</label><input id="fmtName" placeholder="e.g. Holistify 5E Islamic Studies Format"></div>
+            <div class="fg1"><label>Facilitator Philosophy / Instructions to AI (optional)</label>
+              <textarea id="fmtPhilosophy" rows="3" placeholder="e.g. Every lesson should connect the topic to a practical akhlaq (character) application, use age-appropriate language, and end with a short dua."></textarea>
+            </div>
+            <label>Sections (in order)</label>
+            <div id="fmtSections"></div>
+            <button class="btn btn-s btn-sm" onclick="addFmtSectionRow()">➕ Add Section</button>
+            <div class="btn-row">
+              <label style="display:flex;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="fmtIsDefault" style="width:auto"> Set as default format</label>
+            </div>
+            <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:12px" onclick="saveFormat()">💾 Save Format</button>
+          </div>
+
+          <div class="tab-pane" id="fmtPaneAI">
+            <p class="hint">Paste or upload a sample lesson plan you already like. Claude will infer its section structure so you can review and save it as a reusable format.</p>
+            <div class="tabs">
+              <div class="tab on" onclick="switchInnerTab('fmt',this,'paste')">📋 Paste</div>
+              <div class="tab" onclick="switchInnerTab('fmt',this,'upload')">📁 Upload</div>
+            </div>
+            <div class="tab-pane on" id="fmt-paste"><textarea id="fmtSampleText" rows="10" placeholder="Paste a sample lesson plan here..."></textarea></div>
+            <div class="tab-pane" id="fmt-upload">
+              <div class="dz" id="fmtDropZone">
+                <input type="file" id="fmtFileInput" multiple accept=".docx,.txt,.doc" onchange="handleFmtFiles(this.files)">
+                <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div>
+              </div>
+              <div class="file-list" id="fmtFileList"></div>
+            </div>
+            <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:10px" onclick="extractFormatFromSample()">
+              <span class="spin" id="fmtExtractSpin"></span><span id="fmtExtractTxt">🔍 Infer Format Structure</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FACILITATOR: GENERATOR ===== -->
+    <div class="page" id="page-generator">
+      <div class="pg-title">Generate Lesson Plan</div>
+      <div class="pg-sub">Pick your source material and format, then let Claude draft a full lesson plan in your exact structure.</div>
+
+      <div class="steps">
+        <div class="step active" id="gs1"><div class="sd">1</div><div class="sl">Source</div></div>
+        <div class="step" id="gs2"><div class="sd">2</div><div class="sl">Content</div></div>
+        <div class="step" id="gs3"><div class="sd">3</div><div class="sl">Format</div></div>
+        <div class="step" id="gs4"><div class="sd">4</div><div class="sl">Generate</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t"><div class="ci">🔑</div>Anthropic API Key</div>
+        <input id="apiKey" type="password" placeholder="sk-ant-...">
+        <div class="hint" style="margin-top:6px">Stored only in this browser (localStorage). Used to call Claude via the local proxy.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-t"><div class="ci">📖</div>Source</div>
+        <div class="fg">
+          <div class="fg1"><label>Curriculum</label><select id="genCurriculum" onchange="onGenCurriculumChange()"><option value="">— Custom topic (no curriculum) —</option></select></div>
+          <div class="fg1"><label>Chapter</label><select id="genChapter" onchange="onGenChapterChange()"><option value="">—</option></select></div>
+        </div>
+        <div class="fg1"><label>Lesson / Topic Title</label><input id="genTitle" placeholder="e.g. The Pillars of Islam — Salah"></div>
+        <div class="fg">
+          <div class="fg1"><label>Grade / Age Group (optional)</label><input id="genGrade" placeholder="e.g. Grade 6, ages 11-12"></div>
+          <div class="fg1"><label>Target Class (optional — leave blank to show all students)</label><input id="genClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+        </div>
+        <div class="fg1"><label>Learning Outcomes (one per line)</label><textarea id="genOutcomes" rows="4" placeholder="Students will be able to..."></textarea></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t"><div class="ci">📂</div>Content / Topics to Teach</div>
+        <div class="tabs">
+          <div class="tab on" onclick="switchInnerTab('gen',this,'paste')">📋 Paste</div>
+          <div class="tab" onclick="switchInnerTab('gen',this,'upload')">📁 Upload</div>
+        </div>
+        <div class="tab-pane on" id="gen-paste"><textarea id="genContent" rows="8" placeholder="Paste the content, notes, textbook excerpt or list of topics to be taught..."></textarea></div>
+        <div class="tab-pane" id="gen-upload">
+          <div class="dz" id="genDropZone">
+            <input type="file" id="genFileInput" multiple accept=".docx,.txt,.doc" onchange="handleGenFiles(this.files)">
+            <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div>
+          </div>
+          <div class="file-list" id="genFileList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-t"><div class="ci">🧩</div>Lesson Plan Format</div>
+        <div class="fg1"><label>Format</label><select id="genFormat" onchange="onGenFormatChange()"><option value="">— Select a format —</option></select></div>
+        <div id="genFormatPreview"></div>
+      </div>
+
+      <div class="card">
+        <button class="btn btn-p" id="genBtn" style="width:100%;justify-content:center" onclick="generateLessonPlan()">
+          <span class="spin" id="genSpin"></span><span id="genBtnTxt">✨ Generate Lesson Plan</span>
+        </button>
+      </div>
+
+      <div id="genPreviewWrap" style="display:none">
+        <div class="card">
+          <div class="card-t"><div class="ci">👁️</div>Generated Lesson Plan — Review &amp; Edit</div>
+          <div id="genSectionsPreview"></div>
+        </div>
+        <div class="card">
+          <div class="btn-row">
+            <button class="btn btn-p" onclick="savePlan('draft')">💾 Save as Draft</button>
+            <button class="btn btn-p" style="background:var(--g)" onclick="savePlan('final')">✅ Save as Final</button>
+            <button class="btn btn-s" onclick="exportPDF(currentGeneration)">🖨️ Export PDF</button>
+            <button class="btn btn-s" onclick="exportDocx(currentGeneration)">📄 Export Word</button>
+            <button class="btn btn-s" onclick="exportPptx(currentGeneration)">📊 Export PPT</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FACILITATOR: SAVED PLANS ===== -->
+    <div class="page" id="page-plans">
+      <div class="pg-title">Saved Lesson Plans</div>
+      <div class="pg-sub">Reopen, edit, export or delete plans you've generated.</div>
+      <div class="card">
+        <div class="fg">
+          <div class="fg1"><label>Curriculum</label><select id="plFilterCurriculum" onchange="loadSavedPlans()"><option value="">All</option></select></div>
+          <div class="fg1"><label>Status</label><select id="plFilterStatus" onchange="loadSavedPlans()"><option value="">All</option><option value="draft">Draft</option><option value="final">Final</option></select></div>
+        </div>
+      </div>
+      <div class="card"><div id="savedPlansList"><div class="empty">No saved plans yet.</div></div></div>
+    </div>
+
+    <!-- ===== FACILITATOR: STUDENTS & REWARDS ===== -->
+    <div class="page" id="page-students">
+      <div class="pg-title">Students &amp; Rewards</div>
+      <div class="pg-sub">Track each student's goals, reflections, and Islamic-themed rewards.</div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-t"><div class="ci">🎓</div>Students</div>
+          <div id="studentsList"><div class="empty">No students yet.</div></div>
+        </div>
+        <div class="card" id="studentDetail"><div class="empty">Select a student to view their progress.</div></div>
+      </div>
+    </div>
+
+    <!-- ===== FACILITATOR: REPORTS ===== -->
+    <div class="page" id="page-reports">
+      <div class="pg-title">Achievement &amp; Reflection Reports</div>
+      <div class="pg-sub">Generate a report combining goals achieved, reflections, and rewards for a student.</div>
+      <div class="card">
+        <div class="fg">
+          <div class="fg1"><label>Student</label><select id="rptStudent"></select></div>
+          <div class="fg1"><label>From</label><input type="date" id="rptFrom"></div>
+          <div class="fg1"><label>To</label><input type="date" id="rptTo"></div>
+        </div>
+        <button class="btn btn-p" onclick="generateReport()">📊 Generate Report</button>
+      </div>
+      <div id="reportOutput"></div>
+    </div>
+
+    <!-- ===== STUDENT: MY LESSONS ===== -->
+    <div class="page" id="page-my-lessons">
+      <div class="pg-title">My Lessons</div>
+      <div class="pg-sub">Lessons shared by your facilitator. Open one to set a goal or add a reflection.</div>
+      <div id="myLessonsList"><div class="empty">No lessons yet.</div></div>
+      <div id="lessonViewer"></div>
+    </div>
+
+    <!-- ===== STUDENT: MY GOALS ===== -->
+    <div class="page" id="page-my-goals">
+      <div class="pg-title">My Goals</div>
+      <div class="pg-sub">Personal goals for applying what you've learned in real life.</div>
+      <div id="myGoalsList"><div class="empty">No goals yet — open a lesson to set your first one.</div></div>
+    </div>
+
+    <!-- ===== STUDENT: MY REFLECTIONS ===== -->
+    <div class="page" id="page-my-reflections">
+      <div class="pg-title">My Reflections</div>
+      <div class="pg-sub">Your reflection journal.</div>
+      <div id="myReflectionsList"><div class="empty">No reflections yet.</div></div>
+    </div>
+
+    <!-- ===== STUDENT: MY REWARDS ===== -->
+    <div class="page" id="page-my-rewards">
+      <div class="pg-title">Pathway to Jannah</div>
+      <div class="pg-sub">Every good deed is a step forward. Keep learning, reflecting, and applying it in your life.</div>
+      <div class="hasanat-banner">
+        <div class="hasanat-num" id="hasanatTotal">0</div>
+        <div class="hasanat-lbl">Hasanat Earned</div>
+        <div class="motiv-line" id="motivLine"></div>
+      </div>
+      <div class="card">
+        <div class="card-t"><div class="ci">🏅</div>Badges</div>
+        <div class="rw-grid" id="rewardsGrid"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="printArea"></div>
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// SUPABASE SETUP
+// ════════════════════════════════════════════════════════════════════════
+var _SB_URL = '__IS_SUPABASE_URL__';
+var _SB_KEY = '__IS_SUPABASE_ANON_KEY__';
+var sb = null;
+
+function sbConfigured(){
+  var u = _SB_URL.indexOf('supabase.co') >= 0 ? _SB_URL : (localStorage.getItem('is_sb_url')||'');
+  var k = _SB_KEY.indexOf('__') === -1 && _SB_KEY.length > 10 ? _SB_KEY : (localStorage.getItem('is_sb_key')||'');
+  return u.indexOf('supabase.co') >= 0 && k.length > 10;
+}
+function sbClient(){
+  if (sb) return sb;
+  var u = _SB_URL.indexOf('supabase.co') >= 0 ? _SB_URL : (localStorage.getItem('is_sb_url')||'');
+  var k = _SB_KEY.indexOf('__') === -1 && _SB_KEY.length > 10 ? _SB_KEY : (localStorage.getItem('is_sb_key')||'');
+  if (u.indexOf('supabase.co') < 0 || k.length < 10) return null;
+  sb = window.supabase.createClient(u, k);
+  return sb;
+}
+function toggleSbConfig(){
+  var box = document.getElementById('sbConfigBox');
+  box.classList.toggle('show');
+  document.getElementById('cfgSbUrl').value = localStorage.getItem('is_sb_url') || '';
+  document.getElementById('cfgSbKey').value = localStorage.getItem('is_sb_key') || '';
+}
+function saveSbConfig(){
+  var u = document.getElementById('cfgSbUrl').value.trim();
+  var k = document.getElementById('cfgSbKey').value.trim();
+  if (!u || !k) return alert('Please enter both the Supabase URL and anon key.');
+  localStorage.setItem('is_sb_url', u);
+  localStorage.setItem('is_sb_key', k);
+  location.reload();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ════════════════════════════════════════════════════════════════════════
+var currentUser = null;      // is_profiles row
+var currentSession = null;
+var curriculaCache = [];
+var chaptersCache = {};      // curriculumId -> [chapters]
+var formatsCache = [];
+var selectedCurriculumId = null;
+var selectedFormatId = null;
+var editingFormatSections = []; // [{key,label,guidance}]
+var editingFormatId = null;
+var extractedChapterRows = [];
+var extractedFormatSections = [];
+var currentGeneration = null;   // {id?, title, chapter_name, target_class, curriculum_id, chapter_id, format_id, learning_outcomes, source_content, sections:[{key,label,guidance,text}], status}
+var studentsCache = [];
+var myGoalsCache = [];
+var myReflectionsCache = [];
+
+var MOTIV_LINES = [
+  "Every good deed, however small, is a step closer to Jannah.",
+  "Consistency in small good deeds is loved more than a burst that fades.",
+  "Your reflections today are seeds you'll see grow tomorrow.",
+  "Sabr (patience) and shukr (gratitude) are two wings — keep using both.",
+  "The best of people are those who benefit others the most.",
+  "Every act of self-improvement is an act of worship when the intention is sincere.",
+  "Small, honest goals kept consistently outweigh big goals abandoned.",
+  "Your character is the lesson plan you write with your own life."
+];
+
+// ════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════════════════════
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
+function toast(msg, type){
+  var t = document.createElement('div');
+  t.className = 'tmsg' + (type === 'err' ? ' err' : '');
+  t.textContent = msg;
+  document.getElementById('toast').appendChild(t);
+  setTimeout(function(){ t.remove(); }, 4200);
+}
+function fmtDate(d){ return d ? new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : ''; }
+function uuidLike(){ return 'k' + Math.random().toString(36).slice(2,10); }
+
+function getApiKey(){ return document.getElementById('apiKey').value.trim() || localStorage.getItem('is_anthropic_key') || ''; }
+document.addEventListener('DOMContentLoaded', function(){
+  var saved = localStorage.getItem('is_anthropic_key');
+  if (saved) document.getElementById('apiKey').value = saved;
+  document.getElementById('apiKey').addEventListener('change', function(){
+    if (this.value.trim()) localStorage.setItem('is_anthropic_key', this.value.trim());
+  });
+});
+
+async function callClaude(system, user, maxTokens){
+  var apiKey = getApiKey();
+  if (!apiKey) throw new Error('Please enter your Anthropic API key first.');
+  var res = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      _apiKey: apiKey,
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens || 4096,
+      system: system,
+      messages: [{ role: 'user', content: user }]
+    })
+  });
+  if (!res.ok) {
+    var err = await res.json().catch(function(){ return {}; });
+    throw new Error((err && err.error && err.error.message) || ('API error ' + res.status));
+  }
+  var data = await res.json();
+  return (data.content && data.content[0] && data.content[0].text) || '';
+}
+function extractJsonArray(text){
+  var m = text.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error('Could not parse a JSON array from the response. Please try again.');
+  return JSON.parse(m[0]);
+}
+
+async function readFileAsText(file){
+  if (file.name.toLowerCase().endsWith('.docx')) {
+    var ab = await file.arrayBuffer();
+    var result = await mammoth.extractRawText({ arrayBuffer: ab });
+    return result.value;
+  }
+  return await file.text();
+}
+
+function switchInnerTab(scope, el, name){
+  var tabsRow = el.parentElement;
+  Array.prototype.forEach.call(tabsRow.children, function(c){ c.classList.remove('on'); });
+  el.classList.add('on');
+  var container = tabsRow.parentElement;
+  Array.prototype.forEach.call(container.querySelectorAll(':scope > .tab-pane'), function(p){ p.classList.remove('on'); });
+  document.getElementById(scope + '-' + name).classList.add('on');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════════════════════
+function switchAuthTab(t){
+  document.getElementById('tabLoginBtn').classList.toggle('on', t === 'login');
+  document.getElementById('tabSignupBtn').classList.toggle('on', t === 'signup');
+  document.getElementById('paneLogin').classList.toggle('on', t === 'login');
+  document.getElementById('paneSignup').classList.toggle('on', t === 'signup');
+  hideAuthMsgs();
+}
+var pickedRole = 'facilitator';
+function pickRole(r){
+  pickedRole = r;
+  document.getElementById('roleFacBtn').classList.toggle('on', r === 'facilitator');
+  document.getElementById('roleStuBtn').classList.toggle('on', r === 'student');
+  document.getElementById('suClassWrap').style.display = r === 'student' ? 'block' : 'none';
+}
+function showAuthErr(msg){
+  var e = document.getElementById('authErr');
+  e.textContent = msg; e.classList.add('show');
+  document.getElementById('authOk').classList.remove('show');
+}
+function showAuthOk(msg){
+  var o = document.getElementById('authOk');
+  o.textContent = msg; o.classList.add('show');
+  document.getElementById('authErr').classList.remove('show');
+}
+function hideAuthMsgs(){
+  document.getElementById('authErr').classList.remove('show');
+  document.getElementById('authOk').classList.remove('show');
+}
+
+async function handleSignup(){
+  hideAuthMsgs();
+  var client = sbClient();
+  if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
+  var name = document.getElementById('suName').value.trim();
+  var email = document.getElementById('suEmail').value.trim();
+  var password = document.getElementById('suPassword').value;
+  var className = document.getElementById('suClass').value.trim();
+  if (!name || !email || !password) return showAuthErr('Please fill in your name, email and password.');
+  if (password.length < 6) return showAuthErr('Password must be at least 6 characters.');
+
+  document.getElementById('suSpin').classList.add('show');
+  document.getElementById('suBtnTxt').textContent = 'Creating account…';
+  try {
+    var { data, error } = await client.auth.signUp({
+      email: email, password: password,
+      options: { data: { full_name: name, role: pickedRole, class_name: pickedRole === 'student' ? className : '' } }
+    });
+    if (error) throw error;
+    if (data.session) {
+      await onAuthed(data.session);
+    } else {
+      switchAuthTab('login');
+      showAuthOk('Account created! Please check your email to confirm, then log in.');
+    }
+  } catch (err) {
+    showAuthErr(err.message || 'Could not sign up.');
+  } finally {
+    document.getElementById('suSpin').classList.remove('show');
+    document.getElementById('suBtnTxt').textContent = 'Create Account';
+  }
+}
+
+async function handleLogin(){
+  hideAuthMsgs();
+  var client = sbClient();
+  if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
+  var email = document.getElementById('loginEmail').value.trim();
+  var password = document.getElementById('loginPassword').value;
+  if (!email || !password) return showAuthErr('Please enter your email and password.');
+
+  document.getElementById('loginSpin').classList.add('show');
+  document.getElementById('loginBtnTxt').textContent = 'Logging in…';
+  try {
+    var { data, error } = await client.auth.signInWithPassword({ email: email, password: password });
+    if (error) throw error;
+    await onAuthed(data.session);
+  } catch (err) {
+    showAuthErr(err.message || 'Could not log in.');
+  } finally {
+    document.getElementById('loginSpin').classList.remove('show');
+    document.getElementById('loginBtnTxt').textContent = 'Log In';
+  }
+}
+
+async function handleLogout(){
+  var client = sbClient();
+  if (client) await client.auth.signOut();
+  currentUser = null; currentSession = null;
+  document.getElementById('appShell').classList.remove('show');
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+async function onAuthed(session){
+  currentSession = session;
+  var client = sbClient();
+  var profile = null;
+  for (var i = 0; i < 6; i++) {
+    var res = await client.from('is_profiles').select('*').eq('id', session.user.id).maybeSingle();
+    if (res.data) { profile = res.data; break; }
+    await new Promise(function(r){ setTimeout(r, 500); });
+  }
+  if (!profile) {
+    showAuthErr('Signed in, but your profile is still being created. Please try logging in again in a few seconds.');
+    return;
+  }
+  currentUser = profile;
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('show');
+  document.getElementById('topUserName').textContent = profile.full_name || profile.email;
+  document.getElementById('topRolePill').textContent = profile.role;
+  await initRoleUI();
+}
+
+async function restoreSession(){
+  var client = sbClient();
+  if (!client) return;
+  var { data } = await client.auth.getSession();
+  if (data && data.session) await onAuthed(data.session);
+  client.auth.onAuthStateChange(function(event, session){
+    if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      document.getElementById('appShell').classList.remove('show');
+      document.getElementById('authScreen').style.display = 'flex';
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// NAVIGATION / ROLE UI
+// ════════════════════════════════════════════════════════════════════════
+var FAC_NAV = [
+  {p:'overview', ic:'🏠', l:'Overview'},
+  {p:'curricula', ic:'📚', l:'Curricula'},
+  {p:'formats', ic:'🧩', l:'Lesson Plan Formats'},
+  {p:'generator', ic:'✨', l:'Generate Lesson Plan'},
+  {p:'plans', ic:'💾', l:'Saved Plans'},
+  {p:'students', ic:'🎓', l:'Students & Rewards'},
+  {p:'reports', ic:'📊', l:'Reports'}
+];
+var STU_NAV = [
+  {p:'my-lessons', ic:'📖', l:'My Lessons'},
+  {p:'my-goals', ic:'🎯', l:'My Goals'},
+  {p:'my-reflections', ic:'📝', l:'My Reflections'},
+  {p:'my-rewards', ic:'🕌', l:'Pathway to Jannah'}
+];
+
+async function initRoleUI(){
+  var nav = currentUser.role === 'facilitator' ? FAC_NAV : STU_NAV;
+  var sb_ = document.getElementById('sidebar');
+  sb_.innerHTML = '<div class="sb-lbl">' + (currentUser.role === 'facilitator' ? 'Facilitator' : 'Student') + '</div>' +
+    nav.map(function(n){ return '<div class="ni" id="nav-' + n.p + '" onclick="goPage(\'' + n.p + '\')"><span>' + n.ic + '</span>' + n.l + '</div>'; }).join('');
+
+  if (currentUser.role === 'student') {
+    document.getElementById('topPtsPill').style.display = 'inline-block';
+    await refreshHasanatPill();
+  }
+
+  if (currentUser.role === 'facilitator') {
+    await loadCurricula();
+    await loadFormats();
+    await refreshOverviewStats();
+    goPage('overview');
+  } else {
+    await loadMyLessons();
+    goPage('my-lessons');
+  }
+}
+
+function goPage(id){
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.ni').forEach(function(n){ n.classList.remove('active'); });
+  var page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  var nav = document.getElementById('nav-' + id);
+  if (nav) nav.classList.add('active');
+
+  if (id === 'plans') loadSavedPlans();
+  if (id === 'students') loadStudentsPage();
+  if (id === 'reports') loadReportsPage();
+  if (id === 'my-goals') loadMyGoals();
+  if (id === 'my-reflections') loadMyReflections();
+  if (id === 'my-rewards') loadMyRewards();
+}
+
+async function refreshOverviewStats(){
+  var client = sbClient();
+  var [cur, fmt, plans, students] = await Promise.all([
+    client.from('is_curricula').select('id', {count:'exact', head:true}),
+    client.from('is_lesson_plan_formats').select('id', {count:'exact', head:true}),
+    client.from('is_lesson_plans').select('id', {count:'exact', head:true}),
+    client.from('is_profiles').select('id', {count:'exact', head:true}).eq('role','student')
+  ]);
+  document.getElementById('ov-curricula').textContent = cur.count || 0;
+  document.getElementById('ov-formats').textContent = fmt.count || 0;
+  document.getElementById('ov-plans').textContent = plans.count || 0;
+  document.getElementById('ov-students').textContent = students.count || 0;
+}
+
+async function refreshHasanatPill(){
+  var client = sbClient();
+  var { data } = await client.from('is_rewards').select('points').eq('student_id', currentUser.id);
+  var total = (data || []).reduce(function(s,r){ return s + (r.points||0); }, 0);
+  document.getElementById('topPtsPill').textContent = '✨ ' + total + ' Hasanat';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CURRICULA & CHAPTERS
+// ════════════════════════════════════════════════════════════════════════
+async function loadCurricula(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_curricula').select('*').order('created_at', {ascending:false});
+  if (error) { toast('Error loading curricula: ' + error.message, 'err'); return; }
+  curriculaCache = data || [];
+  renderCurriculaList();
+  populateCurriculumSelects();
+}
+function renderCurriculaList(){
+  var el = document.getElementById('curriculaList');
+  if (!curriculaCache.length) { el.innerHTML = '<div class="empty">No curricula yet.</div>'; return; }
+  el.innerHTML = curriculaCache.map(function(c){
+    return '<div class="list-item clickable" onclick="selectCurriculum(\'' + c.id + '\')">' +
+      '<div><strong>' + esc(c.title) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + esc(c.description||'') + '</span></div>' +
+      '<button class="btn btn-d btn-sm" onclick="event.stopPropagation();deleteCurriculum(\'' + c.id + '\')">🗑</button></div>';
+  }).join('');
+}
+async function createCurriculum(){
+  var title = document.getElementById('curTitle').value.trim();
+  var desc = document.getElementById('curDesc').value.trim();
+  if (!title) return alert('Please enter a curriculum title.');
+  var client = sbClient();
+  var { data, error } = await client.from('is_curricula').insert({ title:title, description:desc, created_by: currentUser.id }).select().single();
+  if (error) return toast('Error: ' + error.message, 'err');
+  document.getElementById('curTitle').value = ''; document.getElementById('curDesc').value = '';
+  toast('Curriculum created.');
+  await loadCurricula();
+  selectCurriculum(data.id);
+  refreshOverviewStats();
+}
+async function deleteCurriculum(id){
+  if (!confirm('Delete this curriculum and all its chapters?')) return;
+  var client = sbClient();
+  await client.from('is_curriculum_chapters').delete().eq('curriculum_id', id);
+  await client.from('is_curricula').delete().eq('id', id);
+  toast('Curriculum deleted.');
+  if (selectedCurriculumId === id) { selectedCurriculumId = null; document.getElementById('curriculumDetail').innerHTML = '<div class="card"><div class="empty">Select or create a curriculum to manage its chapters.</div></div>'; }
+  await loadCurricula();
+  refreshOverviewStats();
+}
+
+async function selectCurriculum(id){
+  selectedCurriculumId = id;
+  var cur = curriculaCache.find(function(c){ return c.id === id; });
+  if (!cur) return;
+  var client = sbClient();
+  var { data, error } = await client.from('is_curriculum_chapters').select('*').eq('curriculum_id', id).order('sequence');
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  chaptersCache[id] = data || [];
+  renderCurriculumDetail(cur, data || []);
+}
+
+function renderCurriculumDetail(cur, chapters){
+  var html = '<div class="card">' +
+    '<div class="card-t"><div class="ci">📖</div>' + esc(cur.title) + '</div>';
+
+  html += '<div class="tabs"><div class="tab on" onclick="switchInnerTab(\'ch\',this,\'manual\')">✍️ Add Manually</div><div class="tab" onclick="switchInnerTab(\'ch\',this,\'ai\')">🤖 Extract from Document</div></div>';
+
+  html += '<div class="tab-pane on" id="ch-manual">' +
+    '<div class="fg1"><label>Chapter Title</label><input id="chTitle" placeholder="e.g. Chapter 3: The Five Pillars"></div>' +
+    '<div class="fg1"><label>Learning Outcomes (one per line)</label><textarea id="chLOs" rows="4" placeholder="Students will be able to..."></textarea></div>' +
+    '<button class="btn btn-p btn-sm" onclick="addChapterManual()">➕ Add Chapter</button></div>';
+
+  html += '<div class="tab-pane" id="ch-ai">' +
+    '<p class="hint">Paste your syllabus/textbook table of contents, or upload a document. Claude will structure it into chapters with learning outcomes for you to review before saving.</p>' +
+    '<div class="tabs"><div class="tab on" onclick="switchInnerTab(\'chx\',this,\'paste\')">📋 Paste</div><div class="tab" onclick="switchInnerTab(\'chx\',this,\'upload\')">📁 Upload</div></div>' +
+    '<div class="tab-pane on" id="chx-paste"><textarea id="chExtractText" rows="8" placeholder="Paste syllabus text..."></textarea></div>' +
+    '<div class="tab-pane" id="chx-upload"><div class="dz" id="chDropZone"><input type="file" id="chFileInput" multiple accept=".docx,.txt,.doc" onchange="handleChFiles(this.files)"><div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div></div><div class="file-list" id="chFileList"></div></div>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="extractChapters()"><span class="spin" id="chExtractSpin"></span><span id="chExtractTxt">🔍 Extract Chapters</span></button>' +
+    '<div id="chExtractReview"></div></div>';
+
+  html += '<div class="divider"></div><label>Chapters (' + chapters.length + ')</label>';
+  html += chapters.length ? chapters.map(function(ch){
+    var los = (ch.learning_outcomes||[]).map(function(lo){ return '<span class="chip">' + esc(lo) + '</span>'; }).join('');
+    return '<div class="list-item"><div><strong>' + esc(ch.title) + '</strong><div style="margin-top:6px">' + los + '</div></div>' +
+      '<button class="btn btn-d btn-sm" onclick="deleteChapter(\'' + ch.id + '\',\'' + cur.id + '\')">🗑</button></div>';
+  }).join('') : '<div class="empty">No chapters yet.</div>';
+
+  html += '</div>';
+  document.getElementById('curriculumDetail').innerHTML = html;
+  chFiles = [];
+}
+
+async function addChapterManual(){
+  var title = document.getElementById('chTitle').value.trim();
+  var losRaw = document.getElementById('chLOs').value.trim();
+  if (!title) return alert('Please enter a chapter title.');
+  var los = losRaw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  var client = sbClient();
+  var seq = (chaptersCache[selectedCurriculumId] || []).length;
+  var { error } = await client.from('is_curriculum_chapters').insert({ curriculum_id: selectedCurriculumId, title: title, sequence: seq, learning_outcomes: los });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Chapter added.');
+  selectCurriculum(selectedCurriculumId);
+}
+async function deleteChapter(id, curId){
+  if (!confirm('Delete this chapter?')) return;
+  await sbClient().from('is_curriculum_chapters').delete().eq('id', id);
+  toast('Chapter deleted.');
+  selectCurriculum(curId);
+}
+
+var chFiles = [];
+async function handleChFiles(files){
+  for (var i=0;i<files.length;i++){
+    var f = files[i];
+    try { var text = await readFileAsText(f); chFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+  }
+  renderChFileList();
+}
+function renderChFileList(){
+  var el = document.getElementById('chFileList');
+  if (!el) return;
+  el.innerHTML = chFiles.map(function(f,i){ return '<div class="file-item">📄 ' + esc(f.name) + '<button class="fi-rm" onclick="chFiles.splice(' + i + ',1);renderChFileList()">✕</button></div>'; }).join('');
+}
+
+async function extractChapters(){
+  var pasted = document.getElementById('chExtractText').value.trim();
+  var content = pasted;
+  chFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
+  if (!content.trim()) return alert('Please paste text or upload a file first.');
+  var apiKey = getApiKey();
+  if (!apiKey) return alert('Please enter your Anthropic API key on the Generate Lesson Plan page first — it is shared across the app.');
+
+  document.getElementById('chExtractSpin').classList.add('show');
+  document.getElementById('chExtractTxt').textContent = 'Extracting…';
+  try {
+    var sys = 'You are an expert Islamic Studies curriculum designer. Read raw syllabus/textbook content and structure it into chapters with clear, measurable learning outcomes. Return ONLY a valid JSON array, no markdown fences, no explanation.';
+    var usr = 'Structure the following content into a JSON array of chapters. Each element must have exactly these keys: "title" (chapter name) and "learning_outcomes" (array of 3-6 concise, measurable learning outcome strings, phrased as "Students will be able to..."). Preserve the original order.\n\n--- CONTENT ---\n' + content + '\n--- END ---';
+    var text = await callClaude(sys, usr, 4096);
+    extractedChapterRows = extractJsonArray(text).map(function(r){ return { title:r.title||'', learning_outcomes:(r.learning_outcomes||[]).join('\n'), include:true }; });
+    renderChapterExtractReview();
+  } catch(err) {
+    toast('Extraction failed: ' + err.message, 'err');
+  } finally {
+    document.getElementById('chExtractSpin').classList.remove('show');
+    document.getElementById('chExtractTxt').textContent = '🔍 Extract Chapters';
+  }
+}
+function renderChapterExtractReview(){
+  var el = document.getElementById('chExtractReview');
+  if (!extractedChapterRows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="divider"></div><label>Review extracted chapters — edit as needed, then add</label>' +
+    extractedChapterRows.map(function(r,i){
+      return '<div class="sec-block"><div class="fg1"><label><input type="checkbox" ' + (r.include?'checked':'') + ' onchange="extractedChapterRows[' + i + '].include=this.checked" style="width:auto;margin-right:6px">Title</label>' +
+        '<input value="' + esc(r.title) + '" oninput="extractedChapterRows[' + i + '].title=this.value"></div>' +
+        '<div class="fg1"><label>Learning Outcomes (one per line)</label><textarea rows="3" oninput="extractedChapterRows[' + i + '].learning_outcomes=this.value">' + esc(r.learning_outcomes) + '</textarea></div></div>';
+    }).join('') +
+    '<button class="btn btn-p btn-sm" onclick="confirmAddExtractedChapters()">✅ Add Selected Chapters</button>';
+}
+async function confirmAddExtractedChapters(){
+  var rows = extractedChapterRows.filter(function(r){ return r.include && r.title.trim(); });
+  if (!rows.length) return alert('No chapters selected.');
+  var client = sbClient();
+  var baseSeq = (chaptersCache[selectedCurriculumId] || []).length;
+  var inserts = rows.map(function(r,i){
+    return { curriculum_id: selectedCurriculumId, title: r.title.trim(), sequence: baseSeq+i,
+      learning_outcomes: r.learning_outcomes.split('\n').map(function(s){return s.trim();}).filter(Boolean) };
+  });
+  var { error } = await client.from('is_curriculum_chapters').insert(inserts);
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast(inserts.length + ' chapter(s) added.');
+  extractedChapterRows = [];
+  selectCurriculum(selectedCurriculumId);
+}
+
+function populateCurriculumSelects(){
+  var opts = '<option value="">— Custom topic (no curriculum) —</option>' + curriculaCache.map(function(c){ return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
+  var el1 = document.getElementById('genCurriculum'); if (el1) el1.innerHTML = opts;
+  var el2 = document.getElementById('plFilterCurriculum'); if (el2) el2.innerHTML = '<option value="">All</option>' + curriculaCache.map(function(c){ return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// LESSON PLAN FORMATS
+// ════════════════════════════════════════════════════════════════════════
+var fmtFiles = [];
+
+async function loadFormats(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_lesson_plan_formats').select('*').order('created_at', {ascending:false});
+  if (error) { toast('Error loading formats: ' + error.message, 'err'); return; }
+  formatsCache = data || [];
+  renderFormatsList();
+  populateFormatSelect();
+}
+function renderFormatsList(){
+  var el = document.getElementById('formatsList');
+  if (!formatsCache.length) { el.innerHTML = '<div class="empty">No formats yet.</div>'; return; }
+  el.innerHTML = formatsCache.map(function(f){
+    return '<div class="list-item clickable" onclick="editFormat(\'' + f.id + '\')">' +
+      '<div><strong>' + esc(f.name) + '</strong>' + (f.is_default ? ' <span class="pill pill-final">Default</span>' : '') +
+      '<br><span style="font-size:11.5px;color:var(--inkl)">' + (f.sections||[]).length + ' sections</span></div>' +
+      '<button class="btn btn-d btn-sm" onclick="event.stopPropagation();deleteFormat(\'' + f.id + '\')">🗑</button></div>';
+  }).join('');
+}
+function populateFormatSelect(){
+  var el = document.getElementById('genFormat');
+  if (!el) return;
+  var def = formatsCache.find(function(f){ return f.is_default; });
+  el.innerHTML = '<option value="">— Select a format —</option>' + formatsCache.map(function(f){ return '<option value="' + f.id + '">' + esc(f.name) + '</option>'; }).join('');
+  if (def) { el.value = def.id; onGenFormatChange(); }
+}
+
+function switchFmtTab(t){
+  document.getElementById('fmtTabManual').classList.toggle('on', t==='manual');
+  document.getElementById('fmtTabAI').classList.toggle('on', t==='ai');
+  document.getElementById('fmtPaneManual').classList.toggle('on', t==='manual');
+  document.getElementById('fmtPaneAI').classList.toggle('on', t==='ai');
+}
+
+function newFormatBuilder(){
+  editingFormatId = null;
+  editingFormatSections = [
+    {key:'objectives', label:'Learning Objectives', guidance:'What students will know/be able to do by the end.'},
+    {key:'hook', label:'Hook / Introduction', guidance:'An engaging opener connecting to students\' lives.'},
+    {key:'main_activity', label:'Main Teaching Activity', guidance:'Core teaching content and activities, step by step.'},
+    {key:'islamic_connection', label:'Islamic Values Connection', guidance:'How this links to akhlaq, Quran, or Sunnah.'},
+    {key:'application', label:'Real-Life Application', guidance:'How students can apply this lesson in daily life.'},
+    {key:'assessment', label:'Assessment / Check for Understanding', guidance:'How you will check learning happened.'},
+    {key:'closing_dua', label:'Closing Reflection / Dua', guidance:'A short closing reflection or dua to end the lesson.'}
+  ];
+  document.getElementById('fmtBuilderTitle').textContent = 'New Format';
+  document.getElementById('fmtName').value = '';
+  document.getElementById('fmtPhilosophy').value = '';
+  document.getElementById('fmtIsDefault').checked = false;
+  switchFmtTab('manual');
+  renderFmtSectionRows();
+}
+function editFormat(id){
+  var f = formatsCache.find(function(x){ return x.id === id; });
+  if (!f) return;
+  editingFormatId = id;
+  editingFormatSections = JSON.parse(JSON.stringify(f.sections || []));
+  document.getElementById('fmtBuilderTitle').textContent = 'Edit: ' + f.name;
+  document.getElementById('fmtName').value = f.name;
+  document.getElementById('fmtPhilosophy').value = f.philosophy || '';
+  document.getElementById('fmtIsDefault').checked = !!f.is_default;
+  switchFmtTab('manual');
+  renderFmtSectionRows();
+}
+async function deleteFormat(id){
+  if (!confirm('Delete this format?')) return;
+  await sbClient().from('is_lesson_plan_formats').delete().eq('id', id);
+  toast('Format deleted.');
+  await loadFormats();
+}
+function renderFmtSectionRows(){
+  var el = document.getElementById('fmtSections');
+  el.innerHTML = editingFormatSections.map(function(s,i){
+    return '<div class="sec-block">' +
+      '<div class="fg"><div class="fg1"><label>Section Label</label><input value="' + esc(s.label) + '" oninput="editingFormatSections[' + i + '].label=this.value"></div>' +
+      '<div class="fg1"><label>Internal Key</label><input value="' + esc(s.key) + '" oninput="editingFormatSections[' + i + '].key=this.value"></div></div>' +
+      '<div class="fg1"><label>Guidance for AI (what goes in this section)</label><textarea rows="2" oninput="editingFormatSections[' + i + '].guidance=this.value">' + esc(s.guidance) + '</textarea></div>' +
+      '<div class="btn-row">' +
+      (i>0 ? '<button class="btn btn-s btn-sm" onclick="moveFmtSection(' + i + ',-1)">⬆</button>' : '') +
+      (i<editingFormatSections.length-1 ? '<button class="btn btn-s btn-sm" onclick="moveFmtSection(' + i + ',1)">⬇</button>' : '') +
+      '<button class="btn btn-d btn-sm" onclick="removeFmtSectionRow(' + i + ')">🗑 Remove</button></div></div>';
+  }).join('');
+}
+function addFmtSectionRow(){
+  editingFormatSections.push({key:'section_'+(editingFormatSections.length+1), label:'New Section', guidance:''});
+  renderFmtSectionRows();
+}
+function removeFmtSectionRow(i){
+  editingFormatSections.splice(i,1);
+  renderFmtSectionRows();
+}
+function moveFmtSection(i, dir){
+  var j = i + dir;
+  if (j < 0 || j >= editingFormatSections.length) return;
+  var tmp = editingFormatSections[i]; editingFormatSections[i] = editingFormatSections[j]; editingFormatSections[j] = tmp;
+  renderFmtSectionRows();
+}
+
+async function handleFmtFiles(files){
+  for (var i=0;i<files.length;i++){
+    var f = files[i];
+    try { var text = await readFileAsText(f); fmtFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+  }
+  renderFmtFileList();
+}
+function renderFmtFileList(){
+  document.getElementById('fmtFileList').innerHTML = fmtFiles.map(function(f,i){ return '<div class="file-item">📄 ' + esc(f.name) + '<button class="fi-rm" onclick="fmtFiles.splice(' + i + ',1);renderFmtFileList()">✕</button></div>'; }).join('');
+}
+
+async function extractFormatFromSample(){
+  var pasted = document.getElementById('fmtSampleText').value.trim();
+  var content = pasted;
+  fmtFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
+  if (!content.trim()) return alert('Please paste or upload a sample lesson plan first.');
+  var apiKey = getApiKey();
+  if (!apiKey) return alert('Please enter your Anthropic API key on the Generate Lesson Plan page first — it is shared across the app.');
+
+  document.getElementById('fmtExtractSpin').classList.add('show');
+  document.getElementById('fmtExtractTxt').textContent = 'Inferring…';
+  try {
+    var sys = 'You are an expert instructional designer. Read a sample lesson plan and infer its section structure so it can be reused as a reusable template. Return ONLY a valid JSON array, no markdown fences, no explanation.';
+    var usr = 'Infer the section structure of this sample lesson plan. Return a JSON array where each element has exactly these keys: "key" (short snake_case identifier), "label" (human-readable section name as it appears or should appear), "guidance" (one sentence describing what content belongs in this section, for an AI to follow later). Keep the original order of sections.\n\n--- SAMPLE LESSON PLAN ---\n' + content + '\n--- END ---';
+    var text = await callClaude(sys, usr, 3000);
+    editingFormatSections = extractJsonArray(text).map(function(r){ return {key:r.key||('section_'+Math.random().toString(36).slice(2,6)), label:r.label||'', guidance:r.guidance||''}; });
+    editingFormatId = null;
+    document.getElementById('fmtBuilderTitle').textContent = 'New Format (from sample)';
+    document.getElementById('fmtName').value = '';
+    switchFmtTab('manual');
+    renderFmtSectionRows();
+    toast('Inferred ' + editingFormatSections.length + ' sections. Review and save below.');
+  } catch(err) {
+    toast('Extraction failed: ' + err.message, 'err');
+  } finally {
+    document.getElementById('fmtExtractSpin').classList.remove('show');
+    document.getElementById('fmtExtractTxt').textContent = '🔍 Infer Format Structure';
+  }
+}
+
+async function saveFormat(){
+  var name = document.getElementById('fmtName').value.trim();
+  var philosophy = document.getElementById('fmtPhilosophy').value.trim();
+  var isDefault = document.getElementById('fmtIsDefault').checked;
+  if (!name) return alert('Please name this format.');
+  if (!editingFormatSections.length) return alert('Please add at least one section.');
+  var client = sbClient();
+  if (isDefault) await client.from('is_lesson_plan_formats').update({is_default:false}).eq('is_default', true);
+  var payload = { name:name, sections:editingFormatSections, philosophy:philosophy, is_default:isDefault, created_by: currentUser.id };
+  var res = editingFormatId
+    ? await client.from('is_lesson_plan_formats').update(payload).eq('id', editingFormatId)
+    : await client.from('is_lesson_plan_formats').insert(payload);
+  if (res.error) return toast('Error: ' + res.error.message, 'err');
+  toast('Format saved.');
+  fmtFiles = [];
+  await loadFormats();
+  refreshOverviewStats();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// GENERATOR
+// ════════════════════════════════════════════════════════════════════════
+var genFiles = [];
+
+function onGenCurriculumChange(){
+  var curId = document.getElementById('genCurriculum').value;
+  var chSel = document.getElementById('genChapter');
+  if (!curId) { chSel.innerHTML = '<option value="">—</option>'; return; }
+  var chapters = chaptersCache[curId];
+  var render = function(list){
+    chSel.innerHTML = '<option value="">— Select a chapter —</option>' + list.map(function(c){ return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
+  };
+  if (chapters) { render(chapters); return; }
+  sbClient().from('is_curriculum_chapters').select('*').eq('curriculum_id', curId).order('sequence').then(function(res){
+    chaptersCache[curId] = res.data || [];
+    render(res.data || []);
+  });
+}
+function onGenChapterChange(){
+  var curId = document.getElementById('genCurriculum').value;
+  var chId = document.getElementById('genChapter').value;
+  if (!curId || !chId) return;
+  var ch = (chaptersCache[curId]||[]).find(function(c){ return c.id === chId; });
+  if (!ch) return;
+  document.getElementById('genTitle').value = ch.title;
+  document.getElementById('genOutcomes').value = (ch.learning_outcomes||[]).join('\n');
+}
+function onGenFormatChange(){
+  selectedFormatId = document.getElementById('genFormat').value;
+  var fmt = formatsCache.find(function(f){ return f.id === selectedFormatId; });
+  var el = document.getElementById('genFormatPreview');
+  if (!fmt) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="hint" style="margin-top:10px">This plan will include: ' +
+    (fmt.sections||[]).map(function(s){ return '<span class="chip">' + esc(s.label) + '</span>'; }).join(' ') + '</div>';
+}
+
+async function handleGenFiles(files){
+  for (var i=0;i<files.length;i++){
+    var f = files[i];
+    try { var text = await readFileAsText(f); genFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+  }
+  renderGenFileList();
+}
+function renderGenFileList(){
+  document.getElementById('genFileList').innerHTML = genFiles.map(function(f,i){ return '<div class="file-item">📄 ' + esc(f.name) + '<button class="fi-rm" onclick="genFiles.splice(' + i + ',1);renderGenFileList()">✕</button></div>'; }).join('');
+}
+function setGenStep(n){
+  for (var i=1;i<=4;i++){ document.getElementById('gs'+i).className = 'step' + (i<n?' done':i===n?' active':''); }
+}
+
+async function generateLessonPlan(){
+  var curId = document.getElementById('genCurriculum').value;
+  var chId = document.getElementById('genChapter').value;
+  var title = document.getElementById('genTitle').value.trim();
+  var grade = document.getElementById('genGrade').value.trim();
+  var targetClass = document.getElementById('genClass').value.trim();
+  var outcomes = document.getElementById('genOutcomes').value.trim();
+  var pasted = document.getElementById('genContent').value.trim();
+  var fmt = formatsCache.find(function(f){ return f.id === selectedFormatId; });
+
+  var content = pasted;
+  genFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
+
+  if (!title) return alert('Please enter a lesson/topic title.');
+  if (!content.trim()) return alert('Please paste or upload the content/topics to be taught.');
+  if (!fmt) return alert('Please select a lesson plan format.');
+  var apiKey = getApiKey();
+  if (!apiKey) return alert('Please enter your Anthropic API key.');
+
+  var btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  document.getElementById('genSpin').classList.add('show');
+  document.getElementById('genBtnTxt').textContent = 'Generating…';
+  document.getElementById('genPreviewWrap').style.display = 'none';
+  setGenStep(4);
+
+  try {
+    var sectionsSpec = fmt.sections.map(function(s,i){ return (i+1) + '. key="' + s.key + '" — "' + s.label + '": ' + (s.guidance||'no additional guidance'); }).join('\n');
+    var sys = 'You are an expert Islamic Studies lesson planner working for a specific facilitator, following their own pedagogical philosophy and their own lesson plan format exactly. Never omit a requested section. Return ONLY a valid JSON array, no markdown fences, no explanation text.' +
+      (fmt.philosophy ? ('\n\nFacilitator\'s teaching philosophy — apply this throughout every section:\n' + fmt.philosophy) : '');
+
+    var usr = 'Write a complete, classroom-ready Islamic Studies lesson plan.\n\n' +
+      'Lesson/Topic Title: ' + title + '\n' +
+      (grade ? ('Grade / Age Group: ' + grade + '\n') : '') +
+      (outcomes ? ('Learning Outcomes:\n' + outcomes + '\n') : '') +
+      '\n--- CONTENT / TOPICS TO TEACH ---\n' + content + '\n--- END ---\n\n' +
+      'You MUST fill EVERY one of the following sections, in this exact order, using the guidance given for each. Ground everything in the learning outcomes and the content provided above — do not invent unrelated material.\n\n' + sectionsSpec + '\n\n' +
+      'Return a JSON array with exactly ' + fmt.sections.length + ' elements, one per section above, each with exactly these keys: "key" (matching the key given above exactly), "text" (the full section content, well-written, ready to use in a classroom, using line breaks between distinct points where useful).';
+
+    var raw = await callClaude(sys, usr, 8096);
+    var rows = extractJsonArray(raw);
+
+    var sections = fmt.sections.map(function(s){
+      var match = rows.find(function(r){ return r.key === s.key; });
+      return { key: s.key, label: s.label, guidance: s.guidance, text: match ? (match.text || '') : '' };
+    });
+
+    currentGeneration = {
+      id: null, title: title, chapter_name: title, curriculum_id: curId || null, chapter_id: chId || null,
+      format_id: fmt.id, learning_outcomes: outcomes.split('\n').map(function(s){return s.trim();}).filter(Boolean),
+      source_content: content, target_class: targetClass, status: 'draft', sections: sections
+    };
+    renderGenPreview();
+    document.getElementById('genPreviewWrap').style.display = 'block';
+    document.getElementById('genPreviewWrap').scrollIntoView({behavior:'smooth'});
+    var missing = sections.filter(function(s){ return !s.text.trim(); }).length;
+    toast(missing ? ('Generated with ' + missing + ' section(s) needing attention — see highlighted boxes below.') : 'Lesson plan generated.', missing ? 'err' : undefined);
+  } catch(err) {
+    toast('Generation failed: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('genSpin').classList.remove('show');
+    document.getElementById('genBtnTxt').textContent = '✨ Generate Lesson Plan';
+  }
+}
+
+function renderGenPreview(){
+  var el = document.getElementById('genSectionsPreview');
+  el.innerHTML = currentGeneration.sections.map(function(s,i){
+    var missing = !s.text.trim();
+    return '<div class="sec-block' + (missing?' missing':'') + '">' +
+      '<div class="sec-hd"><span class="sec-lbl">' + esc(s.label) + '</span>' +
+      (missing ? '<button class="btn btn-s btn-sm" onclick="regenerateSection(' + i + ')">🔁 Regenerate</button>' : '') + '</div>' +
+      (s.guidance ? '<div class="sec-guide">' + esc(s.guidance) + '</div>' : '') +
+      '<textarea oninput="currentGeneration.sections[' + i + '].text=this.value">' + esc(s.text) + '</textarea></div>';
+  }).join('');
+}
+
+async function regenerateSection(i){
+  var fmt = formatsCache.find(function(f){ return f.id === currentGeneration.format_id; });
+  var s = currentGeneration.sections[i];
+  var apiKey = getApiKey();
+  if (!apiKey) return alert('Please enter your Anthropic API key.');
+  try {
+    var sys = 'You are an expert Islamic Studies lesson planner.' + (fmt && fmt.philosophy ? ('\n\nFacilitator\'s teaching philosophy:\n' + fmt.philosophy) : '');
+    var usr = 'Write ONLY the content for one section of a lesson plan titled "' + currentGeneration.title + '".\nSection: "' + s.label + '"\nGuidance: ' + (s.guidance||'') + '\nLearning Outcomes:\n' + currentGeneration.learning_outcomes.join('\n') + '\n\nContent/topics being taught:\n' + currentGeneration.source_content.slice(0,4000) + '\n\nReturn plain text only — no JSON, no markdown headers, just the section content.';
+    var text = await callClaude(sys, usr, 1500);
+    currentGeneration.sections[i].text = text.trim();
+    renderGenPreview();
+  } catch(err) {
+    toast('Regeneration failed: ' + err.message, 'err');
+  }
+}
+
+async function savePlan(status){
+  if (!currentGeneration) return;
+  currentGeneration.status = status;
+  var client = sbClient();
+  var payload = {
+    curriculum_id: currentGeneration.curriculum_id, chapter_id: currentGeneration.chapter_id,
+    format_id: currentGeneration.format_id, title: currentGeneration.title, chapter_name: currentGeneration.chapter_name,
+    learning_outcomes: currentGeneration.learning_outcomes, source_content: currentGeneration.source_content,
+    target_class: currentGeneration.target_class, generated_sections: currentGeneration.sections,
+    status: status, created_by: currentUser.id
+  };
+  var res = currentGeneration.id
+    ? await client.from('is_lesson_plans').update(payload).eq('id', currentGeneration.id).select().single()
+    : await client.from('is_lesson_plans').insert(payload).select().single();
+  if (res.error) return toast('Error: ' + res.error.message, 'err');
+  currentGeneration.id = res.data.id;
+  toast('Plan saved as ' + status + '.');
+  refreshOverviewStats();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SAVED PLANS
+// ════════════════════════════════════════════════════════════════════════
+async function loadSavedPlans(){
+  var client = sbClient();
+  var curId = document.getElementById('plFilterCurriculum').value;
+  var status = document.getElementById('plFilterStatus').value;
+  var q = client.from('is_lesson_plans').select('*').order('updated_at', {ascending:false});
+  if (curId) q = q.eq('curriculum_id', curId);
+  if (status) q = q.eq('status', status);
+  var { data, error } = await q;
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  var el = document.getElementById('savedPlansList');
+  if (!data || !data.length) { el.innerHTML = '<div class="empty">No saved plans yet.</div>'; return; }
+  el.innerHTML = '<div class="twrap"><table class="tbl"><thead><tr><th>Title</th><th>Class</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>' +
+    data.map(function(p){
+      return '<tr><td><strong>' + esc(p.title) + '</strong></td><td>' + esc(p.target_class||'All') + '</td>' +
+        '<td><span class="pill pill-' + p.status + '">' + p.status + '</span></td><td>' + fmtDate(p.updated_at) + '</td>' +
+        '<td><div class="btn-row"><button class="btn btn-s btn-sm" onclick="openPlan(\'' + p.id + '\')">✏️ Open</button>' +
+        '<button class="btn btn-d btn-sm" onclick="deletePlanRow(\'' + p.id + '\')">🗑</button></div></td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+async function openPlan(id){
+  var client = sbClient();
+  var { data, error } = await client.from('is_lesson_plans').select('*').eq('id', id).single();
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  currentGeneration = {
+    id: data.id, title: data.title, chapter_name: data.chapter_name, curriculum_id: data.curriculum_id,
+    chapter_id: data.chapter_id, format_id: data.format_id, learning_outcomes: data.learning_outcomes || [],
+    source_content: data.source_content || '', target_class: data.target_class || '', status: data.status,
+    sections: data.generated_sections || []
+  };
+  goPage('generator');
+  document.getElementById('genTitle').value = data.title;
+  document.getElementById('genClass').value = data.target_class || '';
+  document.getElementById('genOutcomes').value = (data.learning_outcomes||[]).join('\n');
+  document.getElementById('genContent').value = data.source_content || '';
+  if (data.curriculum_id) document.getElementById('genCurriculum').value = data.curriculum_id;
+  if (data.format_id) document.getElementById('genFormat').value = data.format_id;
+  renderGenPreview();
+  document.getElementById('genPreviewWrap').style.display = 'block';
+}
+async function deletePlanRow(id){
+  if (!confirm('Delete this lesson plan?')) return;
+  await sbClient().from('is_lesson_plans').delete().eq('id', id);
+  toast('Plan deleted.');
+  loadSavedPlans();
+  refreshOverviewStats();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// EXPORTS — PDF (print), Word (docx.js), PPT (pptxgenjs)
+// ════════════════════════════════════════════════════════════════════════
+function exportPDF(plan){
+  if (!plan) return alert('Nothing to export yet.');
+  var meta = [plan.chapter_name || plan.title, plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join(' · ');
+  var html = '<h1>' + esc(plan.title) + '</h1><div class="pmeta">' + esc(meta) + '</div>' +
+    plan.sections.map(function(s){ return '<div class="psec"><h3>' + esc(s.label) + '</h3><p>' + esc(s.text) + '</p></div>'; }).join('');
+  document.getElementById('printArea').innerHTML = html;
+  window.print();
+}
+
+async function exportDocx(plan){
+  if (!plan) return alert('Nothing to export yet.');
+  try {
+    var D = docx;
+    var GREEN = '2D7A3A', DARK = '1A3028', GOLD = 'C17E2A';
+    var children = [];
+    children.push(new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text: plan.title, bold:true, size:40, font:'Calibri', color:DARK }) ] }));
+    var metaLine = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
+    if (metaLine) children.push(new D.Paragraph({ spacing:{after:260}, children:[ new D.TextRun({ text: metaLine, italics:true, size:20, color:'6B6258', font:'Calibri' }) ] }));
+
+    plan.sections.forEach(function(s){
+      children.push(new D.Paragraph({ spacing:{before:200,after:80}, border:{bottom:{color:GREEN,space:2,style:'single',size:6}}, children:[ new D.TextRun({ text: s.label, bold:true, size:26, color:GREEN, font:'Calibri' }) ] }));
+      var lines = (s.text||'').split('\n').filter(function(l){return l.length;});
+      if (!lines.length) lines = [''];
+      lines.forEach(function(l){ children.push(new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:l, size:22, font:'Calibri' }) ] })); });
+    });
+
+    var doc = new D.Document({ sections:[{ properties:{}, children: children }] });
+    var buf = await D.Packer.toBuffer(doc);
+    var blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = (plan.title||'Lesson_Plan').replace(/[^a-z0-9]/gi,'_') + '.docx'; a.click();
+    URL.revokeObjectURL(url);
+  } catch(err) { alert('Error generating Word document: ' + err.message); console.error(err); }
+}
+
+async function exportPptx(plan){
+  if (!plan) return alert('Nothing to export yet.');
+  try {
+    var pptx = new PptxGenJS();
+    pptx.defineLayout({ name:'HOLIS', width:10, height:5.63 }); pptx.layout = 'HOLIS';
+
+    var title = pptx.addSlide();
+    title.background = { color:'1A3028' };
+    title.addText(plan.title, { x:0.6, y:1.9, w:8.8, h:1.2, fontSize:32, bold:true, color:'FFFFFF', fontFace:'Calibri' });
+    var sub = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
+    title.addText(sub, { x:0.6, y:3.1, w:8.8, h:0.6, fontSize:14, color:'E8A030', fontFace:'Calibri' });
+
+    plan.sections.forEach(function(s){
+      var sl = pptx.addSlide();
+      sl.addText(s.label, { x:0.5, y:0.35, w:9, h:0.7, fontSize:24, bold:true, color:'2D7A3A', fontFace:'Calibri' });
+      sl.addShape('line', { x:0.5, y:1.05, w:9, h:0, line:{ color:'BFE0C4', width:2 } });
+      sl.addText(s.text || '(not filled in)', { x:0.5, y:1.25, w:9, h:4, fontSize:14, color:'1C1A17', fontFace:'Calibri', valign:'top' });
+    });
+
+    await pptx.writeFile({ fileName: (plan.title||'Lesson_Plan').replace(/[^a-z0-9]/gi,'_') + '.pptx' });
+  } catch(err) { alert('Error generating PPT: ' + err.message); console.error(err); }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// REWARDS ENGINE (Islamic-themed, auto-award)
+// ════════════════════════════════════════════════════════════════════════
+async function checkAndAwardRewards(studentId){
+  var client = sbClient();
+  var [defsRes, ownedRes, goalsRes, reflRes] = await Promise.all([
+    client.from('is_reward_definitions').select('*'),
+    client.from('is_rewards').select('definition_id').eq('student_id', studentId),
+    client.from('is_student_goals').select('id', {count:'exact', head:true}).eq('student_id', studentId).eq('status','achieved'),
+    client.from('is_reflections').select('id', {count:'exact', head:true}).eq('student_id', studentId)
+  ]);
+  var defs = defsRes.data || [];
+  var ownedIds = new Set((ownedRes.data||[]).map(function(r){ return r.definition_id; }));
+  var goalsAchieved = goalsRes.count || 0;
+  var reflCount = reflRes.count || 0;
+
+  for (var i=0;i<defs.length;i++){
+    var d = defs[i];
+    if (ownedIds.has(d.id)) continue;
+    var val = d.trigger_type === 'goals_achieved_count' ? goalsAchieved : d.trigger_type === 'reflections_count' ? reflCount : null;
+    if (val !== null && val >= d.threshold) {
+      await client.from('is_rewards').insert({ student_id: studentId, definition_id: d.id, title: d.title, description: d.description, icon: d.icon, points: d.points, awarded_by: null });
+      toast('🎉 New badge earned: ' + d.title, undefined);
+    }
+  }
+  if (currentUser && currentUser.id === studentId && currentUser.role === 'student') await refreshHasanatPill();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENTS & REWARDS (facilitator view)
+// ════════════════════════════════════════════════════════════════════════
+async function loadStudentsPage(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_profiles').select('*').eq('role','student').order('full_name');
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  studentsCache = data || [];
+  var el = document.getElementById('studentsList');
+  if (!studentsCache.length) { el.innerHTML = '<div class="empty">No students yet.</div>'; return; }
+  el.innerHTML = studentsCache.map(function(s){
+    return '<div class="list-item clickable" onclick="openStudentDetail(\'' + s.id + '\')"><div><strong>' + esc(s.full_name||s.email) + '</strong><br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">' + esc(s.class_name||'—') + '</span></div></div>';
+  }).join('');
+}
+
+async function openStudentDetail(id){
+  var client = sbClient();
+  var s = studentsCache.find(function(x){ return x.id === id; });
+  var [goalsRes, reflRes, rewardsRes] = await Promise.all([
+    client.from('is_student_goals').select('*').eq('student_id', id).order('created_at', {ascending:false}),
+    client.from('is_reflections').select('*').eq('student_id', id).order('created_at', {ascending:false}),
+    client.from('is_rewards').select('*').eq('student_id', id).order('awarded_at', {ascending:false})
+  ]);
+  var goals = goalsRes.data || [], refl = reflRes.data || [], rewards = rewardsRes.data || [];
+  var points = rewards.reduce(function(sum,r){ return sum + (r.points||0); }, 0);
+
+  var html = '<div class="card-t"><div class="ci">🎓</div>' + esc(s.full_name||s.email) + '</div>' +
+    '<div class="metrics"><div class="mc"><div class="mc-l">Class</div><div class="mc-v" style="font-size:16px">' + esc(s.class_name||'—') + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Goals Achieved</div><div class="mc-v">' + goals.filter(function(g){return g.status==='achieved';}).length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Reflections</div><div class="mc-v">' + refl.length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Hasanat</div><div class="mc-v">' + points + '</div></div></div>';
+
+  html += '<div class="divider"></div><label>🎯 Goals</label>' + (goals.length ? goals.map(function(g){
+    return '<div class="list-item"><div>' + esc(g.goal_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome||'') + '</span></div><span class="pill pill-' + g.status + '">' + g.status + '</span></div>';
+  }).join('') : '<div class="empty">No goals yet.</div>');
+
+  html += '<div class="divider"></div><label>📝 Reflections</label>' + (refl.length ? refl.map(function(r){
+    return '<div class="list-item"><div>' + nl2br(r.reflection_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(r.author_role) + ' · ' + fmtDate(r.created_at) + '</span></div></div>';
+  }).join('') : '<div class="empty">No reflections yet.</div>');
+
+  html += '<div class="divider"></div><label>🏅 Rewards</label>' + (rewards.length ? rewards.map(function(r){
+    return '<span class="chip">' + r.icon + ' ' + esc(r.title) + '</span>';
+  }).join('') : '<div class="empty">No badges yet.</div>');
+
+  html += '<div class="divider"></div><label>📝 Add a Facilitator Reflection</label>' +
+    '<textarea id="facReflText" rows="2" placeholder="Note on this student\'s progress, character, or growth..."></textarea>' +
+    '<button class="btn btn-s btn-sm" style="margin-top:8px" onclick="facilitatorAddReflection(\'' + id + '\')">📝 Save Reflection</button>';
+
+  html += '<div class="divider"></div><label>🎁 Award a Custom Badge</label>' +
+    '<div class="fg"><div class="fg1"><label>Icon</label><input id="awIcon" value="🌟" style="width:60px;text-align:center"></div>' +
+    '<div class="fg1"><label>Title</label><input id="awTitle" placeholder="e.g. Amanah Award"></div></div>' +
+    '<div class="fg1"><label>Description</label><input id="awDesc" placeholder="Why this badge is earned"></div>' +
+    '<div class="fg1"><label>Points</label><input id="awPoints" type="number" value="10" style="width:100px"></div>' +
+    '<button class="btn btn-g btn-sm" onclick="awardCustomBadge(\'' + id + '\')">🏅 Award Badge</button>';
+
+  document.getElementById('studentDetail').innerHTML = html;
+}
+async function facilitatorAddReflection(studentId){
+  var text = document.getElementById('facReflText').value.trim();
+  if (!text) return alert('Please write a reflection first.');
+  var client = sbClient();
+  var { error } = await client.from('is_reflections').insert({ lesson_plan_id: null, student_id: studentId, author_id: currentUser.id, author_role: 'facilitator', reflection_text: text });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Reflection saved.');
+  openStudentDetail(studentId);
+}
+async function awardCustomBadge(studentId){
+  var icon = document.getElementById('awIcon').value.trim() || '🌟';
+  var title = document.getElementById('awTitle').value.trim();
+  var desc = document.getElementById('awDesc').value.trim();
+  var points = parseInt(document.getElementById('awPoints').value, 10) || 0;
+  if (!title) return alert('Please enter a badge title.');
+  var client = sbClient();
+  var { error } = await client.from('is_rewards').insert({ student_id: studentId, definition_id: null, title: title, description: desc, icon: icon, points: points, awarded_by: currentUser.id });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Badge awarded!');
+  openStudentDetail(studentId);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// REPORTS (facilitator)
+// ════════════════════════════════════════════════════════════════════════
+function loadReportsPage(){
+  var el = document.getElementById('rptStudent');
+  el.innerHTML = studentsCache.map(function(s){ return '<option value="' + s.id + '">' + esc(s.full_name||s.email) + '</option>'; }).join('');
+  if (!studentsCache.length) loadStudentsPage().then(function(){
+    el.innerHTML = studentsCache.map(function(s){ return '<option value="' + s.id + '">' + esc(s.full_name||s.email) + '</option>'; }).join('');
+  });
+}
+var lastReportData = null;
+async function generateReport(){
+  var studentId = document.getElementById('rptStudent').value;
+  if (!studentId) return alert('Please select a student.');
+  var from = document.getElementById('rptFrom').value;
+  var to = document.getElementById('rptTo').value;
+  var client = sbClient();
+  var s = studentsCache.find(function(x){ return x.id === studentId; });
+
+  var gq = client.from('is_student_goals').select('*').eq('student_id', studentId).order('created_at');
+  var rq = client.from('is_reflections').select('*').eq('student_id', studentId).order('created_at');
+  var wq = client.from('is_rewards').select('*').eq('student_id', studentId).order('awarded_at');
+  if (from) { gq = gq.gte('created_at', from); rq = rq.gte('created_at', from); wq = wq.gte('awarded_at', from); }
+  if (to) { gq = gq.lte('created_at', to+'T23:59:59'); rq = rq.lte('created_at', to+'T23:59:59'); wq = wq.lte('awarded_at', to+'T23:59:59'); }
+
+  var [gRes, rRes, wRes] = await Promise.all([gq, rq, wq]);
+  var goals = gRes.data || [], refl = rRes.data || [], rewards = wRes.data || [];
+  var achieved = goals.filter(function(g){ return g.status === 'achieved'; });
+  var points = rewards.reduce(function(sum,r){ return sum + (r.points||0); }, 0);
+
+  lastReportData = { student: s, goals: goals, achieved: achieved, reflections: refl, rewards: rewards, points: points, from: from, to: to };
+
+  var html = '<div class="card"><div class="metrics">' +
+    '<div class="mc"><div class="mc-l">Goals Set</div><div class="mc-v">' + goals.length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Goals Achieved</div><div class="mc-v">' + achieved.length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Reflections</div><div class="mc-v">' + refl.length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Hasanat Earned</div><div class="mc-v">' + points + '</div></div></div>' +
+    '<div class="btn-row"><button class="btn btn-s" onclick="exportReportDocx()">📄 Export Word</button><button class="btn btn-s" onclick="exportReportPDF()">🖨️ Export PDF</button></div></div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">🎯</div>Goals</div>' + (goals.length ? goals.map(function(g){
+    return '<div class="list-item"><div>' + esc(g.goal_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome||'') + ' · ' + fmtDate(g.created_at) + '</span></div><span class="pill pill-' + g.status + '">' + g.status + '</span></div>';
+  }).join('') : '<div class="empty">No goals in this period.</div>') + '</div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">📝</div>Reflections</div>' + (refl.length ? refl.map(function(r){
+    return '<div class="list-item"><div>' + nl2br(r.reflection_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(r.author_role) + ' · ' + fmtDate(r.created_at) + '</span></div></div>';
+  }).join('') : '<div class="empty">No reflections in this period.</div>') + '</div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">🏅</div>Rewards Earned</div>' + (rewards.length ? rewards.map(function(r){
+    return '<span class="chip">' + r.icon + ' ' + esc(r.title) + '</span>';
+  }).join('') : '<div class="empty">No rewards in this period.</div>') + '</div>';
+
+  document.getElementById('reportOutput').innerHTML = html;
+}
+function exportReportPDF(){
+  if (!lastReportData) return;
+  var d = lastReportData;
+  var html = '<h1>Achievement &amp; Reflection Report</h1><div class="pmeta">' + esc(d.student.full_name||d.student.email) + (d.from||d.to ? (' · ' + (d.from||'—') + ' to ' + (d.to||'—')) : '') + '</div>' +
+    '<div class="psec"><h3>Summary</h3><p>Goals set: ' + d.goals.length + ' | Achieved: ' + d.achieved.length + ' | Reflections: ' + d.reflections.length + ' | Hasanat: ' + d.points + '</p></div>' +
+    '<div class="psec"><h3>Goals</h3><p>' + (d.goals.map(function(g){ return '• [' + g.status + '] ' + esc(g.goal_text); }).join('\n')||'None') + '</p></div>' +
+    '<div class="psec"><h3>Reflections</h3><p>' + (d.reflections.map(function(r){ return '• (' + r.author_role + ', ' + fmtDate(r.created_at) + ') ' + esc(r.reflection_text); }).join('\n')||'None') + '</p></div>' +
+    '<div class="psec"><h3>Rewards</h3><p>' + (d.rewards.map(function(r){ return r.icon + ' ' + esc(r.title); }).join('\n')||'None') + '</p></div>';
+  document.getElementById('printArea').innerHTML = html;
+  window.print();
+}
+async function exportReportDocx(){
+  if (!lastReportData) return;
+  var d = lastReportData;
+  try {
+    var D = docx;
+    var children = [
+      new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:'Achievement & Reflection Report', bold:true, size:36, color:'1A3028' }) ] }),
+      new D.Paragraph({ spacing:{after:240}, children:[ new D.TextRun({ text:(d.student.full_name||d.student.email) + (d.from||d.to ? (' — ' + (d.from||'—') + ' to ' + (d.to||'—')) : ''), italics:true, color:'6B6258' }) ] }),
+      new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
+    ];
+    function heading(t){ children.push(new D.Paragraph({ spacing:{before:200,after:80}, children:[ new D.TextRun({ text:t, bold:true, size:26, color:'2D7A3A' }) ] })); }
+    heading('Goals');
+    (d.goals.length ? d.goals : [{goal_text:'None', status:''}]).forEach(function(g){ children.push(new D.Paragraph({ text: '• [' + g.status + '] ' + g.goal_text })); });
+    heading('Reflections');
+    (d.reflections.length ? d.reflections : [{reflection_text:'None', author_role:'', created_at:null}]).forEach(function(r){ children.push(new D.Paragraph({ text: '• (' + r.author_role + (r.created_at?', '+fmtDate(r.created_at):'') + ') ' + r.reflection_text })); });
+    heading('Rewards');
+    (d.rewards.length ? d.rewards : [{icon:'', title:'None'}]).forEach(function(r){ children.push(new D.Paragraph({ text: (r.icon||'') + ' ' + r.title })); });
+
+    var doc = new D.Document({ sections:[{ properties:{}, children: children }] });
+    var buf = await D.Packer.toBuffer(doc);
+    var blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = 'Report_' + (d.student.full_name||'Student').replace(/[^a-z0-9]/gi,'_') + '.docx'; a.click();
+    URL.revokeObjectURL(url);
+  } catch(err) { alert('Error generating report: ' + err.message); }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENT: MY LESSONS
+// ════════════════════════════════════════════════════════════════════════
+var myLessonsCache = [];
+async function loadMyLessons(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_lesson_plans').select('*').eq('status','final').order('updated_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  var myClass = currentUser.class_name || '';
+  myLessonsCache = (data || []).filter(function(p){ return !p.target_class || (myClass && p.target_class === myClass); });
+  var el = document.getElementById('myLessonsList');
+  if (!myLessonsCache.length) { el.innerHTML = '<div class="empty">No lessons shared yet.</div>'; return; }
+  el.innerHTML = myLessonsCache.map(function(p){
+    return '<div class="list-item clickable" onclick="openLessonView(\'' + p.id + '\')"><div><strong>' + esc(p.title) + '</strong><br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">' + esc(p.chapter_name||'') + ' · ' + fmtDate(p.updated_at) + '</span></div><span>›</span></div>';
+  }).join('');
+}
+
+async function openLessonView(id){
+  var plan = myLessonsCache.find(function(p){ return p.id === id; });
+  if (!plan) return;
+  var los = plan.learning_outcomes || [];
+  var html = '<div class="card"><div class="card-t"><div class="ci">📖</div>' + esc(plan.title) + '</div>' +
+    (plan.generated_sections||[]).map(function(s){ return '<div class="sec-block"><div class="sec-lbl">' + esc(s.label) + '</div><p style="margin-top:6px;white-space:pre-wrap;font-size:13px">' + esc(s.text) + '</p></div>'; }).join('') + '</div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">🎯</div>Set a Goal — Apply This in Your Life</div>' +
+    '<div class="fg1"><label>Which learning outcome will you apply?</label><select id="goalLO"><option value="">— Choose —</option>' + los.map(function(lo){ return '<option value="' + esc(lo) + '">' + esc(lo) + '</option>'; }).join('') + '<option value="__other">Something else</option></select></div>' +
+    '<div class="fg1"><label>My Goal</label><textarea id="goalText" rows="2" placeholder="e.g. I will pray Fajr on time every day this week"></textarea></div>' +
+    '<div class="fg1"><label>Target Date (optional)</label><input type="date" id="goalDate"></div>' +
+    '<button class="btn btn-p btn-sm" onclick="submitGoal(\'' + id + '\')">🎯 Set Goal</button></div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">📝</div>Add a Reflection</div>' +
+    '<textarea id="reflText" rows="3" placeholder="What did this lesson mean to you? How did it go when you tried to apply it?"></textarea>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitReflection(\'' + id + '\')">📝 Save Reflection</button></div>';
+
+  document.getElementById('lessonViewer').innerHTML = html;
+  document.getElementById('lessonViewer').scrollIntoView({behavior:'smooth'});
+}
+
+async function submitGoal(lessonPlanId){
+  var loSel = document.getElementById('goalLO').value;
+  var lo = loSel === '__other' ? '' : loSel;
+  var text = document.getElementById('goalText').value.trim();
+  var date = document.getElementById('goalDate').value || null;
+  if (!text) return alert('Please describe your goal.');
+  var client = sbClient();
+  var { error } = await client.from('is_student_goals').insert({ student_id: currentUser.id, lesson_plan_id: lessonPlanId, learning_outcome: lo, goal_text: text, target_date: date, status: 'active' });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Goal set — may Allah make it easy.');
+  document.getElementById('goalText').value = '';
+  await checkAndAwardRewards(currentUser.id);
+}
+async function submitReflection(lessonPlanId){
+  var text = document.getElementById('reflText').value.trim();
+  if (!text) return alert('Please write a reflection first.');
+  var client = sbClient();
+  var { error } = await client.from('is_reflections').insert({ lesson_plan_id: lessonPlanId, student_id: currentUser.id, author_id: currentUser.id, author_role: 'student', reflection_text: text });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Reflection saved.');
+  document.getElementById('reflText').value = '';
+  await checkAndAwardRewards(currentUser.id);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENT: MY GOALS
+// ════════════════════════════════════════════════════════════════════════
+async function loadMyGoals(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_student_goals').select('*').eq('student_id', currentUser.id).order('created_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  myGoalsCache = data || [];
+  var el = document.getElementById('myGoalsList');
+  if (!myGoalsCache.length) { el.innerHTML = '<div class="empty">No goals yet — open a lesson to set your first one.</div>'; return; }
+  el.innerHTML = myGoalsCache.map(function(g){
+    return '<div class="list-item"><div>' + esc(g.goal_text) + (g.learning_outcome ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome) + '</span>') : '') +
+      (g.target_date ? ('<br><span style="font-size:11px;color:var(--inkl)">Target: ' + fmtDate(g.target_date) + '</span>') : '') + '</div>' +
+      '<div style="text-align:right"><span class="pill pill-' + g.status + '">' + g.status + '</span>' +
+      (g.status === 'active' ? '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="markGoalAchieved(\'' + g.id + '\')">✅ Mark Achieved</button></div>' : '') + '</div></div>';
+  }).join('');
+}
+async function markGoalAchieved(id){
+  var client = sbClient();
+  var { error } = await client.from('is_student_goals').update({ status:'achieved', achieved_at: new Date().toISOString() }).eq('id', id);
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('🎉 Goal achieved — well done!');
+  await loadMyGoals();
+  await checkAndAwardRewards(currentUser.id);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENT: MY REFLECTIONS
+// ════════════════════════════════════════════════════════════════════════
+async function loadMyReflections(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_reflections').select('*').eq('student_id', currentUser.id).order('created_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  myReflectionsCache = data || [];
+  var el = document.getElementById('myReflectionsList');
+  var addForm = '<div class="card"><div class="card-t"><div class="ci">➕</div>Quick Reflection</div>' +
+    '<textarea id="quickReflText" rows="2" placeholder="Write a general reflection..."></textarea>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="addQuickReflection()">Save</button></div>';
+  var list = myReflectionsCache.length ? myReflectionsCache.map(function(r){
+    return '<div class="list-item"><div>' + nl2br(r.reflection_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + fmtDate(r.created_at) + '</span></div></div>';
+  }).join('') : '<div class="empty">No reflections yet.</div>';
+  el.innerHTML = addForm + '<div class="card">' + list + '</div>';
+}
+async function addQuickReflection(){
+  var text = document.getElementById('quickReflText').value.trim();
+  if (!text) return alert('Please write something first.');
+  var client = sbClient();
+  var { error } = await client.from('is_reflections').insert({ lesson_plan_id: null, student_id: currentUser.id, author_id: currentUser.id, author_role: 'student', reflection_text: text });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Reflection saved.');
+  await loadMyReflections();
+  await checkAndAwardRewards(currentUser.id);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENT: MY REWARDS — Pathway to Jannah
+// ════════════════════════════════════════════════════════════════════════
+async function loadMyRewards(){
+  document.getElementById('motivLine').textContent = MOTIV_LINES[Math.floor(Math.random()*MOTIV_LINES.length)];
+  var client = sbClient();
+  var [defsRes, mineRes] = await Promise.all([
+    client.from('is_reward_definitions').select('*').order('threshold'),
+    client.from('is_rewards').select('*').eq('student_id', currentUser.id)
+  ]);
+  var defs = defsRes.data || [];
+  var mine = mineRes.data || [];
+  var ownedByDef = {}; mine.forEach(function(r){ if (r.definition_id) ownedByDef[r.definition_id] = r; });
+  var totalPoints = mine.reduce(function(s,r){ return s + (r.points||0); }, 0);
+  document.getElementById('hasanatTotal').textContent = totalPoints;
+
+  var cards = defs.map(function(d){
+    var earned = !!ownedByDef[d.id];
+    return '<div class="rw-card ' + (earned?'earned':'locked') + '"><div class="rw-icon">' + d.icon + '</div><div class="rw-title">' + esc(d.title) + '</div><div class="rw-desc">' + esc(d.description) + '</div><div class="rw-pts">' + (earned?'✅ Earned':'✨ ' + d.points + ' Hasanat') + '</div></div>';
+  }).join('');
+
+  var customBadges = mine.filter(function(r){ return !r.definition_id; }).map(function(r){
+    return '<div class="rw-card earned"><div class="rw-icon">' + (r.icon||'🌟') + '</div><div class="rw-title">' + esc(r.title) + '</div><div class="rw-desc">' + esc(r.description||'') + '</div><div class="rw-pts">✅ Earned</div></div>';
+  }).join('');
+
+  document.getElementById('rewardsGrid').innerHTML = cards + customBadges || '<div class="empty">No badges yet — set and achieve a goal to earn your first one!</div>';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// BOOTSTRAP
+// ════════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function(){
+  pickRole('facilitator');
+  if (!sbConfigured()) {
+    document.getElementById('sbConfigBox').classList.add('show');
+    showAuthErr('Supabase is not configured yet. Enter your project URL and anon key below (stored only in this browser) to continue.');
+  } else {
+    restoreSession();
+  }
+});
+</script>
+</body>
+</html>

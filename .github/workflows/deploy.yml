@@ -29,6 +29,8 @@ jobs:
         run: |
           sed -i "s|__SUPABASE_URL__|${{ secrets.SUPABASE_URL }}|g" index.html
           sed -i "s|__SUPABASE_ANON_KEY__|${{ secrets.SUPABASE_ANON_KEY }}|g" index.html
+          sed -i "s|__IS_SUPABASE_URL__|${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}|g" islamic-studies-development.html
+          sed -i "s|__IS_SUPABASE_ANON_KEY__|${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}|g" islamic-studies-development.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
