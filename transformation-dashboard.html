@@ -419,6 +419,157 @@ const LESSON_PLAN_SECTIONS = [
   ])}
 ];
 
+const MENTOR_PERF_SECTIONS = [
+  {key:'lo', group:null, title:'Lesson Observations', items: mkD('mp_lo',[
+    ["Observation Preparation & Focus", [
+      "Enters lessons with no clear focus; unaware of what to look for or the class/teacher context.",
+      "Has a general focus area but it is loosely defined; limited awareness of prior targets set for the teacher.",
+      "Sets a clear, relevant focus for each observation, informed by the teacher's prior targets and school priorities.",
+      "Tailors observation focus precisely to teacher's development stage and school priorities; briefs teacher appropriately beforehand."
+    ]],
+    ["Evidence Gathering & Accuracy", [
+      "Notes are vague, opinion-based, or too sparse to support any judgement made.",
+      "Captures some factual evidence but mixes observation with unsubstantiated opinion.",
+      "Records specific, timed, factual evidence of teaching and learning that clearly supports judgements.",
+      "Captures rich, precise evidence including pupil voice/work, linking cause and effect between teaching and learning outcomes."
+    ]],
+    ["Judgement & Grading Consistency", [
+      "Judgements are inconsistent, not moderated, or not aligned to the school's observation framework.",
+      "Applies the framework but grading is uneven across teachers or lessons; struggles to justify ratings.",
+      "Applies the observation framework consistently and can justify every judgement with clear evidence.",
+      "Judgements are consistently accurate and moderation-proof; calibrates own grading against other mentors regularly."
+    ]]
+  ])},
+  {key:'lw', group:null, title:'Learning Walkthroughs', items: mkD('mp_lw',[
+    ["Walkthrough Planning & Coverage", [
+      "Walkthroughs are ad hoc, infrequent, or cover only a narrow, unrepresentative sample of classes.",
+      "Follows a basic schedule but coverage of subjects, year groups, or times of day is uneven.",
+      "Plans a representative walkthrough schedule covering subjects, year groups, and times of day systematically.",
+      "Designs a strategic walkthrough schedule that targets priority areas while maintaining full, balanced coverage across the school."
+    ]],
+    ["Pattern Identification Across Classrooms", [
+      "Treats each walkthrough in isolation; does not notice or record trends across classrooms.",
+      "Notices isolated patterns but does not connect them to whole-school priorities or prior audit findings.",
+      "Identifies clear patterns and trends across classrooms and links them to whole-school priorities.",
+      "Synthesises walkthrough evidence into actionable whole-school insight, informing CPD and improvement planning."
+    ]]
+  ])},
+  {key:'bws', group:null, title:'Book / Work Scrutiny', items: mkD('mp_bws',[
+    ["Scrutiny Rigour & Sampling", [
+      "Samples books randomly or too narrowly (e.g. one ability group only); scrutiny is surface-level.",
+      "Samples a reasonable range of books but misses checking progress, presentation, or marking consistency together.",
+      "Samples books rigorously across ability groups and time periods, checking progress, presentation, and marking against policy.",
+      "Applies a rigorous, triangulated sampling method and cross-references findings against planning and observation evidence."
+    ]],
+    ["Linking Books to Planning & Progress", [
+      "Does not connect what is seen in books to lesson plans, curriculum sequencing, or pupil progress over time.",
+      "Makes some links between books and planning, but conclusions about progress are unclear or unsupported.",
+      "Clearly links evidence in books to planning intentions and can evaluate progress and depth over time.",
+      "Uses book scrutiny as a precise diagnostic tool, identifying curriculum gaps and feeding findings directly into teacher support plans."
+    ]]
+  ])},
+  {key:'fb', group:null, title:'Constructive Feedback to Teachers', items: mkD('mp_fb',[
+    ["Feedback Clarity & Specificity", [
+      "Feedback is vague, generic, or too general to act upon (e.g. 'good lesson').",
+      "Feedback names some strengths and areas for development but lacks specific evidence or examples.",
+      "Feedback is specific, evidence-based, and clearly identifies strengths and precise next steps.",
+      "Feedback is precise, evidence-rich, and co-constructed with the teacher, resulting in a clear, owned action plan."
+    ]],
+    ["Feedback Delivery & Relationship", [
+      "Delivery is harsh, purely critical, or so soft that issues are not conveyed; damages trust with the teacher.",
+      "Delivery is respectful but one-directional; limited space given for teacher reflection or dialogue.",
+      "Delivers feedback in a respectful, balanced, dialogic manner that builds trust and encourages reflection.",
+      "Creates a genuinely safe, coaching-style conversation where the teacher actively self-evaluates and owns the outcomes."
+    ]],
+    ["Follow-up & Impact Tracking", [
+      "No follow-up on agreed actions; feedback has no visible impact on subsequent practice.",
+      "Some follow-up occurs but is inconsistent and not clearly recorded or tracked over time.",
+      "Follows up systematically on agreed actions and tracks impact on practice over subsequent visits.",
+      "Maintains a clear, ongoing record of feedback and impact per teacher, adjusting support proactively based on progress."
+    ]]
+  ])},
+  {key:'pm', group:null, title:'Planning Meetings (Organising & Leading)', items: mkD('mp_pm',[
+    ["Meeting Organisation & Agenda Setting", [
+      "Meetings are called with no agenda, unclear purpose, or poor notice to attendees.",
+      "Sets an agenda but it lacks clear priorities or is not shared with attendees in advance.",
+      "Organises meetings with a clear, prioritised agenda shared in advance, aligned to school priorities.",
+      "Agenda is purposefully sequenced, data-informed, and anticipates discussion points, maximising the value of meeting time."
+    ]],
+    ["Facilitation & Engagement", [
+      "Dominates or loses control of discussion; teachers are passive or meeting goes off-topic.",
+      "Facilitates discussion adequately but participation is uneven across attendees.",
+      "Facilitates confidently, keeps discussion on track, and ensures balanced participation from all attendees.",
+      "Skilfully facilitates rich, focused dialogue, drawing out contributions from all and managing differing viewpoints constructively."
+    ]],
+    ["Outcomes & Action Follow-through", [
+      "Meetings end without clear outcomes, decisions, or actions recorded.",
+      "Actions are recorded but ownership, deadlines, or follow-up are unclear.",
+      "Meetings produce clear, actioned outcomes with named owners and deadlines, reviewed at the next meeting.",
+      "Outcomes are tightly tracked meeting-to-meeting, visibly driving improvement and informing the wider SIP/tracker."
+    ]]
+  ])},
+  {key:'cur', group:null, title:'Curriculum Implementation & Lesson Planning Monitoring', items: mkD('mp_cur',[
+    ["Lesson Plan Review Quality", [
+      "Reviews plans for completion only; does not assess quality, sequencing, or alignment to curriculum intent.",
+      "Reviews plans for basic quality but feedback on sequencing or differentiation is limited.",
+      "Reviews plans rigorously for quality, sequencing, differentiation, and alignment to curriculum intent, with clear feedback.",
+      "Reviews plans as part of a coherent curriculum overview, proactively identifying gaps, repetition, or misalignment across terms."
+    ]],
+    ["Curriculum Fidelity Monitoring", [
+      "Has little awareness of whether the curriculum is being delivered as intended across classes.",
+      "Monitors fidelity in some subjects/classes but coverage is inconsistent or reactive.",
+      "Systematically monitors curriculum fidelity across subjects and classes, identifying and addressing drift promptly.",
+      "Maintains a proactive, whole-school view of curriculum fidelity, using data and evidence to anticipate and prevent drift."
+    ]],
+    ["Support for Planning Improvement", [
+      "Flags weaknesses in planning but offers little practical support to improve them.",
+      "Offers some support (e.g. examples or resources) but it is generic and not tailored to the teacher's need.",
+      "Provides tailored, practical support (models, resources, co-planning) that visibly improves planning quality.",
+      "Builds teachers' independent planning capability over time, reducing the need for repeated intervention."
+    ]]
+  ])},
+  {key:'al', group:null, title:'Supporting Active Learning Strategies', items: mkD('mp_al',[
+    ["Modelling & Demonstration", [
+      "Talks about active learning strategies conceptually but does not model or demonstrate them in practice.",
+      "Occasionally models strategies but demonstrations are unplanned or not linked to teacher need.",
+      "Models active learning strategies clearly and purposefully, matched to identified teacher and class needs.",
+      "Plans and delivers high-quality demonstration lessons/team-teaching that teachers can directly replicate and adapt."
+    ]],
+    ["Coaching Teachers in Active Learning", [
+      "Gives generic advice on 'making lessons more active' without practical coaching or strategy-specific guidance.",
+      "Coaches teachers on active learning strategies but guidance lacks depth or is not followed up.",
+      "Coaches teachers effectively on specific active learning strategies suited to their subject and class context.",
+      "Builds sustained coaching relationships that visibly grow teachers' independent use and adaptation of active learning strategies."
+    ]],
+    ["Monitoring Uptake & Impact", [
+      "Does not check whether active learning strategies are being used or having any effect on pupil engagement.",
+      "Checks uptake occasionally but does not link it to pupil engagement or outcomes.",
+      "Monitors uptake of active learning strategies and evaluates their impact on pupil engagement and outcomes.",
+      "Tracks uptake and impact systematically over time, using evidence to refine coaching and school-wide CPD priorities."
+    ]]
+  ])},
+  {key:'att', group:null, title:'Attitude for Learning', items: mkD('mp_att',[
+    ["Modelling & Promoting Positive Attitudes", [
+      "Rarely references attitudes to learning; focuses on task completion only, in own practice and when mentoring teachers.",
+      "Occasionally comments on attitude to learning but does not model or actively promote it during observations or feedback.",
+      "Consistently models a positive attitude to learning and actively promotes it as a priority in observations and feedback conversations.",
+      "Champions attitude to learning as a whole-school priority, embedding it visibly in mentoring language, feedback, and CPD."
+    ]],
+    ["Monitoring Pupil Engagement & Motivation", [
+      "Does not observe or record evidence of pupil engagement, motivation, or resilience during lessons or walkthroughs.",
+      "Notices engagement levels informally but does not record evidence or link it to teaching practice.",
+      "Systematically observes and records pupil engagement, motivation, and resilience, linking evidence to teaching practice.",
+      "Uses rich evidence of pupil engagement and motivation to diagnose root causes and shape targeted teacher support."
+    ]],
+    ["Embedding a Growth Mindset Culture", [
+      "Gives no guidance to teachers on fostering resilience, curiosity, or a growth mindset in pupils.",
+      "Refers to growth mindset language occasionally but offers little practical guidance on embedding it in lessons.",
+      "Coaches teachers on practical strategies to build resilience, curiosity, and a growth mindset in pupils.",
+      "Builds a sustained, evidenced culture of growth mindset across classes, with visible impact on pupil attitudes over time."
+    ]]
+  ])}
+];
+
 const FIELD_DEFS = {
   teacher: {label:'Teacher name', placeholder:'e.g. Priya Menon'},
   grade: {label:'Grade', placeholder:'e.g. 4B'},
@@ -433,20 +584,31 @@ const REPORT_TYPES = {
   lesson_obs: {
     key:'lesson_obs', name:'Lesson Observation', short:'Observation', icon:'📋',
     desc:'Full classroom observation across 7 focus areas.',
+    subjectType:'teacher',
     fields:['teacher','grade','subject','topic','date','observer'],
     sections: LESSON_OBS_SECTIONS
   },
   walkthrough: {
     key:'walkthrough', name:'Curriculum Pulse Walkthrough', short:'Walkthrough', icon:'🚶',
     desc:'Quick walkthrough of intended, taught & learned curriculum.',
+    subjectType:'teacher',
     fields:['teacher','grade','subject','topic','duration','date','observer'], gradeLabel:'Class',
     sections: WALKTHROUGH_SECTIONS
   },
   lesson_plan: {
     key:'lesson_plan', name:'Lesson Plan Checklist', short:'Lesson Plan', icon:'📝',
     desc:'Behaviourally-anchored review of a teacher\'s lesson plan.',
+    subjectType:'teacher',
     fields:['teacher','grade','subject','date','observer'],
     sections: LESSON_PLAN_SECTIONS
+  },
+  mentor_perf: {
+    key:'mentor_perf', name:'Mentor Performance Review', short:'Mentor Review', icon:'🧭',
+    desc:'Behaviourally-anchored review of a mentor/coach across 8 domains.',
+    subjectType:'mentor',
+    fields:['teacher','grade','date','observer'],
+    teacherLabel:'Mentor / Coach name', gradeLabel:'Branch / School', observerLabel:'Reviewed by',
+    sections: MENTOR_PERF_SECTIONS
   }
 };
 function typeItems(typeKey){ return REPORT_TYPES[typeKey].sections.flatMap(s=>s.items.map(it=>({...it, section:s.key}))); }
@@ -486,6 +648,8 @@ function saveSettings(s){ localStorage.setItem(SET_KEY, JSON.stringify(s)); }
 let OBS = loadObs();
 let SETTINGS = loadSettings();
 let VIEW = {name:'home', id:null, teacherName:null};
+let PEOPLE_KIND = 'teacher';
+function switchPeopleKind(k){ PEOPLE_KIND = k; render(); }
 
 /* ---------- Helpers ---------- */
 function uid(){ return 'obs_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -575,7 +739,7 @@ function brandBar(title){
 /* ---------- Home ---------- */
 function renderHome(){
   const total = OBS.length;
-  const teachers = new Set(OBS.map(o=>o.teacher.trim()).filter(Boolean)).size;
+  const teachers = new Set(OBS.filter(o=>(REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType==='teacher').map(o=>o.teacher.trim()).filter(Boolean)).size;
   const completed = OBS.filter(o=>o.status==='complete');
   const avg = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).avg,0)/completed.length*10)/10 : 0;
 
@@ -637,8 +801,10 @@ function renderForm(id){
   const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
   const sc = computeScore(o);
 
+  const teacherLabel = type.teacherLabel || FIELD_DEFS.teacher.label;
+  const observerLabel = type.observerLabel || FIELD_DEFS.observer.label;
   const fieldsHtml = `<div class="card">
-    <div class="fld"><label>${FIELD_DEFS.teacher.label}</label><input value="${esc(o.teacher)}" placeholder="${FIELD_DEFS.teacher.placeholder}" oninput="updateField('${id}','teacher',this.value)"></div>
+    <div class="fld"><label>${teacherLabel}</label><input value="${esc(o.teacher)}" placeholder="${FIELD_DEFS.teacher.placeholder}" oninput="updateField('${id}','teacher',this.value)"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       ${type.fields.filter(f=>f!=='teacher'&&f!=='observer').map(f=>{
         const def = FIELD_DEFS[f];
@@ -647,7 +813,7 @@ function renderForm(id){
         return `<div class="fld"><label>${label}</label><input value="${esc(o[f])}" placeholder="${def.placeholder}" oninput="updateField('${id}','${f}',this.value)"></div>`;
       }).join('')}
     </div>
-    <div class="fld" style="margin-bottom:0"><label>${FIELD_DEFS.observer.label}</label><input value="${esc(o.observer)}" placeholder="${FIELD_DEFS.observer.placeholder}" oninput="updateField('${id}','observer',this.value)"></div>
+    <div class="fld" style="margin-bottom:0"><label>${observerLabel}</label><input value="${esc(o.observer)}" placeholder="${FIELD_DEFS.observer.placeholder}" oninput="updateField('${id}','observer',this.value)"></div>
   </div>`;
 
   const sectionsHtml = type.sections.map((sec,si)=>{
@@ -855,17 +1021,18 @@ function shareObservation(id){
   }
 }
 
-/* ---------- Teachers ---------- */
+/* ---------- Teachers / Mentors ---------- */
 function renderTeachers(){
-  const byTeacher = {};
-  OBS.filter(o=>o.status==='complete').forEach(o=>{
+  const kind = PEOPLE_KIND;
+  const byName = {};
+  OBS.filter(o=>o.status==='complete' && (REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType===kind).forEach(o=>{
     const t = o.teacher.trim()||'Unnamed';
-    (byTeacher[t]=byTeacher[t]||[]).push(o);
+    (byName[t]=byName[t]||[]).push(o);
   });
-  const names = Object.keys(byTeacher).sort();
+  const names = Object.keys(byName).sort();
 
   let rows = names.map(name=>{
-    const list = byTeacher[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const list = byName[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
     const scores = list.map(o=>computeScore(o).avg);
     const last = scores[scores.length-1];
     const bars = scores.slice(-10).map(a=>{
@@ -882,11 +1049,18 @@ function renderTeachers(){
   }).join('');
 
   if(!names.length){
-    rows = `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports yet</h3><p>Finish a report to start tracking teacher progress here.</p></div>`;
+    rows = kind==='mentor'
+      ? `<div class="empty"><div class="ico">🧭</div><h3>No completed mentor reviews yet</h3><p>Finish a Mentor Performance Review to start tracking mentor progress here.</p></div>`
+      : `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports yet</h3><p>Finish a report to start tracking teacher progress here.</p></div>`;
   }
 
-  return `${brandBar('Teachers')}
-    <div class="wrap">${rows}</div>`;
+  const toggle = `<div class="chip-row">
+    <span class="chip ${kind==='teacher'?'on':''}" onclick="switchPeopleKind('teacher')">👩‍🏫 Teachers</span>
+    <span class="chip ${kind==='mentor'?'on':''}" onclick="switchPeopleKind('mentor')">🧭 Mentors</span>
+  </div>`;
+
+  return `${brandBar(kind==='mentor'?'Mentors':'Teachers')}
+    <div class="wrap">${toggle}${rows}</div>`;
 }
 
 /* ---------- Teacher profile (consolidated, date-wise) ---------- */
@@ -907,7 +1081,8 @@ function domainAvgsForType(list, typeKey){
 function uniqueObservers(list){ return [...new Set(list.map(o=>(o.observer||'').trim()).filter(Boolean))]; }
 
 function renderTeacherProfile(name){
-  const list = OBS.filter(o=>o.status==='complete' && (o.teacher.trim()||'Unnamed')===name)
+  const kind = PEOPLE_KIND;
+  const list = OBS.filter(o=>o.status==='complete' && (o.teacher.trim()||'Unnamed')===name && (REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType===kind)
     .slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
 
   const overallAvg = pooledAvg(list) || 0;
@@ -963,6 +1138,8 @@ function renderTeacherProfile(name){
     </div>`;
   }).join('');
 
+  const subjectLabel = kind==='mentor' ? 'Mentor / Coach' : 'Teacher';
+  const observerLabel = kind==='mentor' ? 'Reviewed by' : 'Mentor/Coach';
   return `<div class="topbar"><div class="back" onclick="go('teachers')">←</div><div><h1>${esc(name)}</h1><div class="sub">Consolidated report history</div></div></div>
     <div class="wrap">
       <div class="card">
@@ -970,8 +1147,8 @@ function renderTeacherProfile(name){
           <div class="score-num" style="color:${scoreColor(overallAvg)};font-size:36px">${overallAvg.toFixed(1)}<small>/4</small></div>
           <div class="score-sub">${list.length} report${list.length!==1?'s':''} across all types</div>
         </div>
-        <div class="profile-meta"><b>Teacher:</b> ${esc(name)}</div>
-        <div class="profile-meta"><b>Mentor/Coach:</b> ${mentors.length? esc(mentors.join(', ')) : '—'}</div>
+        <div class="profile-meta"><b>${subjectLabel}:</b> ${esc(name)}</div>
+        <div class="profile-meta"><b>${observerLabel}:</b> ${mentors.length? esc(mentors.join(', ')) : '—'}</div>
         <div class="chip-row" style="margin-top:10px;margin-bottom:0">${countChips}</div>
       </div>
       ${domainCards}
