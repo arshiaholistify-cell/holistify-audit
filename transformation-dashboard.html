@@ -126,7 +126,7 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
 .progress-top{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--inkm);margin-bottom:6px}
 .progress-bar{height:7px;background:var(--bdr);border-radius:20px;overflow:hidden}
-.progress-fill{height:100%;background:var(--g);border-radius:20px;transition:width .25s}
+.progress-fill{height:100%;width:100%;background:var(--g);border-radius:20px;transform-origin:left;transform:scaleX(0);transition:transform .25s}
 
 /* Score ring / summary */
 .report-logo{display:block;height:30px;margin:0 auto 12px}
@@ -864,7 +864,7 @@ function renderForm(id){
     </div>
     <div class="progress-wrap">
       <div class="progress-top"><span id="progress-label">${sc.rated}/${sc.total} items rated</span><span id="progress-avg">${sc.avg.toFixed(1)}/4</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:${sc.rated?Math.round(sc.rated/sc.total*100):0}%"></div></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="transform:scaleX(${sc.rated?sc.rated/sc.total:0})"></div></div>
     </div>
     <div class="wrap" style="padding-top:8px">
       ${fieldsHtml}
@@ -914,7 +914,7 @@ function updateProgressUI(obsId){
   const sc = computeScore(o);
   const lbl = document.getElementById('progress-label'); if(lbl) lbl.textContent = sc.rated+'/'+sc.total+' items rated';
   const avgEl = document.getElementById('progress-avg'); if(avgEl) avgEl.textContent = sc.avg.toFixed(1)+'/4';
-  const fill = document.getElementById('progress-fill'); if(fill) fill.style.width = (sc.rated?Math.round(sc.rated/sc.total*100):0)+'%';
+  const fill = document.getElementById('progress-fill'); if(fill) fill.style.transform = 'scaleX('+(sc.rated?sc.rated/sc.total:0)+')';
   sc.sectionScores.forEach(s=>{
     const el = document.getElementById('seccount-'+s.key);
     if(el) el.textContent = s.count+'/'+s.total;
