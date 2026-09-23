@@ -7507,9 +7507,12 @@ function canAccess(pageId) {
   const granted = u.pageAccess || PRINCIPAL_DEFAULT_PAGES;
   // audit- prefix: check if base domain is in granted list
   if (pageId.startsWith('audit-')) return granted.includes(pageId) || granted.includes('all-audit');
-  // Auditors: audit pages + always allow staff and students pages
+  // Auditors: full access to all school data, tools and audit pages
   if (u.role === 'auditor') {
-    if (pageId === 'staff' || pageId === 'students') return true;
+    const auditorPages = ['staff','students','assessment','pd','attendance',
+      'timetable','curriculum','checklists','teachers','lessonplan','records',
+      'overview','report','journey','sip','org','docs'];
+    if (auditorPages.includes(pageId)) return true;
     return granted.includes(pageId) || granted.includes('all-audit');
   }
   // Coaches: restricted to transformation pages
