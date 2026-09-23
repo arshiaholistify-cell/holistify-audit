@@ -1205,7 +1205,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       </div>
 
       <div id="setup-error" style="background:var(--red-p);color:var(--red);border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none">Please fill in all required fields (School name, Auditor and Date).</div>
-      <button class="setup-btn" onclick="startAudit()">Begin Audit →</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="setup-btn" onclick="startAudit()">Begin Audit →</button>
+        <button onclick="saveSetupOnly()" style="font-size:13px;padding:10px 20px;border-radius:var(--r-md);border:1.5px solid var(--sage);background:#fff;color:var(--sage);cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500">💾 Save Setup</button>
+      </div>
     </div>
   </div>
 </div>
@@ -8117,7 +8120,7 @@ function startAudit() {
     var sid2 = schoolKey(schName);
     try {
       await sb.from('schools').upsert({ id: sid2, name: schName, city: meta.city||'', board: meta.board||'' }, { onConflict: 'id' });
-      var existing = await sb.from('audit_states').select('data').eq('school_id', sid2).single();
+      var existing = await sb.from('audit_states').select('data').eq('school_id', sid2).maybeSingle();
       var stateData = (existing.data && existing.data.data) || {};
       stateData.meta = meta;
       await sb.from('audit_states').upsert({ school_id: sid2, school_name: schName, data: stateData, updated_at: new Date().toISOString() }, { onConflict: 'school_id' });
@@ -8664,17 +8667,36 @@ startAudit = function() {
   if (saEl) saEl.value = auditor;
   if (sbEl) { const b = document.getElementById('setup-board'); if (b) sbEl.value = b.value; }
 
+  const auditMeta = {
+    school, auditor, dateStart,
+    dateEnd: (document.getElementById('setup-date-end') || {}).value || '',
+    board: (document.getElementById('setup-board') || {}).value || '',
+    city: (document.getElementById('setup-city') || {}).value || '',
+    cycle: (document.getElementById('setup-cycle') || {}).value || '',
+    coauditor: (document.getElementById('setup-coauditor') || {}).value || '',
+    scope: currentAuditScope,
+  };
   try {
-    localStorage.setItem('hol_audit_meta', JSON.stringify({
-      school, auditor, dateStart,
-      dateEnd: (document.getElementById('setup-date-end') || {}).value || '',
-      board: (document.getElementById('setup-board') || {}).value || '',
-      city: (document.getElementById('setup-city') || {}).value || '',
-      cycle: (document.getElementById('setup-cycle') || {}).value || '',
-      coauditor: (document.getElementById('setup-coauditor') || {}).value || '',
-      scope: currentAuditScope,
-    }));
+    localStorage.setItem('hol_audit_meta', JSON.stringify(auditMeta));
+    // Per-school key so sdbLaunchAudit finds it on future visits
+    var _mSid = schoolKey(school);
+    localStorage.setItem('hol_audit_meta_' + _mSid, JSON.stringify(auditMeta));
+    // Embed on registry entry as belt-and-suspenders fallback
+    var _mIdx = schoolRegistry.findIndex(function(s) { return s.id === _mSid; });
+    if (_mIdx !== -1) { schoolRegistry[_mIdx].auditMeta = auditMeta; saveSchoolRegistry(); }
   } catch(e) {}
+  // Persist to Supabase so it survives localStorage clears / new devices
+  (async function(schName, meta) {
+    var sb = _sbClient(); if (!sb) return;
+    var sid2 = schoolKey(schName);
+    try {
+      await sb.from('schools').upsert({ id: sid2, name: schName, city: meta.city||'', board: meta.board||'' }, { onConflict: 'id' });
+      var existing = await sb.from('audit_states').select('data').eq('school_id', sid2).maybeSingle();
+      var stateData = (existing.data && existing.data.data) || {};
+      stateData.meta = meta;
+      await sb.from('audit_states').upsert({ school_id: sid2, school_name: schName, data: stateData, updated_at: new Date().toISOString() }, { onConflict: 'school_id' });
+    } catch(e) { console.warn('Meta cloud save error:', e); }
+  })(school, auditMeta);
 
   hideAllOverlays();
   applyAuditScope(currentAuditScope);
@@ -8700,6 +8722,47 @@ startAudit = function() {
   renderOverview();
   goPage('overview', document.querySelector('[data-page=overview]'));
 };
+
+// Save setup without launching — lets admin persist config and come back later
+async function saveSetupOnly() {
+  var school = (document.getElementById('setup-school').value || '').trim();
+  var auditor = (document.getElementById('setup-auditor').value || '').trim();
+  var dateStart = document.getElementById('setup-date-start').value;
+  var errEl = document.getElementById('setup-error');
+  if (!school || !auditor || !dateStart) {
+    if (errEl) { errEl.textContent = 'Please fill in all required fields (School name, Auditor and Date).'; errEl.style.display = 'block'; }
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+  var scope = getSelectedScope();
+  var meta = {
+    school, auditor, dateStart,
+    dateEnd: (document.getElementById('setup-date-end') || {}).value || '',
+    board: (document.getElementById('setup-board') || {}).value || '',
+    city: (document.getElementById('setup-city') || {}).value || '',
+    cycle: (document.getElementById('setup-cycle') || {}).value || '',
+    coauditor: (document.getElementById('setup-coauditor') || {}).value || '',
+    scope: scope.length ? scope : null,
+  };
+  var sid = schoolKey(school);
+  try {
+    localStorage.setItem('hol_audit_meta', JSON.stringify(meta));
+    localStorage.setItem('hol_audit_meta_' + sid, JSON.stringify(meta));
+    var idx = schoolRegistry.findIndex(function(s) { return s.id === sid; });
+    if (idx !== -1) { schoolRegistry[idx].auditMeta = meta; saveSchoolRegistry(); }
+  } catch(e) {}
+  var sb = _sbClient();
+  if (sb) {
+    try {
+      await sb.from('schools').upsert({ id: sid, name: school, city: meta.city||'', board: meta.board||'' }, { onConflict: 'id' });
+      var existing = await sb.from('audit_states').select('data').eq('school_id', sid).maybeSingle();
+      var stateData = (existing.data && existing.data.data) || {};
+      stateData.meta = meta;
+      await sb.from('audit_states').upsert({ school_id: sid, school_name: school, data: stateData, updated_at: new Date().toISOString() }, { onConflict: 'school_id' });
+    } catch(e) { console.warn('saveSetupOnly Supabase error:', e); }
+  }
+  toast('Setup saved ✓ — this form won\'t appear again for this school.');
+}
 
 // Apply domain scope — hide unselected audit domains from sidebar
 function applyAuditScope(scope) {
@@ -13490,12 +13553,15 @@ async function sdbLaunchAudit() {
   var savedMeta = null;
   try { savedMeta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || 'null'); } catch(e) {}
 
-  // If no local meta, check Supabase (handles new devices / cleared localStorage)
+  // Fallback: check registry entry (embedded at save time)
+  if (!savedMeta && sch.auditMeta) savedMeta = sch.auditMeta;
+
+  // If still no meta, check Supabase (handles new devices / cleared localStorage)
   if (!savedMeta) {
     var sb = _sbClient();
     if (sb) {
       try {
-        var res = await sb.from('audit_states').select('data').eq('school_id', sch.id).single();
+        var res = await sb.from('audit_states').select('data').eq('school_id', sch.id).maybeSingle();
         if (res.data && res.data.data) {
           var cloudData = res.data.data;
           if (cloudData.meta) {
