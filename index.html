@@ -5474,6 +5474,7 @@ function syncStaffToTeachers() {
   if (!teachingStaff.length) { toast('No teaching staff found. Upload staff data first.'); return; }
   let added = 0;
   teachingStaff.forEach(function(s) {
+    if (_isInvalidName(s.name)) return; // skip any lingering numeric/bad names
     if (!teachers.find(function(t) { return t.name === s.name; })) {
       const id = 'T' + Date.now() + Math.random().toString(36).slice(2,6);
       teachers.push({ id, name: s.name, subject: s.subject||s.designation||'—', qual: s.qualification||'—', exp: s.experience||'—' });
@@ -10240,7 +10241,16 @@ function loadStaffData() {
   try {
     const k = 'hol_staff_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     const s = localStorage.getItem(k);
-    if (s) staffData = JSON.parse(s);
+    if (s) {
+      const loaded = JSON.parse(s);
+      // Strip any records whose name is a numeric serial (legacy bad import)
+      const cleaned = loaded.filter(function(r) { return !_isInvalidName(r.name); });
+      staffData = cleaned;
+      // If we removed bad records, persist the clean copy
+      if (cleaned.length !== loaded.length) {
+        try { localStorage.setItem(k, JSON.stringify(cleaned)); } catch(e) {}
+      }
+    }
   } catch(e) {}
 }
 function saveStaffData() {
@@ -10426,12 +10436,25 @@ function _colVal(row, ...keys) {
     });
     if (found && row[found] !== undefined && row[found] !== '') {
       const v = String(row[found]).trim();
-      // If it's a pure serial number (e.g. "1", "2"), skip for 'name' key
-      if (k === 'name' && /^\d+$/.test(v)) continue;
+      // For 'name': skip anything that looks like a serial/ID number
+      // (pure integer, decimal, number with trailing punctuation like "2.")
+      if (k === 'name' && /^\d+\.?\d*$/.test(v)) continue;
       return v;
     }
   }
   return '';
+}
+
+// Returns true if a name value is clearly invalid (numeric serial, empty, etc.)
+function _isInvalidName(v) {
+  if (!v) return true;
+  const t = String(v).trim();
+  if (!t) return true;
+  // Pure number or number with trailing period/space: "1", "2.", " 14 "
+  if (/^\d+\.?\s*$/.test(t)) return true;
+  // Single character (likely a column/section letter)
+  if (t.length === 1) return true;
+  return false;
 }
 
 function handleStaffUpload(input) {
@@ -10439,8 +10462,9 @@ function handleStaffUpload(input) {
   _parseSheetRows(file, rows => {
     let count = 0;
     rows.forEach(row => {
-      const name = _colVal(row, 'name');
-      if (!name) return;
+      // Try progressively broader name column aliases
+      const name = _colVal(row, 'name', 'staff name', 'teacher name', 'employee name', 'full name', 'teacher', 'staff', 'employee');
+      if (!name || _isInvalidName(name)) return;
       const cat = (_colVal(row, 'category', 'type') || 'teaching').toLowerCase().replace(/\s/g, '');
       staffData.push({
         name, category: cat,
