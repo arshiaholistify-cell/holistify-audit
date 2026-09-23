@@ -10015,6 +10015,7 @@ function renderStaffPage() {
   loadStaffData();
   renderStaffSummary();
   renderStaffTable();
+  if (typeof updateTopbar === 'function') updateTopbar();
 }
 
 function renderStaffSummary() {
@@ -10170,9 +10171,25 @@ function _parseSheetRows(file, cb) {
 }
 
 function _colVal(row, ...keys) {
+  const headers = Object.keys(row);
   for (const k of keys) {
-    const found = Object.keys(row).find(h => h.toLowerCase().includes(k.toLowerCase()));
-    if (found && row[found]) return String(row[found]).trim();
+    const kl = k.toLowerCase();
+    // Priority 1: exact match
+    let found = headers.find(h => h.toLowerCase() === kl);
+    // Priority 2: starts with key
+    if (!found) found = headers.find(h => h.toLowerCase().startsWith(kl));
+    // Priority 3: contains key (but not pure serial-number columns like "S.No", "Sr.", "No.")
+    if (!found) found = headers.find(h => {
+      const hl = h.toLowerCase().replace(/[^a-z]/g,'');
+      if (['sno','srno','slno','no','sr','sl'].includes(hl)) return false;
+      return h.toLowerCase().includes(kl);
+    });
+    if (found && row[found] !== undefined && row[found] !== '') {
+      const v = String(row[found]).trim();
+      // If it's a pure serial number (e.g. "1", "2"), skip for 'name' key
+      if (k === 'name' && /^\d+$/.test(v)) continue;
+      return v;
+    }
   }
   return '';
 }
@@ -10722,6 +10739,7 @@ function _rubricAttainmentLabel(avg, scale) {
 
 // ── By Grade view ──────────────────────────────────────────────────
 function _initGradeViewFilters() {
+  loadAssessmentData(); // ensure scores and rubric responses are in memory
   const sel = document.getElementById('grade-view-sel');
   if (!sel) return;
   // Collect all grades that have data
@@ -10739,7 +10757,9 @@ function _initGradeViewFilters() {
   const sorted = GRADES_ORDER.filter(g => gradeSet.has(g));
   const cur = sel.value;
   sel.innerHTML = '<option value="">— choose grade —</option>' + sorted.map(g=>`<option${g===cur?' selected':''}>${g}</option>`).join('');
-  if (cur && gradeSet.has(cur)) sel.value = cur;
+  // Auto-select previous or first grade with data
+  if (cur && gradeSet.has(cur)) { sel.value = cur; }
+  else if (sorted.length) { sel.value = sorted[0]; }
   renderGradeWiseView();
 }
 
@@ -10758,11 +10778,14 @@ function renderGradeWiseView() {
   let scoreRows = [];
   if (typeFilter === 'all' || typeFilter === 'scores') {
     assessments.forEach(a => {
-      if (a.grade !== 'all' && a.grade !== grade) return;
+      // include if assessment is for this grade, for all grades, or has score entries for this grade
+      const aMatchesGrade = a.grade === 'all' || a.grade === grade;
+      const hasGradeEntries = (scoreEntries[a.id]||[]).some(sc => sc.grade === grade);
+      if (!aMatchesGrade && !hasGradeEntries) return;
       if (term !== 'all' && a.term !== term) return;
       (scoreEntries[a.id]||[]).forEach(sc => {
-        const scGrade = sc.grade || a.grade;
-        if (scGrade !== grade && scGrade !== 'all' && a.grade !== 'all') return;
+        const scGrade = sc.grade || (aMatchesGrade ? grade : '');
+        if (scGrade && scGrade !== grade) return; // skip if explicitly different grade
         const pct = a.maxMarks ? Math.round((parseFloat(sc.score)||0)/a.maxMarks*100) : null;
         const att = _attainmentLabel(pct);
         scoreRows.push({ studentName: sc.name, roll: sc.roll||'', grade, subject: a.subject, assessName: a.name,
