@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Holistify School Audit Platform</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -2014,7 +2015,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="pg-hd-actions">
       <button class="btn btn-p always-on" onclick="openAddStaff()">+ Add staff</button>
       <button class="btn btn-s" onclick="document.getElementById('staff-csv-input').click()">⬆ Upload CSV</button>
-      <input type="file" id="staff-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleStaffUpload(this)">
+      <input type="file" id="staff-csv-input" accept=".csv,.xlsx,.xls,.ods" style="display:none" onchange="handleStaffUpload(this)">
       <button class="btn btn-s" onclick="exportStaffCSV()">⬇ Export</button>
       <button class="btn btn-s" onclick="clearAllStaffData()" style="color:var(--red)">🗑 Clear all</button>
     </div>
@@ -2117,7 +2118,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="pg-hd-actions">
       <button class="btn btn-p always-on" onclick="openAddStudent()">+ Add student</button>
       <button class="btn btn-s always-on" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload CSV</button>
-      <input type="file" id="stu-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleStudentUpload(this)">
+      <input type="file" id="stu-csv-input" accept=".csv,.xlsx,.xls,.ods" style="display:none" onchange="handleStudentUpload(this)">
       <button class="btn btn-s" onclick="exportStudentsCSV()">⬇ Export</button>
     </div>
   </div>
@@ -10020,34 +10021,69 @@ function clearAllStaffData() {
   toast('All staff records cleared.');
 }
 
+function _parseSheetRows(file, cb) {
+  const isExcel = /\.(xlsx|xls|ods)$/i.test(file.name);
+  if (isExcel && typeof XLSX !== 'undefined') {
+    const r = new FileReader();
+    r.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      cb(rows);
+    };
+    r.readAsArrayBuffer(file);
+  } else {
+    const r = new FileReader();
+    r.onload = e => {
+      let text = e.target.result.replace(/^﻿|￾/g, '');
+      const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+      const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim());
+      const rows = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c=>c.replace(/^"|"$/g,'').trim());
+        const row = {};
+        header.forEach((h, i) => { row[h] = cols[i] || ''; });
+        return row;
+      });
+      cb(rows);
+    };
+    r.readAsText(file, 'UTF-8');
+  }
+}
+
+function _colVal(row, ...keys) {
+  for (const k of keys) {
+    const found = Object.keys(row).find(h => h.toLowerCase().includes(k.toLowerCase()));
+    if (found && row[found]) return String(row[found]).trim();
+  }
+  return '';
+}
+
 function handleStaffUpload(input) {
   const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    let text = e.target.result;
-    // Strip BOM (UTF-8 BOM ﻿ or UTF-16 LE BOM that survived as ￾)
-    text = text.replace(/^﻿|￾/g, '');
-    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-    const header = lines[0].toLowerCase().split(',').map(h=>h.replace(/"/g,'').trim());
-    const colMap = { name:header.indexOf('name'), category:header.indexOf('category'), designation:header.indexOf('designation'),
-      subject:header.indexOf('subject'), qualification:header.indexOf('qualification'),
-      experience:header.indexOf('experience'), phone:header.indexOf('phone'), email:header.indexOf('email') };
-    lines.slice(1).forEach(line => {
-      const cols = line.split(',').map(c=>c.replace(/^"|"$/g,'').trim());
-      const name = cols[colMap.name >= 0 ? colMap.name : 0];
+  _parseSheetRows(file, rows => {
+    let count = 0;
+    rows.forEach(row => {
+      const name = _colVal(row, 'name');
       if (!name) return;
+      const cat = (_colVal(row, 'category', 'type') || 'teaching').toLowerCase().replace(/\s/g, '');
       staffData.push({
-        name, category: (cols[colMap.category]||'teaching').toLowerCase().replace(/\s/g,''),
-        designation: cols[colMap.designation]||'', subject: cols[colMap.subject]||'',
-        qualification: cols[colMap.qualification]||'', experience: cols[colMap.experience]||'',
-        phone: cols[colMap.phone]||'', email: cols[colMap.email]||'',
+        name, category: cat,
+        designation: _colVal(row, 'designation', 'role', 'position'),
+        subject: _colVal(row, 'subject', 'dept'),
+        qualification: _colVal(row, 'qualification', 'qual'),
+        experience: _colVal(row, 'experience', 'exp', 'years'),
+        phone: _colVal(row, 'phone', 'mobile', 'contact'),
+        email: _colVal(row, 'email'),
+        doj: _colVal(row, 'joining', 'doj', 'date'),
+        emptype: _colVal(row, 'emptype', 'employment') || 'Full-time',
+        notes: _colVal(row, 'notes', 'remarks'),
       });
+      count++;
     });
-    saveStaffData();
-    renderStaffPage();
-    toast((lines.length-1) + ' staff records imported.');
-  };
-  reader.readAsText(file); input.value = '';
+    saveStaffData(); renderStaffPage();
+    toast(count + ' staff records imported.');
+  });
+  input.value = '';
 }
 
 function exportStaffCSV() {
@@ -10202,29 +10238,27 @@ function deleteStudent() {
 
 function handleStudentUpload(input) {
   const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const lines = e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
-    const header = lines[0].toLowerCase().split(',').map(h=>h.replace(/"/g,'').trim());
-    const ci = n => header.findIndex(h=>h.includes(n));
-    lines.slice(1).forEach(line => {
-      const c = line.split(',').map(v=>v.replace(/^"|"$/g,'').trim());
-      const name = c[ci('name')>=0?ci('name'):0];
+  _parseSheetRows(file, rows => {
+    let count = 0;
+    rows.forEach(row => {
+      const name = _colVal(row, 'name');
       if (!name) return;
       studentsData.push({
-        name, roll: c[ci('roll')]||c[ci('admission')]||'',
-        grade: c[ci('grade')]||c[ci('class')]||'Grade 1',
-        section: c[ci('section')]||'', gender: c[ci('gender')]||'',
-        dob: c[ci('dob')]||c[ci('birth')]||'',
-        parent: c[ci('parent')]||c[ci('guardian')]||'',
-        phone: c[ci('phone')]||c[ci('contact')]||'',
+        name,
+        roll: _colVal(row, 'roll', 'admission', 'no'),
+        grade: _colVal(row, 'grade', 'class', 'std') || 'Grade 1',
+        section: _colVal(row, 'section', 'div'),
+        gender: _colVal(row, 'gender', 'sex'),
+        dob: _colVal(row, 'dob', 'birth', 'date'),
+        parent: _colVal(row, 'parent', 'guardian', 'father', 'mother'),
+        phone: _colVal(row, 'phone', 'contact', 'mobile'),
       });
+      count++;
     });
-    saveStudentsData();
-    renderStudentsPage();
-    toast((lines.length-1) + ' student records imported.');
-  };
-  reader.readAsText(file); input.value = '';
+    saveStudentsData(); renderStudentsPage();
+    toast(count + ' student records imported.');
+  });
+  input.value = '';
 }
 
 function exportStudentsCSV() {
