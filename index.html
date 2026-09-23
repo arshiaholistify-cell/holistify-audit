@@ -10460,6 +10460,7 @@ function loadAssessmentData() {
     const s = localStorage.getItem(k);
     if (s) { const d = JSON.parse(s); assessments = d.assessments||[]; scoreEntries = d.scores||{}; rubrics = d.rubrics||[]; }
   } catch(e) {}
+  if (typeof loadRubricScores === 'function') loadRubricScores();
 }
 function saveAssessmentData() {
   try {
