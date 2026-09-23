@@ -1688,7 +1688,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-p" onclick="addTeacher()" style="height:34px;white-space:nowrap">+ Add</button>
     </div>
   </div>
-  <div id="tp-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+  <div id="tp-tabs" style="margin-bottom:12px"></div>
   <div id="tp-score-area"></div>
   <div id="tp-consolidated" style="margin-top:16px"></div>
   <div class="act-row"><button class="btn btn-p" onclick="exportTP()">Export CSV</button></div>
@@ -1892,7 +1892,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="lp-bars"></div>
   </div>
   <div class="info-ban">Teachers are shared with the Teacher Performance module. Add teachers there first.</div>
-  <div id="lp-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+  <div id="lp-tabs" style="margin-bottom:12px"></div>
   <div id="lp-score-area"></div>
   <div id="lp-consolidated" style="margin-top:16px"></div>
   <div class="act-row"><button class="btn btn-p" onclick="exportLP()">Export CSV</button></div>
@@ -5601,13 +5601,19 @@ function renderTeachers() {
   if(tabs){
     if(!teachers.length){tabs.innerHTML='<div style="font-size:13px;color:var(--ink-f);font-style:italic">No teachers added yet.</div>';document.getElementById('tp-score-area').innerHTML='';document.getElementById('tp-consolidated').innerHTML='';return;}
     if(!activeTeacher)activeTeacher=teachers[0].id;
-    tabs.innerHTML=teachers.map(t=>{
-      const a=tpTeacherAvg(t.id);
-      return `<div class="t-tab${t.id===activeTeacher?' active':''}" onclick="activeTeacher='${t.id}';renderTeachers()">
-        ${t.name} <span id="tp-tab-${t.id}">${a?`<span class="badge ${R_CLS[Math.round(a)]||'b-gray'}" style="font-size:10px">${a.toFixed(1)}</span>`:'<span style="font-size:10px;color:var(--ink-f)">—</span>'}</span>
-        <span onclick="event.stopPropagation();removeTeacher('${t.id}')" style="font-size:11px;color:var(--ink-f);cursor:pointer;margin-left:2px">×</span>
-      </div>`;
-    }).join('');
+    const _tIdx = teachers.findIndex(t=>t.id===activeTeacher);
+    const _tPrev = _tIdx > 0 ? teachers[_tIdx-1].id : null;
+    const _tNext = _tIdx < teachers.length-1 ? teachers[_tIdx+1].id : null;
+    tabs.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+      <button onclick="activeTeacher='${_tPrev||activeTeacher}';renderTeachers()" ${!_tPrev?'disabled':''} style="padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);background:var(--sur-r);cursor:${_tPrev?'pointer':'default'};opacity:${_tPrev?1:0.3};font-size:14px">‹</button>
+      <select id="tp-teacher-sel" onchange="activeTeacher=this.value;renderTeachers()"
+        style="flex:1;min-width:200px;padding:8px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:14px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        ${teachers.map(t=>{const a=tpTeacherAvg(t.id);return`<option value="${t.id}"${t.id===activeTeacher?' selected':''}>${t.name}${a?' ('+a.toFixed(1)+'/4.0)':''}</option>`;}).join('')}
+      </select>
+      <button onclick="activeTeacher='${_tNext||activeTeacher}';renderTeachers()" ${!_tNext?'disabled':''} style="padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);background:var(--sur-r);cursor:${_tNext?'pointer':'default'};opacity:${_tNext?1:0.3};font-size:14px">›</button>
+      <span style="font-size:12px;color:var(--ink-f);white-space:nowrap">${_tIdx+1} of ${teachers.length}</span>
+      <button onclick="removeTeacher(activeTeacher)" style="padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);background:var(--sur-r);font-size:12px;color:var(--red,#c0392b);cursor:pointer;font-family:'DM Sans',sans-serif">Remove</button>
+    </div>`;
   }
   // Scoring
   const area=document.getElementById('tp-score-area');
@@ -5810,7 +5816,18 @@ function renderLessonPlan(){
   if(tabs){
     if(!teachers.length){tabs.innerHTML='<div style="font-size:13px;color:var(--ink-f);font-style:italic">Add teachers in Teacher Performance first.</div>';document.getElementById('lp-score-area').innerHTML='';document.getElementById('lp-consolidated').innerHTML='';return;}
     if(!activeLpTeacher)activeLpTeacher=teachers[0].id;
-    tabs.innerHTML=teachers.map(t=>{const a=lpTeacherAvg(t.id);return `<div class="t-tab${t.id===activeLpTeacher?' active':''}" onclick="activeLpTeacher='${t.id}';renderLessonPlan()">${t.name} <span id="lp-tab-${t.id}">${a?`<span class="badge ${R_CLS[Math.round(a)]||'b-gray'}" style="font-size:10px">${a.toFixed(1)}</span>`:'<span style="font-size:10px;color:var(--ink-f)">—</span>'}</span></div>`;}).join('');
+    const _lpIdx = teachers.findIndex(t=>t.id===activeLpTeacher);
+    const _lpPrev = _lpIdx > 0 ? teachers[_lpIdx-1].id : null;
+    const _lpNext = _lpIdx < teachers.length-1 ? teachers[_lpIdx+1].id : null;
+    tabs.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+      <button onclick="activeLpTeacher='${_lpPrev||activeLpTeacher}';renderLessonPlan()" ${!_lpPrev?'disabled':''} style="padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);background:var(--sur-r);cursor:${_lpPrev?'pointer':'default'};opacity:${_lpPrev?1:0.3};font-size:14px">‹</button>
+      <select id="lp-teacher-sel" onchange="activeLpTeacher=this.value;renderLessonPlan()"
+        style="flex:1;min-width:200px;padding:8px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:14px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        ${teachers.map(t=>{const a=lpTeacherAvg(t.id);return`<option value="${t.id}"${t.id===activeLpTeacher?' selected':''}>${t.name}${a?' ('+a.toFixed(1)+'/4.0)':''}</option>`;}).join('')}
+      </select>
+      <button onclick="activeLpTeacher='${_lpNext||activeLpTeacher}';renderLessonPlan()" ${!_lpNext?'disabled':''} style="padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);background:var(--sur-r);cursor:${_lpNext?'pointer':'default'};opacity:${_lpNext?1:0.3};font-size:14px">›</button>
+      <span style="font-size:12px;color:var(--ink-f);white-space:nowrap">${_lpIdx+1} of ${teachers.length}</span>
+    </div>`;
   }
   const area=document.getElementById('lp-score-area');
   if(area&&activeLpTeacher){
