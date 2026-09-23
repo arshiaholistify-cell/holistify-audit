@@ -2354,8 +2354,12 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         </select>
       </div>
     </div>
-    <div class="sip-field" style="margin:0 0 12px"><label>Curriculum Standard / Learning Objective</label>
-      <input id="am-standard" placeholder="e.g. CBSE Grade 5 – Fractions and Decimals"></div>
+    <div class="sip-field" style="margin:0 0 12px"><label>Link to Student Attainment Standard</label>
+      <select id="am-standard" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="">— none / custom standard —</option>
+      </select>
+      <input id="am-standard-custom" placeholder="Or enter a custom standard / learning objective" style="margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-p" onclick="saveAssessment()">Create assessment</button>
       <button class="btn btn-s" onclick="document.getElementById('assess-modal').classList.remove('open')">Cancel</button>
@@ -4405,6 +4409,11 @@ function renderAudit(domainId) {
     const tpPanel = buildTpMergePanel();
     if (tpPanel) html += tpPanel;
   }
+  // Inject assessment summary for SA domain
+  if (domainId === 'sa') {
+    const saPanel = buildSaAssessmentPanel();
+    if (saPanel) html += saPanel;
+  }
 
   groupOrder.forEach(sub => {
     const items = groups[sub];
@@ -4446,6 +4455,7 @@ function renderAudit(domainId) {
           </div>
           <div style="font-size:11px;color:var(--ink-l);margin-bottom:4px">Evidence / observations</div>
           <textarea class="ev-area" id="ev-${k}" placeholder="Record evidence, quotes, specific observations..." onchange="notes['${k}']=this.value">${notes[k]||''}</textarea>
+          ${domainId === 'sa' ? _buildSaInlineEvidence(s.s, s.sub) : ''}
         </div>
       </div>`;
     });
@@ -5830,6 +5840,166 @@ function buildLpMergePanel(){
       <div style="margin-top:12px;padding:9px 12px;background:var(--sur);border-radius:var(--r-md);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--ink-l)">Score lesson plans in the Lesson Plan Checklist module</span><button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="goPage('lessonplan',document.querySelector('[data-page=lessonplan]'))">Go to Lesson Plan Checklist →</button></div>
     </div>
   </div>`;
+}
+
+// ── SA domain: assessment evidence panels ────────────────────────────────────
+
+function buildSaAssessmentPanel() {
+  // Overall summary at top of SA domain view
+  const hasScores = assessments.some(a => (scoreEntries[a.id]||[]).length > 0);
+  const hasRubric = rubrics.some(r => (rubricScores[r.id]||[]).length > 0);
+  if (!hasScores && !hasRubric) return '';
+
+  // Compute grade-wise averages
+  const gradeMap = {};
+  assessments.forEach(a => {
+    (scoreEntries[a.id]||[]).forEach(sc => {
+      const g = sc.grade || a.grade || 'Unknown';
+      if (!gradeMap[g]) gradeMap[g] = [];
+      const pct = a.maxMarks ? Math.round((parseFloat(sc.score)||0)/a.maxMarks*100) : null;
+      if (pct !== null) gradeMap[g].push(pct);
+    });
+  });
+  rubrics.forEach(r => {
+    (rubricScores[r.id]||[]).forEach(resp => {
+      const g = resp.grade || 'Unknown';
+      if (!gradeMap[g]) gradeMap[g] = [];
+      const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
+      const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+      gradeMap[g].push(Math.round(avg/(r.scale||4)*100));
+    });
+  });
+
+  const gradeKeys = GRADES_ORDER.filter(g => gradeMap[g] && gradeMap[g].length);
+  const allPcts = Object.values(gradeMap).flat();
+  const overallAvg = allPcts.length ? Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length) : null;
+  const attCounts = {exc:0,meet:0,app:0,bel:0};
+  allPcts.forEach(p => { if(p>=80)attCounts.exc++; else if(p>=60)attCounts.meet++; else if(p>=35)attCounts.app++; else attCounts.bel++; });
+  const total = allPcts.length;
+  const att = _attainmentLabel(overallAvg);
+
+  let html = `<div class="merge-panel" style="border:1.5px solid #1B5C30">
+    <div class="merge-hd" style="background:linear-gradient(135deg,#EBF4EE,#F5FBF8)" onclick="this.nextElementSibling.classList.toggle('closed')">
+      <div class="merge-icon" style="background:#EBF4EE;border:1.5px solid #1B5C30">📊</div>
+      <div style="flex:1">
+        <div class="merge-title" style="color:#1B5C30">Assessment & Attainment Data — Connected Evidence</div>
+        <div class="merge-sub" style="color:#2D6B47">${assessments.length} assessments · ${rubrics.length} rubrics · ${total} student records · School avg: <strong>${overallAvg!==null?overallAvg+'%':'—'}</strong></div>
+      </div>
+      <div style="font-size:22px;font-weight:600;color:#1B5C30;margin-right:8px">${overallAvg!==null?overallAvg+'%':'—'}</div>
+      <span style="font-size:16px;color:#1B5C30">▾</span>
+    </div>
+    <div class="merge-body" style="border-top:0.5px solid #9FDDBE">`;
+
+  // Attainment distribution bar
+  if (total > 0) {
+    html += `<div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">Overall Student Attainment Distribution</div>
+      <div style="display:flex;height:16px;border-radius:6px;overflow:hidden;gap:2px;margin-bottom:5px">
+        ${attCounts.exc?`<div style="flex:${attCounts.exc};background:var(--grn)" title="Exceeding"></div>`:''}
+        ${attCounts.meet?`<div style="flex:${attCounts.meet};background:#3b82f6" title="Meeting"></div>`:''}
+        ${attCounts.app?`<div style="flex:${attCounts.app};background:var(--gold)" title="Approaching"></div>`:''}
+        ${attCounts.bel?`<div style="flex:${attCounts.bel};background:var(--red)" title="Below"></div>`:''}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px">
+        <span style="color:var(--grn)">■ Exceeding ${Math.round(attCounts.exc/total*100)}% (${attCounts.exc})</span>
+        <span style="color:#3b82f6">■ Meeting ${Math.round(attCounts.meet/total*100)}% (${attCounts.meet})</span>
+        <span style="color:var(--gold)">■ Approaching ${Math.round(attCounts.app/total*100)}% (${attCounts.app})</span>
+        <span style="color:var(--red)">■ Below ${Math.round(attCounts.bel/total*100)}% (${attCounts.bel})</span>
+      </div>
+    </div>`;
+  }
+
+  // Grade-wise bar chart
+  if (gradeKeys.length) {
+    html += `<div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px">Grade-wise Average</div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:80px;margin-bottom:14px">`;
+    gradeKeys.forEach(g => {
+      const arr = gradeMap[g];
+      const avg2 = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      const col = avg2>=80?'var(--grn)':avg2>=60?'#3b82f6':avg2>=35?'var(--gold)':'var(--red)';
+      html += `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:40px">
+        <div style="font-size:10px;font-weight:600;color:${col}">${avg2}%</div>
+        <div style="width:100%;background:${col};border-radius:3px 3px 0 0;height:${Math.max(6,Math.round(avg2*0.72))}px"></div>
+        <div style="font-size:9px;color:var(--ink-l);text-align:center">${g.replace('Grade ','G')}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Standards-linked assessments table
+  const linked = assessments.filter(a => a.standard);
+  if (linked.length) {
+    html += `<div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">Assessments Linked to SA Standards</div>
+    <div style="overflow-x:auto;margin-bottom:12px"><table class="data-table" style="font-size:11px">
+      <thead><tr><th>Assessment</th><th>Subject</th><th>Grade</th><th>Term</th><th>Students</th><th>Avg%</th><th>Attainment</th><th>Standard</th></tr></thead>
+      <tbody>`;
+    linked.forEach(a => {
+      const scs = scoreEntries[a.id]||[];
+      const pcts = scs.map(sc=>a.maxMarks?Math.round((parseFloat(sc.score)||0)/a.maxMarks*100):null).filter(p=>p!==null);
+      const avg2 = pcts.length?Math.round(pcts.reduce((x,y)=>x+y,0)/pcts.length):null;
+      const att2 = _attainmentLabel(avg2);
+      html += `<tr>
+        <td style="font-weight:500">${a.name}</td>
+        <td>${a.subject||'—'}</td>
+        <td>${a.grade==='all'?'All':a.grade}</td>
+        <td>${a.term}</td>
+        <td>${scs.length}</td>
+        <td style="font-weight:500;${avg2!==null?'color:'+((avg2>=80?'var(--grn)':avg2>=60?'#3b82f6':avg2>=35?'var(--gold)':'var(--red)')):''}">${avg2!==null?avg2+'%':'—'}</td>
+        <td><span style="font-size:10px;padding:1px 6px;border-radius:20px;${att2.css}">${att2.label}</span></td>
+        <td style="color:var(--blue);font-size:10px;max-width:200px">${a.standard}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  html += `<div style="padding:9px 12px;background:var(--sur);border-radius:var(--r-md);display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:12px;color:var(--ink-l)">View full grade-wise breakdown in Assessment Data</span>
+    <button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="goPage('assessment',document.querySelector('[data-page=assessment]'));setTimeout(()=>setAssessTab('grade',document.querySelector('#assess-tabs .tab:nth-child(3)')),300)">Go to By Grade view →</button>
+  </div>
+  </div></div>`;
+  return html;
+}
+
+function _buildSaInlineEvidence(standardText, subText) {
+  // Show assessments directly linked to this standard
+  const linked = assessments.filter(a => a.standard && (a.standard === standardText || a.standard.toLowerCase().includes(subText.toLowerCase())));
+  const linkedRubrics = rubrics.filter(r => rubricScores[r.id] && rubricScores[r.id].length &&
+    (r.name.toLowerCase().includes(subText.toLowerCase()) || r.subject.toLowerCase().includes(subText.toLowerCase())));
+  if (!linked.length && !linkedRubrics.length) return '';
+
+  let html = `<div style="margin-top:10px;padding:10px;background:var(--sage-p);border-radius:var(--r-md);border:0.5px solid #9FDDBE">
+    <div style="font-size:11px;font-weight:600;color:#1B5C30;margin-bottom:8px">📊 Connected Assessment Evidence</div>`;
+
+  linked.forEach(a => {
+    const scs = scoreEntries[a.id]||[];
+    if (!scs.length) return;
+    const pcts = scs.map(sc=>a.maxMarks?Math.round((parseFloat(sc.score)||0)/a.maxMarks*100):null).filter(p=>p!==null);
+    const avg2 = pcts.length?Math.round(pcts.reduce((x,y)=>x+y,0)/pcts.length):null;
+    const att2 = _attainmentLabel(avg2);
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:500;color:var(--ink)">${a.name}</span>
+      <span style="font-size:10px;color:var(--ink-l)">${a.subject} · ${a.grade==='all'?'All Grades':a.grade} · ${a.term} · ${scs.length} students</span>
+      ${avg2!==null?`<span style="font-size:10px;padding:1px 6px;border-radius:20px;${att2.css}">${avg2}% — ${att2.label}</span>`:''}
+    </div>`;
+  });
+
+  linkedRubrics.forEach(r => {
+    const responses = rubricScores[r.id]||[];
+    const vals = responses.map(resp => {
+      const vs = r.criteria.map(c=>parseFloat(resp.scores[c.name])||0);
+      return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:0;
+    });
+    const avg2 = vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+    const att2 = _rubricAttainmentLabel(avg2, r.scale||4);
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:500;color:var(--ink)">📋 ${r.name}</span>
+      <span style="font-size:10px;color:var(--ink-l)">${r.subject||''} · ${responses.length} responses</span>
+      <span style="font-size:10px;padding:1px 6px;border-radius:20px;${att2.css}">${avg2.toFixed(1)}/${r.scale||4} — ${att2.label}</span>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
 }
 
 // ═══════════════════════════════════════════
@@ -10513,6 +10683,7 @@ function saveAssessmentData() {
     const k = 'hol_assess_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     localStorage.setItem(k, JSON.stringify({ assessments, scores: scoreEntries, rubrics }));
   } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderAssessmentPage() {
@@ -10604,10 +10775,28 @@ function renderAssessmentTable() {
   }).join('');
 }
 
+function _populateSaStandardPicker() {
+  const sel = document.getElementById('am-standard');
+  if (!sel || sel.options.length > 1) return; // already populated
+  const saDomain = DOMAINS.find(d => d.id === 'sa');
+  if (!saDomain) return;
+  const bySub = {};
+  saDomain.standards.forEach(s => { if (!bySub[s.sub]) bySub[s.sub] = []; bySub[s.sub].push(s); });
+  let html = '<option value="">— none / custom standard —</option>';
+  Object.entries(bySub).forEach(([sub, stds]) => {
+    html += `<optgroup label="${sub}">`;
+    stds.forEach(s => { html += `<option value="${s.s.replace(/"/g,"'")}">${s.s}</option>`; });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+}
+
 function openAddAssessment() {
   assessEditIdx = null;
   document.getElementById('assess-modal-title').textContent = 'New Assessment';
-  ['am-name','am-subject','am-standard'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['am-name','am-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const stdSel = document.getElementById('am-standard'); if (stdSel) { _populateSaStandardPicker(); stdSel.value = ''; }
+  const stdCust = document.getElementById('am-standard-custom'); if (stdCust) stdCust.value = '';
   document.getElementById('am-grade').value = 'all';
   document.getElementById('am-term').value = 'Term 1';
   document.getElementById('am-max').value = '100';
@@ -10627,7 +10816,11 @@ function openEditAssessment(idx) {
   document.getElementById('am-max').value = a.maxMarks||100;
   document.getElementById('am-date').value = a.date||'';
   document.getElementById('am-type').value = a.type||'Unit Test';
-  const stdEl = document.getElementById('am-standard'); if (stdEl) stdEl.value = a.standard||'';
+  _populateSaStandardPicker();
+  const saDomain = DOMAINS.find(d=>d.id==='sa');
+  const isSaStd = a.standard && saDomain && saDomain.standards.some(s=>s.s===a.standard);
+  const stdSel = document.getElementById('am-standard'); if (stdSel) stdSel.value = isSaStd ? a.standard : '';
+  const stdCust = document.getElementById('am-standard-custom'); if (stdCust) stdCust.value = (!isSaStd && a.standard) ? a.standard : '';
   document.getElementById('am-del-btn').style.display = 'inline-flex';
   document.getElementById('assess-modal').classList.add('open');
 }
@@ -10642,7 +10835,8 @@ function saveAssessment() {
     maxMarks: parseInt(document.getElementById('am-max').value)||100,
     date: document.getElementById('am-date').value,
     type: document.getElementById('am-type').value,
-    standard: (document.getElementById('am-standard')||{value:''}).value.trim() };
+    standard: (document.getElementById('am-standard')||{value:''}).value.trim() ||
+              (document.getElementById('am-standard-custom')||{value:''}).value.trim() };
   if (assessEditIdx!==null) assessments[assessEditIdx]=rec;
   else assessments.push(rec);
   saveAssessmentData();
@@ -14830,6 +15024,7 @@ function saveAuditState(){
       sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
       lpScores:lpScores,journeyRecords:journeyRecords,
       staffData:staffData,studentsData:studentsData,rubricScores:rubricScores,
+      assessData:assessments,assessScores:scoreEntries,assessRubrics:rubrics,
       school:(document.getElementById('inp-school')||{}).value||'',
       date:(document.getElementById('inp-date')||{}).value||'',
       board:(document.getElementById('inp-board')||{}).value||'',
@@ -14855,6 +15050,9 @@ async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditSta
     if(d.staffData&&d.staffData.length){staffData=d.staffData;}
     if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
     if(d.rubricScores){rubricScores=d.rubricScores;}
+    if(d.assessData){assessments=d.assessData;}
+    if(d.assessScores){scoreEntries=d.assessScores;}
+    if(d.assessRubrics){rubrics=d.assessRubrics;}
     if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
     return true;
   }catch(e){return false;}
@@ -14937,6 +15135,12 @@ async function loadAuditStateFromCloud(schoolName) {
       if (d.staffData && d.staffData.length) { staffData = d.staffData; try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
       if (d.studentsData && d.studentsData.length) { studentsData = d.studentsData; try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
       if (d.rubricScores) { rubricScores = d.rubricScores; }
+      if (d.assessData) { assessments = d.assessData; }
+      if (d.assessScores) { scoreEntries = d.assessScores; }
+      if (d.assessRubrics) { rubrics = d.assessRubrics; }
+      if (d.assessData || d.assessScores || d.assessRubrics) {
+        try { localStorage.setItem('hol_assess_' + sid, JSON.stringify({ assessments, scores: scoreEntries, rubrics })); } catch(e) {}
+      }
       if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
       // Update local cache
       try { localStorage.setItem('hol_audit_state_' + sid, JSON.stringify(d)); } catch(e) {}
