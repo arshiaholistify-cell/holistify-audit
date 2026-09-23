@@ -5763,6 +5763,7 @@ function setLpScore(tid, key, val) {
   // 6. Update school-wide LP summary and topbar
   renderLpSummary();
   updateTopbar();
+  queueSave();
   refreshCpaMergePanels();
   syncTpLpToCpa();
 }
