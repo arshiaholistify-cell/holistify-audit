@@ -2289,7 +2289,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
     <!-- Google Form responses -->
     <div id="rubric-responses-section" style="display:none;margin-top:28px">
-      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">📥 Imported Form Responses</div>
+      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">📊 Student Rubric Responses</div>
       <div id="rubric-responses-list"></div>
     </div>
   </div>
@@ -2498,6 +2498,24 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+
+<!-- Manual rubric scoring modal -->
+<div class="sip-modal-overlay" id="rubric-score-modal">
+  <div class="sip-modal" style="max-width:680px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('rubric-score-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title" id="rsm-title">Score Students</div>
+    <div style="font-size:12px;color:var(--ink-l);margin-bottom:14px" id="rsm-meta"></div>
+
+    <!-- Student rows -->
+    <div id="rsm-rows"></div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
+      <button class="btn btn-p" onclick="saveRubricScoresManual()">Save scores</button>
+      <button class="btn btn-s" onclick="addRsmRow()">+ Add student</button>
+      <button class="btn btn-s" onclick="document.getElementById('rubric-score-modal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════
      TIMETABLE PAGE
@@ -11515,6 +11533,7 @@ function renderRubricsList() {
         <div style="font-size:24px">📋</div>
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
           <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
+        <button onclick="openRubricScoreModal('${r.id}')" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer;margin-right:4px">✏ Score students</button>
         <button onclick="rubricEditIdx=${ri};openEditRubric(${ri})" class="tbl-edit-btn">✏</button>
       </div>
       <div style="overflow-x:auto">
@@ -11671,6 +11690,146 @@ function gfiImport() {
   // Switch to rubric tab so user sees the results
   setAssessTab('rubric', document.querySelector('#assess-tabs .tab[onclick*="rubric"]'));
   toast(entries.length + ' rubric responses imported.');
+}
+
+// ── Manual rubric scoring ─────────────────────────────────────────────────────
+var _rsmRubricId = null;
+var _rsmEntries = [];
+
+function openRubricScoreModal(rubricId) {
+  loadRubricScores();
+  const rubric = rubrics.find(r => r.id === rubricId);
+  if (!rubric) return;
+  _rsmRubricId = rubricId;
+
+  // Seed from existing responses + student list
+  const existing = (rubricScores[rubricId] || []).slice();
+  const gradeStudents = studentsData.filter(s => {
+    if (!rubric.grade || rubric.grade === 'all') return true;
+    const rg = Array.isArray(rubric.grade) ? rubric.grade : [rubric.grade];
+    return rg.includes(s.grade);
+  });
+
+  if (gradeStudents.length) {
+    _rsmEntries = gradeStudents.map(s => {
+      const ex = existing.find(e => e.name === s.name) || {};
+      const scores = {};
+      rubric.criteria.forEach(c => { scores[c.name] = ex.scores ? (ex.scores[c.name] || '') : ''; });
+      return { name: s.name, grade: s.grade || '', scores };
+    });
+  } else if (existing.length) {
+    _rsmEntries = existing.map(e => {
+      const scores = {};
+      rubric.criteria.forEach(c => { scores[c.name] = e.scores ? (e.scores[c.name] || '') : ''; });
+      return { name: e.name, grade: e.grade || '', scores };
+    });
+  } else {
+    const emptyScores = {};
+    rubric.criteria.forEach(c => { emptyScores[c.name] = ''; });
+    _rsmEntries = [{ name: '', grade: '', scores: { ...emptyScores } }];
+  }
+
+  document.getElementById('rsm-title').textContent = 'Score Students: ' + rubric.name;
+  document.getElementById('rsm-meta').textContent =
+    (rubric.subject || '') + (rubric.grade && rubric.grade !== 'all' ? ' · ' + (Array.isArray(rubric.grade) ? rubric.grade.join(', ') : rubric.grade) : '') +
+    ' · ' + rubric.scale + '-point scale · ' + rubric.criteria.length + ' criteria';
+
+  _renderRsmRows();
+  document.getElementById('rubric-score-modal').classList.add('open');
+}
+
+function _levelLabel(val, scale) {
+  if (!val && val !== 0) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  if (scale === 4) { return ['','Beginning','Developing','Achieving','Exceeding'][n] || n; }
+  return 'L' + n;
+}
+
+function _rsmScoreBtnStyle(current, val, scale) {
+  const isActive = String(current) === String(val);
+  const pct = scale ? Math.round(val / scale * 100) : 50;
+  const bg = isActive ? (pct >= 75 ? 'var(--grn)' : pct >= 50 ? 'var(--blue)' : pct >= 35 ? 'var(--amb)' : 'var(--red)') : 'var(--sur-r)';
+  const color = isActive ? '#fff' : 'var(--ink-l)';
+  const border = isActive ? 'none' : '0.5px solid var(--bdr-s)';
+  return `background:${bg};color:${color};border:${border};padding:4px 10px;border-radius:20px;font-size:11px;font-weight:${isActive?'600':'400'};cursor:pointer;min-width:36px`;
+}
+
+function _renderRsmRows() {
+  const rubric = rubrics.find(r => r.id === _rsmRubricId);
+  if (!rubric) return;
+  const scale = rubric.scale || 4;
+  const levels = Array.from({ length: scale }, (_, i) => i + 1);
+
+  const container = document.getElementById('rsm-rows');
+  container.innerHTML = _rsmEntries.map((entry, ei) => {
+    const criteriaHtml = rubric.criteria.map(c => {
+      const cur = entry.scores[c.name];
+      const btns = levels.map(v =>
+        `<button style="${_rsmScoreBtnStyle(cur, v, scale)}" onclick="_rsmSetScore(${ei},'${c.name.replace(/'/g,"\\'")}',${v})">${v}</button>`
+      ).join('');
+      const label = _levelLabel(cur, scale);
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px">${c.name}
+          ${cur ? `<span style="font-size:11px;font-weight:400;color:var(--ink-l);margin-left:6px">${label}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">${btns}</div>
+        ${c.descriptors && c.descriptors[Math.max(0, (parseInt(cur)||1)-1)] ?
+          `<div style="font-size:11px;color:var(--ink-l);margin-top:3px;font-style:italic">${c.descriptors[(parseInt(cur)||1)-1]}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div style="border:0.5px solid var(--bdr);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <input value="${entry.name}" placeholder="Student name *"
+          oninput="_rsmEntries[${ei}].name=this.value"
+          style="flex:2;min-width:160px;padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <input value="${entry.grade}" placeholder="Grade (optional)"
+          oninput="_rsmEntries[${ei}].grade=this.value"
+          style="flex:1;min-width:100px;padding:6px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <button onclick="_rsmEntries.splice(${ei},1);_renderRsmRows()"
+          style="background:none;border:none;color:var(--red);font-size:15px;cursor:pointer;padding:4px">🗑</button>
+      </div>
+      ${criteriaHtml}
+    </div>`;
+  }).join('');
+}
+
+function _rsmSetScore(ei, criterionName, val) {
+  if (!_rsmEntries[ei]) return;
+  const cur = _rsmEntries[ei].scores[criterionName];
+  // Toggle off if same value clicked again
+  _rsmEntries[ei].scores[criterionName] = String(cur) === String(val) ? '' : val;
+  _renderRsmRows();
+}
+
+function addRsmRow() {
+  const rubric = rubrics.find(r => r.id === _rsmRubricId);
+  if (!rubric) return;
+  const emptyScores = {};
+  rubric.criteria.forEach(c => { emptyScores[c.name] = ''; });
+  _rsmEntries.push({ name: '', grade: '', scores: emptyScores });
+  _renderRsmRows();
+}
+
+function saveRubricScoresManual() {
+  const valid = _rsmEntries.filter(e => e.name && e.name.trim());
+  if (!valid.length) { toast('Please enter at least one student name.'); return; }
+  if (!rubricScores[_rsmRubricId]) rubricScores[_rsmRubricId] = [];
+
+  // Merge: update existing by name, append new
+  valid.forEach(entry => {
+    const idx = rubricScores[_rsmRubricId].findIndex(e => e.name === entry.name);
+    const record = { name: entry.name, grade: entry.grade, scores: { ...entry.scores }, importedAt: new Date().toISOString(), source: 'manual' };
+    if (idx >= 0) rubricScores[_rsmRubricId][idx] = record;
+    else rubricScores[_rsmRubricId].push(record);
+  });
+
+  saveRubricScores();
+  document.getElementById('rubric-score-modal').classList.remove('open');
+  renderRubricResponses();
+  setAssessTab('rubric', document.querySelector('#assess-tabs .tab[onclick*="rubric"]'));
+  toast(valid.length + ' student score(s) saved.', 'success');
 }
 
 function renderRubricResponses() {
