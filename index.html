@@ -2009,7 +2009,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="pg-sub">Leadership team, teaching staff and non-teaching staff records.</div>
     </div>
     <div class="pg-hd-actions">
-      <button class="btn btn-p" onclick="openAddStaff()">+ Add staff</button>
+      <button class="btn btn-p always-on" onclick="openAddStaff()">+ Add staff</button>
       <button class="btn btn-s" onclick="document.getElementById('staff-csv-input').click()">⬆ Upload CSV</button>
       <input type="file" id="staff-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleStaffUpload(this)">
       <button class="btn btn-s" onclick="exportStaffCSV()">⬇ Export</button>
@@ -2068,18 +2068,33 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="sip-field" style="margin:0"><label>Designation *</label><input id="sf-designation" placeholder="e.g. Vice Principal"></div>
-      <div class="sip-field" style="margin:0"><label>Qualification</label><input id="sf-qual" placeholder="e.g. M.Ed, B.Sc"></div>
+      <div class="sip-field" style="margin:0"><label>Subject(s)</label><input id="sf-subject" placeholder="e.g. Mathematics, Science"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="sip-field" style="margin:0"><label>Qualification</label><input id="sf-qual" placeholder="e.g. M.Ed, B.Sc"></div>
       <div class="sip-field" style="margin:0"><label>Experience (years)</label><input id="sf-exp" type="number" min="0" placeholder="e.g. 8"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="sip-field" style="margin:0"><label>Phone</label><input id="sf-phone" placeholder="+91 98765 43210"></div>
+      <div class="sip-field" style="margin:0"><label id="sf-email-label">Email</label><input id="sf-email" type="email" placeholder="email@school.com"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="sip-field" style="margin:0"><label>Date of Joining</label><input id="sf-doj" type="date"></div>
+      <div class="sip-field" style="margin:0"><label>Employment Type</label>
+        <select id="sf-emptype" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+          <option value="Full-time">Full-time</option>
+          <option value="Part-time">Part-time</option>
+          <option value="Contract">Contract</option>
+          <option value="Visiting">Visiting</option>
+        </select>
+      </div>
     </div>
     <div class="sip-field">
-      <label id="sf-email-label">Email</label>
-      <input id="sf-email" type="email" placeholder="email@school.com">
+      <label>Notes</label>
+      <input id="sf-notes" placeholder="Optional notes">
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-p" onclick="saveStaff()">Save</button>
+      <button class="btn btn-p always-on" onclick="saveStaff()">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('staff-modal').classList.remove('open')">Cancel</button>
       <button class="btn btn-s" id="sf-del-btn" onclick="deleteStaff()" style="display:none;color:var(--red)">Delete</button>
     </div>
@@ -2096,8 +2111,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="pg-sub">Grade-wise student records, strength and demographic overview.</div>
     </div>
     <div class="pg-hd-actions">
-      <button class="btn btn-p" onclick="openAddStudent()">+ Add student</button>
-      <button class="btn btn-s" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload CSV</button>
+      <button class="btn btn-p always-on" onclick="openAddStudent()">+ Add student</button>
+      <button class="btn btn-s always-on" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload CSV</button>
       <input type="file" id="stu-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleStudentUpload(this)">
       <button class="btn btn-s" onclick="exportStudentsCSV()">⬇ Export</button>
     </div>
@@ -7369,8 +7384,11 @@ function canAccess(pageId) {
   const granted = u.pageAccess || PRINCIPAL_DEFAULT_PAGES;
   // audit- prefix: check if base domain is in granted list
   if (pageId.startsWith('audit-')) return granted.includes(pageId) || granted.includes('all-audit');
-  // Auditors: restrict to their assigned schools' audit pages only
-  if (u.role === 'auditor') return granted.includes(pageId) || granted.includes('all-audit');
+  // Auditors: audit pages + always allow staff and students pages
+  if (u.role === 'auditor') {
+    if (pageId === 'staff' || pageId === 'students') return true;
+    return granted.includes(pageId) || granted.includes('all-audit');
+  }
   // Coaches: restricted to transformation pages
   if (u.role === 'coach') return granted.includes(pageId);
   return granted.includes(pageId);
@@ -7381,6 +7399,8 @@ function canEditContent() {
   if (!u) return false;
   const role = ROLES[u.role];
   if (role.fullAccess) return true;
+  // Auditors can add/edit/delete staff and student records
+  if (u.role === 'auditor') return true;
   return u.role === 'school_principal';
 }
 
