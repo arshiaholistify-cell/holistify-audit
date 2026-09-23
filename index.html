@@ -4240,6 +4240,7 @@ function updateTopbar() {
   updateDocsBadge();
 }
 function onSchoolInput() {
+  _assessCloudLoaded = false; // reset so next cloud load can repopulate assessment globals
   var _sn=(document.getElementById('inp-school')||{}).value||''; if(_sn) loadAuditStateForSchool(_sn); updateSidebarBadges();
   const n = document.getElementById('inp-school').value;
   const el = document.getElementById('ov-sub');
@@ -7663,6 +7664,7 @@ function setCurrentUser(user) {
 
 function clearSession() {
   currentUser = null;
+  _assessCloudLoaded = false;
   try { sessionStorage.removeItem('holistify_session'); } catch(e) {}
 }
 
@@ -10669,13 +10671,18 @@ let assessEditIdx = null;
 let currentScoreAssessId = null;
 let rubricEditIdx = null;
 let rubricCriteria = [];
+var _assessCloudLoaded = false; // true after Supabase (or its localStorage mirror) has populated assessment globals
 
 function loadAssessmentData() {
-  try {
-    const k = 'hol_assess_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
-    const s = localStorage.getItem(k);
-    if (s) { const d = JSON.parse(s); assessments = d.assessments||[]; scoreEntries = d.scores||{}; rubrics = d.rubrics||[]; }
-  } catch(e) {}
+  // Skip localStorage read if cloud has already populated the globals — avoids overwriting
+  // valid Supabase data with an empty or stale localStorage entry on the auditor's device.
+  if (!_assessCloudLoaded) {
+    try {
+      const k = 'hol_assess_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
+      const s = localStorage.getItem(k);
+      if (s) { const d = JSON.parse(s); assessments = d.assessments||[]; scoreEntries = d.scores||{}; rubrics = d.rubrics||[]; }
+    } catch(e) {}
+  }
   if (typeof loadRubricScores === 'function') loadRubricScores();
 }
 function saveAssessmentData() {
@@ -15050,7 +15057,7 @@ async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditSta
     if(d.staffData&&d.staffData.length){staffData=d.staffData;}
     if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
     if(d.rubricScores){rubricScores=d.rubricScores;}
-    if(d.assessData){assessments=d.assessData;}
+    if(d.assessData){assessments=d.assessData; _assessCloudLoaded=true;}
     if(d.assessScores){scoreEntries=d.assessScores;}
     if(d.assessRubrics){rubrics=d.assessRubrics;}
     if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
@@ -15135,11 +15142,22 @@ async function loadAuditStateFromCloud(schoolName) {
       if (d.staffData && d.staffData.length) { staffData = d.staffData; try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
       if (d.studentsData && d.studentsData.length) { studentsData = d.studentsData; try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
       if (d.rubricScores) { rubricScores = d.rubricScores; }
-      if (d.assessData) { assessments = d.assessData; }
+      if (d.assessData) { assessments = d.assessData; _assessCloudLoaded = true; }
       if (d.assessScores) { scoreEntries = d.assessScores; }
       if (d.assessRubrics) { rubrics = d.assessRubrics; }
       if (d.assessData || d.assessScores || d.assessRubrics) {
         try { localStorage.setItem('hol_assess_' + sid, JSON.stringify({ assessments, scores: scoreEntries, rubrics })); } catch(e) {}
+      } else {
+        // Supabase record pre-dates the assessment-sync fix — fall back to localStorage on this device.
+        // If found, schedule a re-save so Supabase gets updated for all other users.
+        try {
+          var _la = JSON.parse(localStorage.getItem('hol_assess_' + sid) || 'null');
+          if (_la && ((_la.assessments && _la.assessments.length) || (_la.rubrics && _la.rubrics.length))) {
+            assessments = _la.assessments || []; scoreEntries = _la.scores || {}; rubrics = _la.rubrics || [];
+            _assessCloudLoaded = true;
+            setTimeout(function() { if (typeof queueSave === 'function') queueSave(); }, 2000);
+          }
+        } catch(e) {}
       }
       if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
       // Update local cache
