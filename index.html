@@ -7640,15 +7640,19 @@ function startAudit() {
   if (sbEl) { const board = document.getElementById('setup-board').value; if (board) sbEl.value = board; }
 
   // Save to localStorage so session persists
+  const auditMeta = {
+    school, auditor, dateStart,
+    dateEnd: document.getElementById('setup-date-end').value,
+    board: document.getElementById('setup-board').value,
+    city: document.getElementById('setup-city').value,
+    cycle: document.getElementById('setup-cycle').value,
+    coauditor: document.getElementById('setup-coauditor').value,
+  };
   try {
-    localStorage.setItem('hol_audit_meta', JSON.stringify({
-      school, auditor, dateStart,
-      dateEnd: document.getElementById('setup-date-end').value,
-      board: document.getElementById('setup-board').value,
-      city: document.getElementById('setup-city').value,
-      cycle: document.getElementById('setup-cycle').value,
-      coauditor: document.getElementById('setup-coauditor').value,
-    }));
+    localStorage.setItem('hol_audit_meta', JSON.stringify(auditMeta));
+    // Also save per-school so future visits skip setup
+    var sid = schoolKey(school);
+    localStorage.setItem('hol_audit_meta_' + sid, JSON.stringify(auditMeta));
   } catch(e) {}
 
   // Hide all overlays and show main app in audit mode
@@ -13006,21 +13010,56 @@ function closeSchoolDashboard() {
 
 function sdbLaunchAudit() {
   if (!_currentDashboardSchool) return;
+  var sch = _currentDashboardSchool;
+  var u = getCurrentUser();
+  var isAdmin = u && (u.role === 'super_admin' || u.role === 'holistify_admin');
+
+  // Check if audit has already been set up for this school
+  var savedMeta = null;
+  try { savedMeta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || 'null'); } catch(e) {}
+
   closeSchoolDashboard();
-  var sch = _currentDashboardSchool || {};
-  // Pre-fill setup form
-  var snEl = document.getElementById('setup-school');
-  var saEl = document.getElementById('setup-auditor');
-  var sbEl = document.getElementById('setup-board');
-  var scEl = document.getElementById('setup-city');
-  if (snEl) snEl.value = sch.name || '';
-  if (saEl) saEl.value = (getCurrentUser() || {}).name || '';
-  if (sbEl && sch.board) sbEl.value = sch.board;
-  if (scEl && sch.city) scEl.value = sch.city;
-  document.getElementById('setup-date-start').valueAsDate = new Date();
+
+  if (isAdmin && !savedMeta) {
+    // Super admin, first time — show one-time setup screen
+    var snEl = document.getElementById('setup-school');
+    var saEl = document.getElementById('setup-auditor');
+    var sbEl = document.getElementById('setup-board');
+    var scEl = document.getElementById('setup-city');
+    if (snEl) snEl.value = sch.name || '';
+    if (saEl) saEl.value = (u || {}).name || '';
+    if (sbEl && sch.board) sbEl.value = sch.board;
+    if (scEl && sch.city) scEl.value = sch.city;
+    document.getElementById('setup-date-start').valueAsDate = new Date();
+    hideAllOverlays();
+    document.getElementById('school-setup-screen').classList.add('visible');
+    _currentDashboardSchool = sch;
+  } else {
+    // Auditor or already-setup school — skip to audit dashboard directly
+    var meta = savedMeta || { school: sch.name, auditor: (u || {}).name || '', dateStart: new Date().toISOString().split('T')[0], board: sch.board || '', city: sch.city || '', cycle: '' };
+    _currentDashboardSchool = sch;
+    launchAuditDashboard(meta);
+  }
+}
+
+function launchAuditDashboard(meta) {
+  var snEl = document.getElementById('inp-school');
+  var sdEl = document.getElementById('inp-date');
+  var saEl = document.getElementById('inp-auditor');
+  var sbEl = document.getElementById('inp-board');
+  if (snEl) snEl.value = meta.school || '';
+  if (sdEl) sdEl.value = meta.dateStart || '';
+  if (saEl) saEl.value = meta.auditor || '';
+  if (sbEl) sbEl.value = meta.board || '';
+  try { localStorage.setItem('hol_audit_meta', JSON.stringify(meta)); } catch(e) {}
   hideAllOverlays();
-  document.getElementById('school-setup-screen').classList.add('visible');
-  _currentDashboardSchool = sch;
+  var shell = document.querySelector('.shell');
+  if (shell) shell.style.display = 'grid';
+  applyAccessControls();
+  updateTopbar();
+  onSchoolInput();
+  renderOverview();
+  goPage('overview', document.querySelector('[data-page=overview]'));
 }
 
 function sdbLaunchTransform() {
@@ -13202,6 +13241,7 @@ function deleteCurrentSchool() {
   saveSchoolRegistry();
   try { localStorage.removeItem('hol_audit_state_' + sch.id); } catch(e) {}
   try { localStorage.removeItem('hol_audit_meta_' + sch.id); } catch(e) {}
+  try { if (localStorage.getItem('hol_audit_meta')) { var m = JSON.parse(localStorage.getItem('hol_audit_meta') || '{}'); if (m.school === sch.name) localStorage.removeItem('hol_audit_meta'); } } catch(e) {}
   closeSchoolDashboard();
   renderSchoolCards();
   toast('"' + sch.name + '" deleted.');
