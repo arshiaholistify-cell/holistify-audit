@@ -8711,8 +8711,8 @@ startAudit = function() {
   // Show detailed report nav in audit mode
   const drNav = document.getElementById('nav-detailed-report');
   if (drNav) drNav.style.display = '';
-  // Hide transformation + school-data-only pages from audit sidebar
-  ['journey','sip','org','docs','timetable','students','assessment','pd','attendance','curriculum'].forEach(pid => {
+  // Hide transformation-only pages from audit sidebar (keep staff + students visible)
+  ['journey','sip','org','docs','timetable','assessment','pd','attendance','curriculum'].forEach(pid => {
     const ni = document.querySelector('[data-page="'+pid+'"]');
     if (ni) { ni.style.display = 'none'; ni.classList.add('audit-hidden'); }
   });
