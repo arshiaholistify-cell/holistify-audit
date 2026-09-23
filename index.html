@@ -7552,21 +7552,49 @@ function authInit() {
 // HOME SCREEN, SCHOOL SETUP & TRANSFORMATION HUB
 // ═══════════════════════════════════════════
 
-// Hub school store
+// Hub school store — backed by the one school registry (hol_school_registry)
+// so schools added from the admin home and from the hub are the same list.
+const HUB_LEGACY_DEMO_IDS = ['sch_demo1', 'sch_demo2', 'sch_demo3'];
+
+function migrateHubSchools() {
+  var legacy = null;
+  try { legacy = JSON.parse(localStorage.getItem('hol_hub_schools') || 'null'); } catch(e) {}
+  if (!Array.isArray(legacy)) return;
+  loadSchoolRegistry();
+  var added = false;
+  legacy.forEach(function(s) {
+    if (!s || !s.name || HUB_LEGACY_DEMO_IDS.indexOf(s.id) >= 0) return;
+    var dup = schoolRegistry.some(function(r) {
+      return r.id === s.id || (r.name || '').toLowerCase() === s.name.toLowerCase();
+    });
+    if (dup) return;
+    schoolRegistry.push({
+      id: s.id || schoolKey(s.name),
+      name: s.name,
+      city: s.city || '',
+      board: s.board || '',
+      phase: 'Phase 1',
+      principal: '', email: '', notes: '',
+      icon: s.icon || '🏫',
+      startDate: s.startDate || '',
+      status: s.status || 'active',
+      created_at: s.addedOn ? new Date(s.addedOn).toISOString() : new Date().toISOString()
+    });
+    added = true;
+  });
+  try { localStorage.removeItem('hol_hub_schools'); } catch(e) {}
+  if (added) saveSchoolRegistry();
+}
+
 function getHubSchools() {
-  try { const s = localStorage.getItem('hol_hub_schools'); if (s) return JSON.parse(s); } catch(e) {}
-  // Seed with demo schools
-  const demos = [
-    { id: 'sch_demo1', name: 'Greenwood International School', city: 'Bengaluru', board: 'CBSE',  icon: '🌳', addedOn: '2024-01-15', status: 'active' },
-    { id: 'sch_demo2', name: 'The Heritage School',            city: 'Mumbai',    board: 'ICSE',  icon: '🏛', addedOn: '2024-02-01', status: 'active' },
-    { id: 'sch_demo3', name: 'Sunrise Academy',               city: 'Chennai',   board: 'State Board', icon: '☀', addedOn: '2024-03-10', status: 'active' },
-  ];
-  saveHubSchools(demos);
-  return demos;
+  migrateHubSchools();
+  loadSchoolRegistry();
+  return schoolRegistry;
 }
 
 function saveHubSchools(schools) {
-  try { localStorage.setItem('hol_hub_schools', JSON.stringify(schools)); } catch(e) {}
+  schoolRegistry = schools || [];
+  saveSchoolRegistry();
 }
 
 // ── Navigation between screens ────────────────────────────────────────────────
@@ -7574,6 +7602,7 @@ function showHomeScreen() {
   hideAllOverlays();
   const hs = document.getElementById('home-screen');
   if (hs) hs.classList.add('visible');
+  if (typeof renderSchoolCards === 'function') renderSchoolCards();
 
   const u = getCurrentUser();
   if (u) {
@@ -7736,7 +7765,7 @@ function addSchoolToHub() {
     toast('A school with this name already exists.'); return;
   }
   schools.push({
-    id: 'sch_' + Date.now(),
+    id: schoolKey(name),
     name,
     city: document.getElementById('hub-new-school-city').value.trim(),
     board: document.getElementById('hub-new-school-board').value,
@@ -12944,7 +12973,7 @@ function loadSchoolRegistry() {
     var s = localStorage.getItem('hol_school_registry');
     if (s) schoolRegistry = JSON.parse(s);
   } catch(e) {}
-  // Also seed the first school from any existing audit meta
+  // Seed from existing audit meta if registry is still empty
   if (!schoolRegistry.length) {
     try {
       var meta = JSON.parse(localStorage.getItem('hol_audit_meta') || '{}');
@@ -12953,6 +12982,19 @@ function loadSchoolRegistry() {
         saveSchoolRegistry();
       }
     } catch(e) {}
+  }
+  // Async Supabase fallback: if still empty, fetch from DB and re-render
+  if (!schoolRegistry.length) {
+    var sb = _sbClient();
+    if (sb) {
+      sb.from('schools').select('*').then(function(res) {
+        if (res.data && res.data.length) {
+          schoolRegistry = res.data;
+          try { localStorage.setItem('hol_school_registry', JSON.stringify(schoolRegistry)); } catch(e) {}
+          if (typeof renderSchoolCards === 'function') renderSchoolCards();
+        }
+      });
+    }
   }
 }
 
@@ -13122,6 +13164,9 @@ function saveSchool() {
     principal: (document.getElementById('as-principal').value || '').trim(),
     email: (document.getElementById('as-email').value || '').trim(),
     notes: (document.getElementById('as-notes').value || '').trim(),
+    icon: '🏫',
+    startDate: '',
+    status: 'active',
     created_at: new Date().toISOString()
   });
   saveSchoolRegistry();
