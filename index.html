@@ -411,6 +411,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .scope-check-label { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-m); cursor:pointer; padding:8px 10px; background:#fff; border-radius:var(--r-sm); border:0.5px solid var(--bdr); transition:all 0.12s; }
 .scope-check-label:hover { border-color:var(--sage-m); background:var(--sage-p); }
 .scope-check-label input[type=checkbox]:checked ~ * { color:var(--sage); font-weight:500; }
+.rb-grade-cb { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-m); cursor:pointer; padding:4px 6px; border-radius:5px; transition:background 0.1s; }
+.rb-grade-cb:hover { background:var(--sage-p); }
+.rb-grade-cb input { accent-color:var(--sage); width:13px; height:13px; flex-shrink:0; }
+.rb-grade-cb:has(input:checked) { color:var(--sage); font-weight:500; }
 .std-edit-row { display:flex; align-items:flex-start; gap:8px; padding:8px 12px; border-bottom:0.5px solid var(--bdr); transition:background 0.1s; }
 .std-edit-row:hover { background:var(--sage-p); }
 .std-edit-row.custom-std { background:#FBF4E6; border-left:3px solid var(--gold); }
@@ -2341,13 +2345,21 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="sip-field" style="margin:0"><label>Subject / Area</label><input id="rb-subject" placeholder="e.g. Science"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div class="sip-field" style="margin:0"><label>Grade</label>
-        <select id="rb-grade" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
-          <option value="all">All Grades</option>
-          <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option>
-          <option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option>
-          <option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option>
-        </select>
+      <div class="sip-field" style="margin:0;grid-column:1/-1"><label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">Grade(s) <span id="rb-grade-all-wrap"><label style="font-size:11px;font-weight:400;color:var(--sage);cursor:pointer"><input type="checkbox" id="rb-grade-all" onchange="toggleAllRubricGrades(this.checked)" style="accent-color:var(--sage);margin-right:3px">All Grades</label></span></label>
+        <div id="rb-grade-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:6px;padding:10px;background:var(--sur-r);border:0.5px solid var(--bdr-s);border-radius:var(--r-md)">
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 1" onchange="syncAllRubricGrades()"> Grade 1</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 2" onchange="syncAllRubricGrades()"> Grade 2</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 3" onchange="syncAllRubricGrades()"> Grade 3</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 4" onchange="syncAllRubricGrades()"> Grade 4</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 5" onchange="syncAllRubricGrades()"> Grade 5</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 6" onchange="syncAllRubricGrades()"> Grade 6</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 7" onchange="syncAllRubricGrades()"> Grade 7</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 8" onchange="syncAllRubricGrades()"> Grade 8</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 9" onchange="syncAllRubricGrades()"> Grade 9</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 10" onchange="syncAllRubricGrades()"> Grade 10</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 11" onchange="syncAllRubricGrades()"> Grade 11</label>
+          <label class="rb-grade-cb"><input type="checkbox" value="Grade 12" onchange="syncAllRubricGrades()"> Grade 12</label>
+        </div>
       </div>
       <div class="sip-field" style="margin:0"><label>Scale</label>
         <select id="rb-scale" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
@@ -10535,12 +10547,41 @@ function renderAssessAnalytics() {
 }
 
 // Rubric builder
+function _getRubricGrades() {
+  const allCb = document.getElementById('rb-grade-all');
+  if (allCb && allCb.checked) return 'all';
+  const checked = [...document.querySelectorAll('#rb-grade-grid input[type=checkbox]:checked')].map(c=>c.value);
+  return checked.length ? checked : 'all';
+}
+function _setRubricGrades(grade) {
+  const allCb = document.getElementById('rb-grade-all');
+  const cbs = document.querySelectorAll('#rb-grade-grid input[type=checkbox]');
+  if (!grade || grade === 'all') {
+    if (allCb) allCb.checked = true;
+    cbs.forEach(c => c.checked = false);
+  } else {
+    const grades = Array.isArray(grade) ? grade : [grade];
+    if (allCb) allCb.checked = false;
+    cbs.forEach(c => { c.checked = grades.includes(c.value); });
+  }
+}
+function toggleAllRubricGrades(checked) {
+  document.querySelectorAll('#rb-grade-grid input[type=checkbox]').forEach(c => { c.checked = false; });
+  const allCb = document.getElementById('rb-grade-all');
+  if (allCb) allCb.checked = checked;
+}
+function syncAllRubricGrades() {
+  const anyChecked = [...document.querySelectorAll('#rb-grade-grid input[type=checkbox]')].some(c=>c.checked);
+  const allCb = document.getElementById('rb-grade-all');
+  if (allCb) allCb.checked = !anyChecked;
+}
+
 function openCreateRubric() {
   rubricEditIdx = null;
   rubricCriteria = [{ name: '', descriptors: ['','','',''] }];
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
   ['rb-name','rb-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('rb-grade').value = 'all';
+  _setRubricGrades('all');
   document.getElementById('rb-scale').value = '4';
   renderRubricCriteriaEditor();
   document.getElementById('rubric-modal').classList.add('open');
@@ -10583,7 +10624,7 @@ function saveRubric() {
   const criteria = rubricCriteria.filter(c=>c.name.trim()||c.descriptors.some(d=>d.trim()));
   if (!criteria.length) { toast('Add at least one criterion.'); return; }
   const rubric = { id:'rb_'+Date.now(), name, subject: document.getElementById('rb-subject').value.trim(),
-    grade: document.getElementById('rb-grade').value, scale: parseInt(document.getElementById('rb-scale').value)||4, criteria };
+    grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4, criteria };
   if (rubricEditIdx!==null) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
   saveAssessmentData();
@@ -10603,7 +10644,7 @@ function renderRubricsList() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="font-size:24px">📋</div>
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
-          <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'?'All Grades':r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
+          <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
         <button onclick="rubricEditIdx=${ri};openEditRubric(${ri})" class="tbl-edit-btn">✏</button>
       </div>
       <div style="overflow-x:auto">
@@ -10623,7 +10664,7 @@ function openEditRubric(idx) {
   document.getElementById('rubric-modal-title').textContent = 'Edit Rubric';
   document.getElementById('rb-name').value = r.name;
   document.getElementById('rb-subject').value = r.subject||'';
-  document.getElementById('rb-grade').value = r.grade||'all';
+  _setRubricGrades(r.grade||'all');
   document.getElementById('rb-scale').value = String(r.scale||4);
   renderRubricCriteriaEditor();
   document.getElementById('rubric-modal').classList.add('open');
