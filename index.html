@@ -14518,18 +14518,23 @@ function loadSchoolRegistry() {
       }
     } catch(e) {}
   }
-  // Async Supabase fallback: if still empty, fetch from DB and re-render
-  if (!schoolRegistry.length) {
-    var sb = _sbClient();
-    if (sb) {
-      sb.from('schools').select('*').then(function(res) {
-        if (res.data && res.data.length) {
-          schoolRegistry = res.data;
-          try { localStorage.setItem('hol_school_registry', JSON.stringify(schoolRegistry)); } catch(e) {}
-          if (typeof renderSchoolCards === 'function') renderSchoolCards();
-        }
-      });
-    }
+  // Always sync from Supabase — authoritative source across all sessions/devices.
+  // Runs async so local data shows instantly; updates the list once the fetch lands.
+  var sb = _sbClient();
+  if (sb) {
+    sb.from('schools').select('*').order('created_at', { ascending: true }).then(function(res) {
+      if (res.data && res.data.length) {
+        // Merge: Supabase is authoritative but preserve any locally-added entry not yet synced
+        var merged = res.data.slice();
+        schoolRegistry.forEach(function(local) {
+          if (!merged.find(function(r) { return r.id === local.id; })) merged.push(local);
+        });
+        schoolRegistry = merged;
+        try { localStorage.setItem('hol_school_registry', JSON.stringify(schoolRegistry)); } catch(e) {}
+        if (typeof renderSchoolCards === 'function') renderSchoolCards();
+        if (typeof renderHubGrid === 'function') renderHubGrid();
+      }
+    });
   }
 }
 
