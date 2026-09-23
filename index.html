@@ -2016,6 +2016,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-s" onclick="document.getElementById('staff-csv-input').click()">⬆ Upload CSV</button>
       <input type="file" id="staff-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleStaffUpload(this)">
       <button class="btn btn-s" onclick="exportStaffCSV()">⬇ Export</button>
+      <button class="btn btn-s" onclick="clearAllStaffData()" style="color:var(--red)">🗑 Clear all</button>
     </div>
   </div>
 
@@ -10011,11 +10012,22 @@ function deleteStaff() {
   renderStaffPage();
 }
 
+function clearAllStaffData() {
+  if (!confirm('Clear ALL staff records for this school? This cannot be undone.')) return;
+  staffData = [];
+  saveStaffData();
+  renderStaffPage();
+  toast('All staff records cleared.');
+}
+
 function handleStaffUpload(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);
+    let text = e.target.result;
+    // Strip BOM (UTF-8 BOM ﻿ or UTF-16 LE BOM that survived as ￾)
+    text = text.replace(/^﻿|￾/g, '');
+    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
     const header = lines[0].toLowerCase().split(',').map(h=>h.replace(/"/g,'').trim());
     const colMap = { name:header.indexOf('name'), category:header.indexOf('category'), designation:header.indexOf('designation'),
       subject:header.indexOf('subject'), qualification:header.indexOf('qualification'),
