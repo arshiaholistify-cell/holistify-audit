@@ -8293,6 +8293,7 @@ function saveHubSchools(schools) {
 
 // ── Navigation between screens ────────────────────────────────────────────────
 function showHomeScreen() {
+  _saveLastScreen('home', null);
   hideAllOverlays();
   const hs = document.getElementById('home-screen');
   if (hs) hs.classList.add('visible');
@@ -8773,14 +8774,40 @@ function renderAcUsersTable() {
   }).join('');
 }
 
+// ── Screen state persistence (survives refresh within the same tab) ───────────
+function _saveLastScreen(screen, schoolId) {
+  try { sessionStorage.setItem('hol_last_screen', JSON.stringify({ screen: screen, schoolId: schoolId || null })); } catch(e) {}
+}
+
 // ── Override authInit to show home screen instead of direct dashboard ─────────
 const _origAuthInit = authInit;
 authInit = function() {
   const user = getCurrentUser();
   if (user) {
     hideLoginScreen();
-    // Show home screen instead of going directly to dashboard
     const shell = document.querySelector('.shell');
+
+    // Try to restore the screen the user was on before the refresh
+    var lastScreen = null;
+    try { lastScreen = JSON.parse(sessionStorage.getItem('hol_last_screen') || 'null'); } catch(e) {}
+
+    if (lastScreen && lastScreen.screen === 'audit' && lastScreen.schoolId) {
+      loadSchoolRegistry();
+      var sch = schoolRegistry.find(function(s) { return s.id === lastScreen.schoolId; });
+      if (sch) {
+        _currentDashboardSchool = sch;
+        var meta = null;
+        try { meta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || 'null'); } catch(e) {}
+        if (!meta) { try { meta = JSON.parse(localStorage.getItem('hol_audit_meta') || 'null'); } catch(e) {} }
+        if (meta) {
+          applyAccessControls();
+          launchAuditDashboard(meta);
+          return;
+        }
+      }
+    }
+
+    // Default: show home screen
     if (shell) shell.style.display = 'none';
     showHomeScreen();
   } else {
@@ -8849,6 +8876,7 @@ const _origDoLogout = doLogout;
 doLogout = function() {
   if (!confirm('Log out of Holistify?')) return;
   clearSession();
+  try { sessionStorage.removeItem('hol_last_screen'); } catch(e) {}
   hideAllOverlays();
   const shell = document.querySelector('.shell');
   if (shell) shell.style.display = 'none';
@@ -15038,6 +15066,7 @@ function launchAuditDashboard(meta) {
   if (saEl) saEl.value = meta.auditor || '';
   if (sbEl) sbEl.value = meta.board || '';
   try { localStorage.setItem('hol_audit_meta', JSON.stringify(meta)); } catch(e) {}
+  _saveLastScreen('audit', _currentDashboardSchool ? _currentDashboardSchool.id : null);
   hideAllOverlays();
   var shell = document.querySelector('.shell');
   if (shell) shell.style.display = 'grid';
