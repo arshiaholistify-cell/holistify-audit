@@ -971,6 +971,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <div style="padding:12px;font-size:12px;color:#8A7F6E">No schools added yet.</div>
       </div>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:#3A3530;cursor:pointer;user-select:none">
+      <input type="checkbox" id="aud-holistify" style="width:15px;height:15px;accent-color:#1A3028;cursor:pointer">
+      Holistify Team Member
+    </label>
     <div class="mgmt-footer">
       <button class="sa-btn sa-btn-primary" onclick="saveAuditor()">Create Auditor</button>
       <button class="sa-btn sa-btn-secondary" onclick="closeAddAuditorModal()">Cancel</button>
@@ -13188,6 +13192,7 @@ function openAddAuditorModal() {
   ['aud-name','aud-id','aud-pwd'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.value = '';
   });
+  var hcb = document.getElementById('aud-holistify'); if (hcb) hcb.checked = false;
   renderSchoolCheckList('aud-school-list');
   renderAuditorsList();
   document.getElementById('add-auditor-modal').classList.add('open');
@@ -13225,7 +13230,8 @@ function renderAuditorsList() {
       var sch = schoolRegistry.find(function(s) { return s.id === sid; });
       return sch ? sch.name : sid;
     }).join(', ');
-    return '<div class="uli"><div class="uli-info"><div class="uli-name">' + u.name + ' <span style="font-size:11px;color:#8A7F6E">(ID: ' + u.id + ')</span></div>' +
+    var badge = u.holistifyTeam ? ' <span style="font-size:10px;padding:1px 7px;border-radius:20px;background:#EDF9F4;color:#1A3028;font-weight:600">Holistify</span>' : '';
+    return '<div class="uli"><div class="uli-info"><div class="uli-name">' + u.name + badge + ' <span style="font-size:11px;color:#8A7F6E">(ID: ' + u.id + ')</span></div>' +
       '<div class="uli-meta">Schools: ' + (schoolNames || 'None assigned') + '</div></div>' +
       '<button class="uli-del" onclick="deleteUserById(' + "'" + u.id + "'" + ')">🗑</button></div>';
   }).join('');
@@ -13239,7 +13245,8 @@ function saveAuditor() {
   var users = getUsers();
   if (users.find(function(u) { return u.id === uid; })) { toast('Login ID already taken.', 'error'); return; }
   var assigned = getCheckedSchools('aud-school-list');
-  users.push({ id: uid, pwd: pwd, name: name, role: 'auditor', school: '', assignedSchools: assigned, pageAccess: ['audit-vc','audit-fac','audit-cpa','audit-hr','audit-ext','audit-mg','audit-sa','overview','report'] });
+  var holistifyTeam = !!(document.getElementById('aud-holistify') || {}).checked;
+  users.push({ id: uid, pwd: pwd, name: name, role: 'auditor', school: '', assignedSchools: assigned, holistifyTeam: holistifyTeam, pageAccess: ['audit-vc','audit-fac','audit-cpa','audit-hr','audit-ext','audit-mg','audit-sa','overview','report'] });
   saveUsers(users);
   toast('Auditor "' + name + '" created. ID: ' + uid + ' · Password saved.', 'success');
   closeAddAuditorModal();
@@ -13327,17 +13334,32 @@ function openStatDetail(type) {
     if (!auditors.length) {
       html = '<div class="stat-detail-empty">No auditors added yet.</div>';
     } else {
-      html = auditors.map(function(u) {
+      var holTeam = auditors.filter(function(u) { return u.holistifyTeam; });
+      var external = auditors.filter(function(u) { return !u.holistifyTeam; });
+      function auditorRow(u) {
         var schoolNames = (u.assignedSchools || []).map(function(sid) {
           var s = schoolRegistry.find(function(x) { return x.id === sid; });
           return s ? s.name : sid;
         }).join(', ') || 'None assigned';
+        var badge = u.holistifyTeam
+          ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#EDF9F4;color:#1A3028;font-weight:600;white-space:nowrap">🏢 Holistify</span>'
+          : '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#F3F0EA;color:#6B5E4E;font-weight:500;white-space:nowrap">External</span>';
         return '<div class="stat-detail-row">' +
-          '<div><div class="stat-detail-row-label">' + u.name + '</div>' +
+          '<div style="flex:1;min-width:0"><div class="stat-detail-row-label">' + u.name + '</div>' +
           '<div class="stat-detail-row-meta">ID: ' + u.id + ' · Schools: ' + schoolNames + '</div></div>' +
-          '<button onclick="deleteUserById(\'' + u.id + '\');openStatDetail(\'auditors\')" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:15px;padding:4px">🗑</button>' +
+          badge +
+          '<button onclick="deleteUserById(\'' + u.id + '\');openStatDetail(\'auditors\')" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:15px;padding:4px;margin-left:6px">🗑</button>' +
           '</div>';
-      }).join('');
+      }
+      if (holTeam.length) {
+        html += '<div style="font-size:11px;font-weight:600;color:#8A7F6E;letter-spacing:0.05em;margin:0 0 6px;text-transform:uppercase">Holistify Team</div>';
+        html += holTeam.map(auditorRow).join('');
+      }
+      if (external.length) {
+        if (holTeam.length) html += '<div style="border-top:1px solid #F0EDE6;margin:10px 0 8px"></div>';
+        html += '<div style="font-size:11px;font-weight:600;color:#8A7F6E;letter-spacing:0.05em;margin:0 0 6px;text-transform:uppercase">External Auditors</div>';
+        html += external.map(auditorRow).join('');
+      }
     }
 
   } else if (type === 'coaches') {
