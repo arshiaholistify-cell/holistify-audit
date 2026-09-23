@@ -2221,6 +2221,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-s" onclick="openAddScore()">+ Add scores</button>
       <button class="btn btn-s" onclick="document.getElementById('assess-csv-input').click()">⬆ Upload scores</button>
       <input type="file" id="assess-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleAssessmentUpload(this)">
+      <button class="btn btn-s" onclick="openGFormImport()" style="color:var(--sage);border-color:var(--sage)">📥 Google Form</button>
     </div>
   </div>
 
@@ -2265,6 +2266,12 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="rubrics-empty" style="display:none;text-align:center;padding:40px;color:var(--ink-f)">
       <div style="font-size:32px;margin-bottom:10px">📋</div>
       No rubrics yet. Create a rubric template to assess students.
+    </div>
+
+    <!-- Google Form responses -->
+    <div id="rubric-responses-section" style="display:none;margin-top:28px">
+      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">📥 Imported Form Responses</div>
+      <div id="rubric-responses-list"></div>
     </div>
   </div>
 
@@ -2381,6 +2388,64 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-p" onclick="saveRubric()">Save rubric</button>
       <button class="btn btn-s" onclick="document.getElementById('rubric-modal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Google Form / Sheet import modal -->
+<div class="sip-modal-overlay" id="gform-import-modal">
+  <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('gform-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">📥 Import Google Form Responses</div>
+
+    <!-- Step 1: URL -->
+    <div id="gfi-step1">
+      <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
+        <strong>How to get the URL:</strong><br>
+        1. Open your Google Sheet (Form responses tab)<br>
+        2. File → Share → <strong>Publish to web</strong><br>
+        3. Choose the sheet → set format to <strong>CSV</strong> → click Publish<br>
+        4. Copy the URL and paste it below
+      </div>
+      <div class="sip-field">
+        <label>Published Google Sheet CSV URL</label>
+        <input id="gfi-url" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv" style="font-size:12px">
+      </div>
+      <div class="sip-field">
+        <label>Select rubric to map responses to</label>
+        <select id="gfi-rubric" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+          <option value="">— choose a rubric —</option>
+        </select>
+      </div>
+      <div id="gfi-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-p" onclick="gfiFetch()">Fetch &amp; Preview →</button>
+        <button class="btn btn-s" onclick="document.getElementById('gform-import-modal').classList.remove('open')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Column mapper + preview -->
+    <div id="gfi-step2" style="display:none">
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">Map columns to rubric criteria</div>
+      <div style="font-size:12px;color:var(--ink-l);margin-bottom:12px">Auto-matched by name. Adjust if needed.</div>
+      <table class="data-table" style="font-size:12px;margin-bottom:16px">
+        <thead><tr><th>Rubric Criterion</th><th>Sheet Column</th></tr></thead>
+        <tbody id="gfi-map-tbody"></tbody>
+      </table>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:8px">Also map:</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div class="sip-field" style="margin:0"><label>Student Name column</label><select id="gfi-col-name" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Grade column (optional)</label><select id="gfi-col-grade" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Timestamp column (opt.)</label><select id="gfi-col-ts" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+      </div>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:8px">Preview <span id="gfi-row-count" style="font-size:11px;font-weight:400;color:var(--ink-l)"></span></div>
+      <div style="overflow-x:auto;max-height:200px;overflow-y:auto;border:0.5px solid var(--bdr);border-radius:var(--r-md);margin-bottom:16px">
+        <table class="data-table" style="font-size:11px"><thead id="gfi-preview-head"></thead><tbody id="gfi-preview-body"></tbody></table>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-p" onclick="gfiImport()">Import <span id="gfi-import-count"></span> responses</button>
+        <button class="btn btn-s" onclick="gfiBack()">← Back</button>
+      </div>
     </div>
   </div>
 </div>
@@ -10317,6 +10382,7 @@ function renderAssessmentPage() {
   populateAssessFilters();
   renderAssessmentTable();
   renderRubricsList();
+  renderRubricResponses();
 }
 
 function setAssessTab(tab, btn) {
@@ -10655,6 +10721,201 @@ function renderRubricsList() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── Google Form / Sheet import ────────────────────────────────────────────────
+let rubricScores = {};   // { rubricId: [{ name, grade, scores:{criterionName:val}, importedAt, source }] }
+let _gfiRows = [];       // parsed rows from sheet
+let _gfiHeaders = [];    // column headers
+
+function loadRubricScores() {
+  try {
+    const k = 'hol_rubric_scores_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
+    const s = localStorage.getItem(k);
+    if (s) rubricScores = JSON.parse(s);
+  } catch(e) {}
+}
+function saveRubricScores() {
+  try {
+    const k = 'hol_rubric_scores_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
+    localStorage.setItem(k, JSON.stringify(rubricScores));
+  } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
+}
+
+function openGFormImport() {
+  loadRubricScores();
+  const sel = document.getElementById('gfi-rubric');
+  sel.innerHTML = '<option value="">— choose a rubric —</option>' +
+    rubrics.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  document.getElementById('gfi-step1').style.display = '';
+  document.getElementById('gfi-step2').style.display = 'none';
+  document.getElementById('gfi-err').style.display = 'none';
+  document.getElementById('gform-import-modal').classList.add('open');
+}
+
+async function gfiFetch() {
+  const url = (document.getElementById('gfi-url').value || '').trim();
+  const rubricId = document.getElementById('gfi-rubric').value;
+  const errEl = document.getElementById('gfi-err');
+  if (!url) { errEl.textContent = 'Please enter a URL.'; errEl.style.display = ''; return; }
+  if (!rubricId) { errEl.textContent = 'Please select a rubric.'; errEl.style.display = ''; return; }
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const lines = text.replace(/^﻿/,'').split('\n').filter(l=>l.trim());
+    _gfiHeaders = lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
+    _gfiRows = lines.slice(1).map(line => {
+      const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,))/g) || line.split(',');
+      const row = {};
+      _gfiHeaders.forEach((h,i) => { row[h] = (cols[i]||'').replace(/^"|"$/g,'').trim(); });
+      return row;
+    }).filter(r => Object.values(r).some(v=>v));
+    _buildGfiMapper(rubricId);
+  } catch(e) {
+    errEl.textContent = 'Could not fetch the sheet. Make sure it is published as CSV and the URL is correct. Error: ' + e.message;
+    errEl.style.display = '';
+  }
+}
+
+function _fuzzyMatch(a, b) {
+  a = a.toLowerCase().replace(/[^a-z0-9]/g,'');
+  b = b.toLowerCase().replace(/[^a-z0-9]/g,'');
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function _buildGfiMapper(rubricId) {
+  const rubric = rubrics.find(r=>r.id===rubricId);
+  if (!rubric) return;
+  const headerOpts = '<option value="">— skip —</option>' + _gfiHeaders.map(h=>`<option value="${h}">${h}</option>`).join('');
+
+  // Auto-match criterion columns
+  const mapBody = document.getElementById('gfi-map-tbody');
+  mapBody.innerHTML = rubric.criteria.map((c,ci) => {
+    const match = _gfiHeaders.find(h => _fuzzyMatch(h, c.name)) || '';
+    return `<tr>
+      <td style="font-weight:500">${c.name}</td>
+      <td><select id="gfi-cmap-${ci}" style="width:100%;padding:5px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">${headerOpts}</select></td>
+    </tr>`;
+  }).join('');
+  rubric.criteria.forEach((c,ci) => {
+    const match = _gfiHeaders.find(h => _fuzzyMatch(h, c.name)) || '';
+    const sel = document.getElementById('gfi-cmap-'+ci);
+    if (sel && match) sel.value = match;
+  });
+
+  // Name/grade/timestamp selectors
+  ['gfi-col-name','gfi-col-grade','gfi-col-ts'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = headerOpts;
+  });
+  const nameGuess = _gfiHeaders.find(h=>_fuzzyMatch(h,'name')||_fuzzyMatch(h,'student'))||'';
+  const gradeGuess = _gfiHeaders.find(h=>_fuzzyMatch(h,'grade')||_fuzzyMatch(h,'class'))||'';
+  const tsGuess = _gfiHeaders.find(h=>_fuzzyMatch(h,'timestamp')||_fuzzyMatch(h,'time'))||'';
+  const nEl=document.getElementById('gfi-col-name'); if(nEl&&nameGuess) nEl.value=nameGuess;
+  const gEl=document.getElementById('gfi-col-grade'); if(gEl&&gradeGuess) gEl.value=gradeGuess;
+  const tEl=document.getElementById('gfi-col-ts'); if(tEl&&tsGuess) tEl.value=tsGuess;
+
+  // Preview
+  const previewCols = [nameGuess||_gfiHeaders[0], ..._gfiHeaders.slice(0,5)].filter((v,i,a)=>a.indexOf(v)===i).slice(0,6);
+  document.getElementById('gfi-preview-head').innerHTML = '<tr>' + previewCols.map(h=>`<th>${h}</th>`).join('') + '</tr>';
+  document.getElementById('gfi-preview-body').innerHTML = _gfiRows.slice(0,5).map(row =>
+    '<tr>' + previewCols.map(h=>`<td>${row[h]||''}</td>`).join('') + '</tr>'
+  ).join('');
+  document.getElementById('gfi-row-count').textContent = '(' + _gfiRows.length + ' rows)';
+  document.getElementById('gfi-import-count').textContent = _gfiRows.length;
+
+  document.getElementById('gfi-step1').style.display = 'none';
+  document.getElementById('gfi-step2').style.display = '';
+}
+
+function gfiBack() {
+  document.getElementById('gfi-step1').style.display = '';
+  document.getElementById('gfi-step2').style.display = 'none';
+}
+
+function gfiImport() {
+  const rubricId = document.getElementById('gfi-rubric').value;
+  const rubric = rubrics.find(r=>r.id===rubricId);
+  if (!rubric) return;
+  const nameCol = document.getElementById('gfi-col-name').value;
+  const gradeCol = document.getElementById('gfi-col-grade').value;
+  const tsCol = document.getElementById('gfi-col-ts').value;
+
+  const entries = _gfiRows.map(row => {
+    const scores = {};
+    rubric.criteria.forEach((c,ci) => {
+      const col = document.getElementById('gfi-cmap-'+ci)?.value;
+      if (col && row[col] !== undefined) scores[c.name] = row[col];
+    });
+    return {
+      name: nameCol ? row[nameCol] : 'Unknown',
+      grade: gradeCol ? row[gradeCol] : '',
+      scores,
+      importedAt: tsCol ? row[tsCol] : new Date().toISOString(),
+      source: 'google_form',
+    };
+  }).filter(e => e.name && Object.keys(e.scores).length);
+
+  if (!rubricScores[rubricId]) rubricScores[rubricId] = [];
+  rubricScores[rubricId] = rubricScores[rubricId].concat(entries);
+  saveRubricScores();
+  document.getElementById('gform-import-modal').classList.remove('open');
+  renderRubricResponses();
+  // Switch to rubric tab so user sees the results
+  setAssessTab('rubric', document.querySelector('#assess-tabs .tab[onclick*="rubric"]'));
+  toast(entries.length + ' rubric responses imported.');
+}
+
+function renderRubricResponses() {
+  loadRubricScores();
+  const section = document.getElementById('rubric-responses-section');
+  const list = document.getElementById('rubric-responses-list');
+  if (!section || !list) return;
+  const hasAny = rubrics.some(r => rubricScores[r.id] && rubricScores[r.id].length);
+  section.style.display = hasAny ? '' : 'none';
+  if (!hasAny) return;
+
+  list.innerHTML = rubrics.filter(r => rubricScores[r.id] && rubricScores[r.id].length).map(r => {
+    const responses = rubricScores[r.id];
+    const criteria = r.criteria.map(c=>c.name);
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:500;color:var(--ink)">${r.name}</div>
+          <div style="font-size:11px;color:var(--ink-l)">${responses.length} response${responses.length!==1?'s':''} · ${r.subject||''}</div>
+        </div>
+        <button onclick="clearRubricResponses('${r.id}')" style="font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--red);cursor:pointer">🗑 Clear</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="font-size:11px">
+          <thead><tr><th>Student</th><th>Grade</th>${criteria.map(c=>`<th>${c}</th>`).join('')}<th>Avg</th><th>Date</th></tr></thead>
+          <tbody>${responses.map(resp => {
+            const vals = criteria.map(c => parseFloat(resp.scores[c])||0);
+            const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
+            const date = resp.importedAt ? resp.importedAt.slice(0,10) : '';
+            return `<tr>
+              <td style="font-weight:500">${resp.name}</td>
+              <td>${resp.grade||'—'}</td>
+              ${criteria.map(c=>`<td style="text-align:center">${resp.scores[c]||'—'}</td>`).join('')}
+              <td style="text-align:center;font-weight:500;color:var(--sage)">${avg}</td>
+              <td style="color:var(--ink-l)">${date}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearRubricResponses(rubricId) {
+  if (!confirm('Clear all imported responses for this rubric?')) return;
+  delete rubricScores[rubricId];
+  saveRubricScores();
+  renderRubricResponses();
+  toast('Responses cleared.');
 }
 
 function openEditRubric(idx) {
@@ -14054,7 +14315,7 @@ function saveAuditState(){
       customChecklists:customChecklists,sipProgress:sipProgress,sipOverrides:sipOverrides,
       sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
       lpScores:lpScores,journeyRecords:journeyRecords,
-      staffData:staffData,studentsData:studentsData,
+      staffData:staffData,studentsData:studentsData,rubricScores:rubricScores,
       school:(document.getElementById('inp-school')||{}).value||'',
       date:(document.getElementById('inp-date')||{}).value||'',
       board:(document.getElementById('inp-board')||{}).value||'',
@@ -14079,6 +14340,7 @@ async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditSta
     if(d.journeyRecords)journeyRecords=d.journeyRecords;
     if(d.staffData&&d.staffData.length){staffData=d.staffData;}
     if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
+    if(d.rubricScores){rubricScores=d.rubricScores;}
     if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
     return true;
   }catch(e){return false;}
@@ -14160,6 +14422,7 @@ async function loadAuditStateFromCloud(schoolName) {
       if (d.journeyRecords) journeyRecords = d.journeyRecords;
       if (d.staffData && d.staffData.length) { staffData = d.staffData; try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
       if (d.studentsData && d.studentsData.length) { studentsData = d.studentsData; try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
+      if (d.rubricScores) { rubricScores = d.rubricScores; }
       if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
       // Update local cache
       try { localStorage.setItem('hol_audit_state_' + sid, JSON.stringify(d)); } catch(e) {}
