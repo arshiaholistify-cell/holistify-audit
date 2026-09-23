@@ -646,6 +646,29 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .creds-copy { background:none; border:1px solid #E4DDD2; cursor:pointer; font-size:11px; padding:2px 8px; border-radius:6px; color:#6B5E4E; font-family:'DM Sans',sans-serif; white-space:nowrap; }
 .creds-copy:hover { background:#F7F4EE; }
 .creds-role-badge { font-size:10px; padding:2px 8px; border-radius:20px; background:#F3F0EA; color:#5A5248; font-weight:500; white-space:nowrap; }
+/* Auditor summary overlay */
+#aud-summary-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10500; align-items:flex-start; justify-content:center; padding:24px 20px; overflow-y:auto; backdrop-filter:blur(4px); }
+#aud-summary-overlay.open { display:flex; }
+.aud-summary-panel { background:#fff; border-radius:20px; padding:28px 30px; width:min(800px,96vw); box-shadow:0 24px 60px rgba(0,0,0,0.25); }
+.aud-summary-card { border:1.5px solid #EDE8E0; border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+.aud-summary-card:last-child { margin-bottom:0; }
+.aud-summary-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.aud-summary-name { font-size:15px; font-weight:600; color:#1A3028; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.aud-summary-meta { font-size:12px; color:#8A7F6E; margin-top:4px; }
+.aud-summary-pill { text-align:center; background:#F7F4EE; border-radius:10px; padding:6px 14px; flex-shrink:0; }
+.aud-summary-pill-num { font-size:20px; font-weight:700; color:#1A3028; line-height:1; }
+.aud-summary-pill-lbl { font-size:10px; color:#8A7F6E; margin-top:2px; }
+.aud-school-block { background:#F9F7F4; border-radius:10px; padding:12px 14px; margin-top:10px; }
+.aud-school-title { font-size:13px; font-weight:600; color:#1A3028; margin-bottom:2px; }
+.aud-school-meta { font-size:11px; color:#8A7F6E; margin-bottom:10px; }
+.aud-domain-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:8px; }
+.aud-domain-chip { border-radius:8px; padding:8px 10px; border:1px solid rgba(0,0,0,0.06); }
+.aud-domain-chip-icon { font-size:15px; margin-bottom:3px; }
+.aud-domain-chip-lbl { font-size:10px; color:#3A3530; font-weight:500; margin-bottom:3px; line-height:1.3; min-height:26px; }
+.aud-domain-chip-pct { font-size:13px; font-weight:700; margin-bottom:5px; }
+.aud-domain-bar { height:3px; background:#E4DDD2; border-radius:2px; overflow:hidden; }
+.aud-domain-bar-fill { height:100%; border-radius:2px; }
+@media(max-width:640px){ .aud-domain-grid { grid-template-columns:repeat(3,1fr); } }
 .login-demo-accounts { background:var(--sur); border-radius:10px; padding:12px 14px; margin-top:10px; display:none; }
 .login-demo-accounts.open { display:block; }
 .demo-account { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:0.5px solid var(--bdr); cursor:pointer; }
@@ -865,7 +888,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <div class="sa-stat-num" id="stat-schools">0</div>
         <div class="sa-stat-label">Schools</div>
       </div>
-      <div class="sa-stat-card" onclick="openStatDetail('auditors')">
+      <div class="sa-stat-card" onclick="openAuditorSummary()">
         <div class="sa-stat-num" id="stat-auditors">0</div>
         <div class="sa-stat-label">Auditors</div>
       </div>
@@ -887,6 +910,17 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
           <button class="stat-detail-close" onclick="closeStatDetail()">×</button>
         </div>
         <div class="stat-detail-body" id="stat-detail-body"></div>
+      </div>
+    </div>
+
+    <!-- Auditor summary overlay -->
+    <div id="aud-summary-overlay" onclick="if(event.target===this)closeAuditorSummary()">
+      <div class="aud-summary-panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#1A3028">Auditor Activity Summary</div>
+          <button onclick="closeAuditorSummary()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8A7F6E;line-height:1">×</button>
+        </div>
+        <div id="aud-summary-body"></div>
       </div>
     </div>
 
@@ -7423,6 +7457,123 @@ function openCredentials() {
 
 function closeCredentials() {
   document.getElementById('creds-overlay').classList.remove('open');
+}
+
+// ── Auditor Summary ───────────────────────────────────────────────────────────
+function openAuditorSummary() {
+  var users = getUsers();
+  var auditors = users.filter(function(u) { return u.role === 'auditor'; });
+
+  // Collect raw audit states + metas for all schools
+  var schoolAudits = {};
+  schoolRegistry.forEach(function(sch) {
+    try {
+      var raw = localStorage.getItem('hol_audit_state_' + sch.id);
+      if (!raw) return;
+      var state = JSON.parse(raw);
+      var meta = null;
+      try { meta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || 'null'); } catch(e) {}
+      schoolAudits[sch.id] = { school: sch, state: state, meta: meta };
+    } catch(e) {}
+  });
+
+  function domainPct(state, dom) {
+    if (!state || !state.scores) return 0;
+    var total = dom.standards.length;
+    if (!total) return 0;
+    var scored = 0;
+    for (var i = 0; i < total; i++) { if (state.scores[dom.id + '-' + i]) scored++; }
+    return Math.round(scored / total * 100);
+  }
+
+  function auditorMatchesName(entry, name) {
+    var n = (name || '').toLowerCase();
+    var aName = ((entry.meta && entry.meta.auditor) || (entry.state && entry.state.auditor) || '').toLowerCase();
+    return aName && (aName === n || aName.indexOf(n) !== -1 || n.indexOf(aName) !== -1);
+  }
+
+  var html = '';
+
+  if (!auditors.length) {
+    html = '<div style="text-align:center;color:#8A7F6E;padding:24px;font-size:13px">No auditors added yet. Use <strong>+ Add Auditor</strong> to get started.</div>';
+  } else {
+    auditors.forEach(function(u) {
+      var teamBadge = u.holistifyTeam
+        ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#EDF9F4;color:#1A3028;font-weight:600">🏢 Holistify</span>'
+        : '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#F3F0EA;color:#6B5E4E">External</span>';
+
+      var auditedEntries = Object.values(schoolAudits).filter(function(e) { return auditorMatchesName(e, u.name); });
+      var assignedNames = (u.assignedSchools || []).map(function(sid) {
+        var s = schoolRegistry.find(function(x) { return x.id === sid; });
+        return s ? s.name : sid;
+      });
+
+      html += '<div class="aud-summary-card">';
+      // Header row
+      html += '<div class="aud-summary-hdr">';
+      html += '<div><div class="aud-summary-name">' + u.name + ' ' + teamBadge + '</div>';
+      html += '<div class="aud-summary-meta">ID: <code style="font-size:11px">' + u.id + '</code>';
+      if (assignedNames.length) html += ' &nbsp;·&nbsp; Assigned: ' + assignedNames.join(', ');
+      html += '</div></div>';
+      html += '<div class="aud-summary-pill"><div class="aud-summary-pill-num">' + auditedEntries.length + '</div><div class="aud-summary-pill-lbl">School' + (auditedEntries.length !== 1 ? 's' : '') + ' Audited</div></div>';
+      html += '</div>';
+
+      if (auditedEntries.length) {
+        auditedEntries.forEach(function(entry) {
+          var sch = entry.school;
+          var meta = entry.meta || {};
+          var dateStr = meta.dateStart || (entry.state && entry.state.date) || '';
+          var boardCity = [sch.city, sch.board].filter(Boolean).join(' · ');
+
+          // Count total standards scored across all domains
+          var totalScored = 0, totalStds = 0;
+          DOMAINS.forEach(function(dom) {
+            totalStds += dom.standards.length;
+            if (entry.state && entry.state.scores) {
+              for (var i = 0; i < dom.standards.length; i++) {
+                if (entry.state.scores[dom.id + '-' + i]) totalScored++;
+              }
+            }
+          });
+          var overallPct = totalStds ? Math.round(totalScored / totalStds * 100) : 0;
+
+          html += '<div class="aud-school-block">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+          html += '<div><div class="aud-school-title">🏫 ' + sch.name + '</div>';
+          html += '<div class="aud-school-meta">' + [boardCity, dateStr ? 'Audit date: ' + dateStr : ''].filter(Boolean).join(' · ') + '</div></div>';
+          html += '<div style="font-size:11px;font-weight:600;color:#1A3028;background:#EDF9F4;padding:3px 10px;border-radius:20px;white-space:nowrap">' + overallPct + '% complete</div>';
+          html += '</div>';
+
+          // Domain chips grid
+          html += '<div class="aud-domain-grid">';
+          DOMAINS.forEach(function(dom) {
+            var pct = domainPct(entry.state, dom);
+            var clr = pct === 0 ? '#B0A898' : pct < 50 ? '#C17E2A' : pct < 85 ? '#2B7A5C' : '#1B5C30';
+            var bg  = pct === 0 ? '#F3F0EA' : pct < 50 ? '#FDF6E8' : pct < 85 ? '#EDF9F4' : '#D4F0E0';
+            html += '<div class="aud-domain-chip" style="background:' + bg + '">';
+            html += '<div class="aud-domain-chip-icon">' + dom.emoji + '</div>';
+            html += '<div class="aud-domain-chip-lbl">' + dom.label + '</div>';
+            html += '<div class="aud-domain-chip-pct" style="color:' + clr + '">' + (pct > 0 ? pct + '%' : '—') + '</div>';
+            if (pct > 0) html += '<div class="aud-domain-bar"><div class="aud-domain-bar-fill" style="width:' + pct + '%;background:' + clr + '"></div></div>';
+            html += '</div>';
+          });
+          html += '</div></div>';
+        });
+      } else {
+        html += '<div style="font-size:12px;color:#8A7F6E;padding:8px 0;font-style:italic">No audit activity recorded yet for this auditor.</div>';
+      }
+
+      html += '<div style="margin-top:10px;text-align:right"><button onclick="deleteUserById(\'' + u.id + '\');openAuditorSummary()" style="background:none;border:none;color:#C0392B;font-size:12px;cursor:pointer;padding:0">🗑 Remove auditor</button></div>';
+      html += '</div>';
+    });
+  }
+
+  document.getElementById('aud-summary-body').innerHTML = html;
+  document.getElementById('aud-summary-overlay').classList.add('open');
+}
+
+function closeAuditorSummary() {
+  document.getElementById('aud-summary-overlay').classList.remove('open');
 }
 
 function credsTogglePwd(btn) {
