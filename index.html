@@ -302,6 +302,21 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .stat-detail-row-label { font-weight:500; }
 .stat-detail-row-meta { font-size:11px; color:#8A7F6E; margin-top:2px; }
 .stat-detail-empty { text-align:center; padding:32px 16px; color:#8A7F6E; font-size:13px; }
+/* ── Section pages (full-screen) ── */
+#section-page { display:none; position:fixed; inset:0; z-index:8500; background:#F5F4F0; flex-direction:column; overflow:hidden; }
+#section-page.visible { display:flex; }
+.sp-topbar { background:#1A3028; padding:0 24px; height:60px; display:flex; align-items:center; gap:12px; flex-shrink:0; box-sizing:border-box; }
+.sp-back-btn { background:rgba(255,255,255,0.15); border:none; color:#fff; padding:7px 16px; border-radius:8px; cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; flex-shrink:0; white-space:nowrap; transition:background 0.15s; }
+.sp-back-btn:hover { background:rgba(255,255,255,0.25); }
+.sp-title { font-family:'DM Serif Display',serif; font-size:20px; color:#fff; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sp-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+.sp-body { flex:1; overflow-y:auto; padding:28px 24px; width:100%; box-sizing:border-box; max-width:1240px; margin:0 auto; }
+/* ── Quick-access tiles on home screen ── */
+.sa-quick-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:22px; }
+.sa-quick-tile { background:#fff; border-radius:14px; padding:22px 14px 18px; cursor:pointer; transition:all 0.15s; border:1.5px solid #E4DDD2; text-align:center; }
+.sa-quick-tile:hover { border-color:#1A3028; box-shadow:0 4px 16px rgba(26,48,40,0.1); transform:translateY(-2px); }
+.sa-quick-icon { font-size:26px; margin-bottom:8px; }
+.sa-quick-label { font-size:12px; font-weight:600; color:#1A3028; }
 .sa-stat-num { font-family:'DM Serif Display',serif; font-size:34px; color:#1A3028; line-height:1; }
 .sa-stat-label { font-size:12px; color:#8A7F6E; margin-top:5px; }
 .sa-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
@@ -876,23 +891,43 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     </div>
   </div>
   <div class="sa-body" id="sa-body">
-    <!-- Stats row -->
+    <!-- Stats row — clicking each opens its full-screen section page -->
     <div class="sa-stats-row" id="sa-stats-row">
-      <div class="sa-stat-card" onclick="openStatDetail('schools')">
+      <div class="sa-stat-card" onclick="openSectionPage('schools')">
         <div class="sa-stat-num" id="stat-schools">0</div>
         <div class="sa-stat-label">Schools</div>
       </div>
-      <div class="sa-stat-card" onclick="openAuditorSummary()">
+      <div class="sa-stat-card" onclick="openSectionPage('auditors')">
         <div class="sa-stat-num" id="stat-auditors">0</div>
         <div class="sa-stat-label">Auditors</div>
       </div>
-      <div class="sa-stat-card" onclick="openStatDetail('coaches')">
+      <div class="sa-stat-card" onclick="openSectionPage('coaches')">
         <div class="sa-stat-num" id="stat-coaches">0</div>
         <div class="sa-stat-label">Coaches</div>
       </div>
-      <div class="sa-stat-card" onclick="openStatDetail('audits')">
+      <div class="sa-stat-card" onclick="openSectionPage('audits')">
         <div class="sa-stat-num" id="stat-audits-done">0</div>
         <div class="sa-stat-label">Audits Done</div>
+      </div>
+    </div>
+
+    <!-- Quick-access action tiles (admin only) -->
+    <div class="sa-quick-grid" id="sa-quick-grid" style="display:none">
+      <div class="sa-quick-tile" onclick="openAddSchoolModal()">
+        <div class="sa-quick-icon">🏫</div>
+        <div class="sa-quick-label">Add School</div>
+      </div>
+      <div class="sa-quick-tile" onclick="openAddAuditorModal()">
+        <div class="sa-quick-icon">👤</div>
+        <div class="sa-quick-label">Add Auditor</div>
+      </div>
+      <div class="sa-quick-tile" onclick="openAddCoachModal()">
+        <div class="sa-quick-icon">🎓</div>
+        <div class="sa-quick-label">Add Coach</div>
+      </div>
+      <div class="sa-quick-tile" onclick="openCredentials()">
+        <div class="sa-quick-icon">🔑</div>
+        <div class="sa-quick-label">Credentials</div>
       </div>
     </div>
 
@@ -930,29 +965,33 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       </div>
     </div>
 
-    <!-- Section header + actions (admin only) -->
-    <div class="sa-section-header" id="sa-section-header">
-      <div class="sa-section-title">Schools</div>
-      <div class="sa-action-btns" id="sa-admin-actions">
-        <button class="sa-btn sa-btn-primary" onclick="openAddSchoolModal()">+ Add School</button>
-        <button class="sa-btn sa-btn-gold" onclick="openAddAuditorModal()">+ Add Auditor</button>
-        <button class="sa-btn sa-btn-purple" onclick="openAddCoachModal()">+ Add Coach</button>
-        <button class="sa-btn" id="btn-credentials" onclick="openCredentials()" style="background:#F3F0EA;border:1.5px solid #D4CFC6;color:#3A3530" title="View all user credentials">🔑 Credentials</button>
-      </div>
-    </div>
-
-    <!-- School cards grid -->
-    <div class="school-cards-grid" id="school-cards-grid">
-      <div class="sc-empty">
-        <div class="sc-empty-icon">🏫</div>
-        <div>No schools yet. Click <strong>Add School</strong> to get started.</div>
-      </div>
-    </div>
-
     <!-- Non-admin cards (auditor/coach see this instead) -->
     <div id="home-role-cards" style="display:none">
       <div class="home-cards" id="home-cards-inner"></div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════ SECTION PAGES ══════════ -->
+<div id="section-page">
+  <div class="sp-topbar">
+    <button class="sp-back-btn" onclick="closeSectionPage()">&#8592; Back</button>
+    <div class="sp-title" id="sp-title"></div>
+    <div class="sp-actions" id="sp-actions"></div>
+  </div>
+  <div class="sp-body" id="sp-body">
+    <!-- Schools section (school-cards-grid lives here) -->
+    <div id="sp-schools-wrap" style="display:none">
+      <div style="margin-bottom:18px">
+        <input type="text" id="sp-school-search" placeholder="Search schools..." oninput="filterSectionSchools()"
+          style="width:100%;max-width:400px;padding:10px 14px;border:1.5px solid #E4DDD2;border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;box-sizing:border-box">
+      </div>
+      <div class="school-cards-grid" id="school-cards-grid">
+        <div class="sc-empty"><div class="sc-empty-icon">🏫</div><div>No schools yet.</div></div>
+      </div>
+    </div>
+    <!-- Dynamic content for auditors / coaches / audits sections -->
+    <div id="sp-content"></div>
   </div>
 </div>
 
@@ -7864,15 +7903,108 @@ function showHomeScreen() {
     if (wt) wt.textContent = `Welcome, ${u.name}. What would you like to do today?`;
     const al = document.getElementById('home-admin-link');
     if (al) al.style.display = canManageUsers() ? '' : 'none';
+    // Show quick-access grid only for admins who can manage things
+    const qg = document.getElementById('sa-quick-grid');
+    if (qg) qg.style.display = canManageUsers() ? '' : 'none';
+    // Show/hide stats row for non-admins
+    const sr = document.getElementById('sa-stats-row');
+    if (sr) sr.style.display = canManageUsers() ? '' : 'none';
   }
 }
 
 function hideAllOverlays() {
-  ['home-screen','school-setup-screen','transform-hub','access-control-screen','org-screen','docs-screen','standards-screen'].forEach(id => {
+  ['home-screen','school-setup-screen','transform-hub','access-control-screen','org-screen','docs-screen','standards-screen','section-page'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('visible');
   });
 }
+
+// ── Section pages ─────────────────────────────────────────────────────────────
+function openSectionPage(type) {
+  var titleEl = document.getElementById('sp-title');
+  var actionsEl = document.getElementById('sp-actions');
+  var schoolsWrap = document.getElementById('sp-schools-wrap');
+  var spContent = document.getElementById('sp-content');
+  var users = getUsers();
+
+  // Reset
+  if (schoolsWrap) schoolsWrap.style.display = 'none';
+  if (spContent) spContent.innerHTML = '';
+  if (actionsEl) actionsEl.innerHTML = '';
+
+  if (type === 'schools') {
+    if (titleEl) titleEl.textContent = 'Schools';
+    if (actionsEl) actionsEl.innerHTML = '<button class="sa-btn sa-btn-primary" onclick="openAddSchoolModal()">+ Add School</button>';
+    if (schoolsWrap) schoolsWrap.style.display = 'block';
+    renderSchoolCards();
+
+  } else if (type === 'auditors') {
+    var auditors = users.filter(function(u) { return u.role === 'auditor'; });
+    if (titleEl) titleEl.textContent = 'Auditors (' + auditors.length + ')';
+    if (actionsEl) actionsEl.innerHTML = '<button class="sa-btn sa-btn-gold" onclick="openAddAuditorModal()">+ Add Auditor</button>';
+    // Build auditor summary inline (same data as openAuditorSummary)
+    var audBody = document.getElementById('aud-summary-body');
+    openAuditorSummary(); // populates aud-summary-body
+    document.getElementById('aud-summary-overlay').classList.remove('open');
+    if (spContent && audBody) spContent.innerHTML = audBody.innerHTML;
+
+  } else if (type === 'coaches') {
+    var coaches = users.filter(function(u) { return u.role === 'coach'; });
+    if (titleEl) titleEl.textContent = 'Coaches (' + coaches.length + ')';
+    if (actionsEl) actionsEl.innerHTML = '<button class="sa-btn sa-btn-purple" onclick="openAddCoachModal()">+ Add Coach</button>';
+    if (!coaches.length) {
+      if (spContent) spContent.innerHTML = '<div class="stat-detail-empty">No coaches added yet. Click <strong>+ Add Coach</strong> above to get started.</div>';
+    } else {
+      if (spContent) spContent.innerHTML = coaches.map(function(u) {
+        var schoolNames = (u.assignedSchools || []).map(function(sid) {
+          var s = schoolRegistry.find(function(x) { return x.id === sid; });
+          return s ? s.name : sid;
+        }).join(', ') || 'None assigned';
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + u.name + '</div>' +
+          '<div class="stat-detail-row-meta">ID: ' + u.id + ' · Schools: ' + schoolNames + '</div></div>' +
+          '<button onclick="deleteUserById(\'' + u.id + '\');openSectionPage(\'coaches\')" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:15px;padding:4px">🗑</button>' +
+          '</div>';
+      }).join('');
+    }
+
+  } else if (type === 'audits') {
+    var audited = schoolRegistry.filter(function(sch) {
+      try { return !!localStorage.getItem('hol_audit_meta_' + sch.id); } catch(e) { return false; }
+    });
+    if (titleEl) titleEl.textContent = 'Audits Done (' + audited.length + ')';
+    if (!audited.length) {
+      if (spContent) spContent.innerHTML = '<div class="stat-detail-empty">No audits completed yet.</div>';
+    } else {
+      if (spContent) spContent.innerHTML = audited.map(function(sch) {
+        var meta = {};
+        try { meta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || '{}'); } catch(e) {}
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + sch.name + '</div>' +
+          '<div class="stat-detail-row-meta">Auditor: ' + (meta.auditor || '—') + ' · Started: ' + (meta.dateStart || '—') + '</div></div>' +
+          '<span style="font-size:11px;padding:3px 9px;border-radius:20px;background:#EDF9F4;color:#1B5C30">✓ Done</span>' +
+          '</div>';
+      }).join('');
+    }
+  }
+
+  document.getElementById('section-page').classList.add('visible');
+}
+
+function closeSectionPage() {
+  document.getElementById('section-page').classList.remove('visible');
+}
+
+function filterSectionSchools() {
+  var q = (document.getElementById('sp-school-search').value || '').toLowerCase().trim();
+  var cards = document.querySelectorAll('#school-cards-grid .school-card');
+  cards.forEach(function(card) {
+    var text = card.textContent.toLowerCase();
+    card.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function backToHome() {
   hideAllOverlays();
@@ -8283,7 +8415,7 @@ doLogin = function() {
   var shell = document.querySelector('.shell');
 
   if (user.role === 'auditor') {
-    // Auditor: go directly to their first assigned school audit
+    // Auditor: go directly to their assigned school audit dashboard (never show setup form)
     if (shell) shell.style.display = 'none';
     loadSchoolRegistry();
     var assigned = user.assignedSchools || [];
@@ -8291,18 +8423,8 @@ doLogin = function() {
       var sch = schoolRegistry.find(function(s) { return s.id === assigned[0]; });
       if (sch) {
         _currentDashboardSchool = sch;
-        var snEl = document.getElementById('setup-school');
-        var saEl = document.getElementById('setup-auditor');
-        var sbEl = document.getElementById('setup-board');
-        var scEl = document.getElementById('setup-city');
-        if (snEl) snEl.value = sch.name || '';
-        if (saEl) saEl.value = user.name || '';
-        if (sbEl && sch.board) sbEl.value = sch.board;
-        if (scEl && sch.city) scEl.value = sch.city;
-        document.getElementById('setup-date-start').valueAsDate = new Date();
-        hideAllOverlays();
-        document.getElementById('school-setup-screen').classList.add('visible');
         applyAccessControls();
+        sdbLaunchAudit(); // skips setup for non-admins, goes straight to audit dashboard
         return;
       }
     }
