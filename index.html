@@ -5587,6 +5587,14 @@ function renderTpSummary() {
   if(bars) bars.innerHTML=TP_DOMAINS.map(d=>{const a=tpSchoolAvgDomain(d.id);const p=a?Math.round(a/4*100):0;return`<div class="bar-row"><div class="bar-lbl" style="color:${d.color}">${d.label}</div><div class="bar-bg"><div class="bar-f" style="width:${p}%;background:${d.color}"></div></div><div class="bar-val">${a?a.toFixed(1):'—'}</div><span style="font-size:11px;color:${tpColor(a)};margin-left:6px;white-space:nowrap">${tpLabel(a)}</span></div>`;}).join('');
 }
 function renderTeachers() {
+  // Auto-populate from staff when teachers list is empty
+  if (!teachers.length) {
+    loadStaffData();
+    const teachingStaff = staffData.filter(function(s) {
+      return s.category === 'teaching' || (s.designation||'').toLowerCase().includes('teacher');
+    });
+    if (teachingStaff.length) { syncStaffToTeachers(); return; } // syncStaffToTeachers calls renderTeachers again
+  }
   renderTpSummary();
   // Tabs
   const tabs=document.getElementById('tp-tabs');
@@ -5789,6 +5797,14 @@ function renderLpSummary(){
   if(bars)bars.innerHTML=LP_DOMAINS.map(d=>{const a=lpSchoolAvgDomain(d.id);const p=a?Math.round(a/4*100):0;return`<div class="bar-row"><div class="bar-lbl" style="color:${d.color}">${d.label}</div><div class="bar-bg"><div class="bar-f" style="width:${p}%;background:${d.color}"></div></div><div class="bar-val">${a?a.toFixed(1):'—'}</div><span style="font-size:11px;color:${tpColor(a)};margin-left:6px;white-space:nowrap">${tpLabel(a)}</span></div>`;}).join('');
 }
 function renderLessonPlan(){
+  // Auto-populate from staff when teachers list is empty
+  if (!teachers.length) {
+    loadStaffData();
+    const teachingStaff = staffData.filter(function(s) {
+      return s.category === 'teaching' || (s.designation||'').toLowerCase().includes('teacher');
+    });
+    if (teachingStaff.length) { syncStaffToTeachers(); return; }
+  }
   renderLpSummary();
   const tabs=document.getElementById('lp-tabs');
   if(tabs){
