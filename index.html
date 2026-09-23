@@ -11431,6 +11431,116 @@ function renderAssessAnalytics() {
     </div>`;
   });
   html += '</div></div>';
+
+  // ── Skill-wise student categorisation by level ────────────────────────────
+  const rubricsThatHaveScores = rubrics.filter(r => rubricScores[r.id] && rubricScores[r.id].length);
+  if (rubricsThatHaveScores.length) {
+    html += `<div style="font-size:14px;font-weight:600;color:var(--ink);margin:24px 0 14px">🎯 Skill-wise Student Grouping by Level</div>`;
+
+    rubricsThatHaveScores.forEach(r => {
+      const scale = r.scale || 4;
+      const responses = rubricScores[r.id];
+      const levelNames = scale === 4
+        ? { 1:'Level 1 — Beginning', 2:'Level 2 — Developing', 3:'Level 3 — Achieving', 4:'Level 4 — Exceeding' }
+        : Object.fromEntries(Array.from({length: scale}, (_,i) => [i+1, 'Level '+(i+1)]));
+      const levelColors = {
+        1: { bg:'var(--red-p)', text:'var(--red)' },
+        2: { bg:'var(--gold-p)', text:'var(--gold)' },
+        3: { bg:'var(--blue-p)', text:'var(--blue)' },
+        4: { bg:'var(--grn-p)', text:'var(--grn)' },
+      };
+
+      // Group responses by grade
+      const byGrade = {};
+      responses.forEach(resp => {
+        const g = resp.grade || 'Unspecified';
+        if (!byGrade[g]) byGrade[g] = [];
+        byGrade[g].push(resp);
+      });
+      const sortedGrades = [...GRADES_ORDER.filter(g => byGrade[g]), ...Object.keys(byGrade).filter(g => !GRADES_ORDER.includes(g))];
+
+      html += `<div class="card" style="margin-bottom:20px;padding:16px">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px">📋 ${r.name}</div>
+        <div style="font-size:11px;color:var(--ink-l);margin-bottom:14px">${r.subject||''} · ${scale}-point scale · ${r.criteria.length} skills · ${responses.length} student${responses.length!==1?'s':''}</div>`;
+
+      sortedGrades.forEach(grade => {
+        const gradeResps = byGrade[grade];
+        html += `<div style="margin-bottom:18px">
+          <div style="font-size:12px;font-weight:600;color:var(--ink);padding:6px 10px;background:var(--sur-r);border-radius:var(--r-sm);margin-bottom:10px;border-left:3px solid var(--sage)">${grade} <span style="font-size:11px;font-weight:400;color:var(--ink-l)">(${gradeResps.length} student${gradeResps.length!==1?'s':''})</span></div>
+          <div style="overflow-x:auto">
+          <table class="data-table" style="font-size:11px;width:100%">
+            <thead><tr>
+              <th style="min-width:130px">Skill / Criterion</th>`;
+        for (let lv = 1; lv <= scale; lv++) {
+          const lc = levelColors[lv] || { bg:'var(--sur-r)', text:'var(--ink)' };
+          html += `<th style="background:${lc.bg};color:${lc.text};min-width:130px">${levelNames[lv]||'L'+lv}</th>`;
+        }
+        html += `</tr></thead><tbody>`;
+
+        r.criteria.forEach(c => {
+          // Bucket students by their score on this criterion
+          const buckets = {};
+          for (let lv = 1; lv <= scale; lv++) buckets[lv] = [];
+          gradeResps.forEach(resp => {
+            const raw = resp.scores ? resp.scores[c.name] : '';
+            const lv = parseInt(raw);
+            if (lv >= 1 && lv <= scale) buckets[lv].push(resp.name);
+            // students with no score are omitted
+          });
+          const unscored = gradeResps.filter(resp => {
+            const raw = resp.scores ? resp.scores[c.name] : '';
+            const lv = parseInt(raw);
+            return !(lv >= 1 && lv <= scale);
+          });
+
+          html += `<tr><td style="font-weight:500;color:var(--ink)">${c.name}</td>`;
+          for (let lv = 1; lv <= scale; lv++) {
+            const names = buckets[lv];
+            const lc = levelColors[lv] || { bg:'var(--sur-r)', text:'var(--ink)' };
+            html += `<td style="vertical-align:top;padding:6px 8px">`;
+            if (names.length) {
+              html += `<div style="display:flex;flex-direction:column;gap:3px">`;
+              names.forEach(n => {
+                html += `<span style="background:${lc.bg};color:${lc.text};padding:2px 7px;border-radius:20px;font-size:10px;white-space:nowrap">${n}</span>`;
+              });
+              html += `</div>`;
+            } else {
+              html += `<span style="color:var(--ink-f);font-size:10px">—</span>`;
+            }
+            html += `</td>`;
+          }
+          html += `</tr>`;
+
+          if (c.descriptors && c.descriptors.some(Boolean)) {
+            html += `<tr style="background:var(--sur-r)"><td style="color:var(--ink-l);font-size:10px;font-style:italic;padding:3px 8px">Descriptors</td>`;
+            for (let lv = 1; lv <= scale; lv++) {
+              const desc = (c.descriptors||[])[lv-1] || '';
+              html += `<td style="color:var(--ink-l);font-size:10px;font-style:italic;padding:3px 8px">${desc}</td>`;
+            }
+            html += `</tr>`;
+          }
+        });
+
+        // Unscored students note
+        const allUnscored = new Set();
+        r.criteria.forEach(c => {
+          gradeResps.forEach(resp => {
+            const raw = resp.scores ? resp.scores[c.name] : '';
+            const lv = parseInt(raw);
+            if (!(lv >= 1 && lv <= scale)) allUnscored.add(resp.name);
+          });
+        });
+        if (allUnscored.size) {
+          html += `<tr><td colspan="${scale+1}" style="font-size:10px;color:var(--ink-f);font-style:italic;padding:6px 8px">⚠ Not fully scored: ${[...allUnscored].join(', ')}</td></tr>`;
+        }
+
+        html += `</tbody></table></div></div>`;
+      });
+
+      html += `</div>`; // end rubric card
+    });
+  }
+
   el.innerHTML = html;
 }
 
