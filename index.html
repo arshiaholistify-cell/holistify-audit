@@ -2121,9 +2121,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     </div>
     <div class="pg-hd-actions">
       <button class="btn btn-p always-on" onclick="openAddStudent()">+ Add student</button>
-      <button class="btn btn-s always-on" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload CSV</button>
+      <button class="btn btn-s always-on" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload</button>
       <input type="file" id="stu-csv-input" accept=".csv,.xlsx,.xls,.ods" style="display:none" onchange="handleStudentUpload(this)">
       <button class="btn btn-s" onclick="exportStudentsCSV()">⬇ Export</button>
+      <button class="btn btn-s" onclick="clearAllStudentsData()" style="color:var(--red)">🗑 Clear all</button>
     </div>
   </div>
 
@@ -2163,6 +2164,20 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 </div>
 
 
+
+<!-- Sheet picker modal for multi-sheet Excel import -->
+<div class="sip-modal-overlay" id="sheet-picker-modal">
+  <div class="sip-modal" style="max-width:480px">
+    <button onclick="document.getElementById('sheet-picker-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">Select Sheets to Import</div>
+    <div style="font-size:12px;color:var(--ink-l);margin-bottom:14px">Choose one or more sheets from the Excel file. Each sheet's data will be combined.</div>
+    <div id="sheet-picker-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;max-height:300px;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="importSelectedSheets()">Import Selected</button>
+      <button class="btn btn-s" onclick="document.getElementById('sheet-picker-modal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add / Edit student modal -->
 <div class="sip-modal-overlay" id="stu-modal">
@@ -10258,7 +10273,10 @@ function renderStudentTable() {
       <td style="color:var(--ink-l);font-size:12px">${s.dob||'—'}</td>
       <td style="color:var(--ink-m)">${s.parent||'—'}</td>
       <td style="color:var(--ink-l)">${s.phone||'—'}</td>
-      <td><button onclick="openEditStudent(${idx})" class="tbl-edit-btn">✏</button></td>
+      <td style="display:flex;gap:4px">
+        <button onclick="openEditStudent(${idx})" class="tbl-edit-btn">✏</button>
+        <button onclick="deleteStudentByIdx(${idx})" class="tbl-edit-btn" style="color:var(--red)" title="Delete">🗑</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -10315,28 +10333,101 @@ function deleteStudent() {
   renderStudentsPage();
 }
 
+function deleteStudentByIdx(idx) {
+  if (!confirm('Delete this student?')) return;
+  studentsData.splice(idx, 1);
+  saveStudentsData();
+  renderStudentsPage();
+}
+
+function clearAllStudentsData() {
+  if (!confirm('Clear ALL student records for this school? This cannot be undone.')) return;
+  studentsData = [];
+  saveStudentsData();
+  renderStudentsPage();
+  toast('All student records cleared.');
+}
+
+// ── Multi-sheet Excel picker ──────────────────────────────────────────────────
+let _pendingWorkbook = null;
+
+function _parseStudentRow(row) {
+  const name = _colVal(row, 'name', 'student');
+  if (!name) return null;
+  return {
+    name,
+    roll: _colVal(row, 'roll', 'admission', 'no'),
+    grade: _colVal(row, 'grade', 'class', 'std') || 'Grade 1',
+    section: _colVal(row, 'section', 'div'),
+    gender: _colVal(row, 'gender', 'sex'),
+    dob: _colVal(row, 'dob', 'birth', 'date'),
+    parent: _colVal(row, 'parent', 'guardian', 'father', 'mother'),
+    phone: _colVal(row, 'phone', 'contact', 'mobile'),
+  };
+}
+
+function importSelectedSheets() {
+  if (!_pendingWorkbook) return;
+  const selected = [...document.querySelectorAll('#sheet-picker-list input[type=checkbox]:checked')].map(c=>c.value);
+  if (!selected.length) { toast('Select at least one sheet.'); return; }
+  let count = 0;
+  selected.forEach(sheetName => {
+    const ws = _pendingWorkbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    rows.forEach(row => {
+      const rec = _parseStudentRow(row);
+      if (rec) { studentsData.push(rec); count++; }
+    });
+  });
+  _pendingWorkbook = null;
+  document.getElementById('sheet-picker-modal').classList.remove('open');
+  saveStudentsData();
+  renderStudentsPage();
+  toast(count + ' student records imported from ' + selected.length + ' sheet(s).');
+}
+
 function handleStudentUpload(input) {
   const file = input.files[0]; if (!file) return;
-  _parseSheetRows(file, rows => {
-    let count = 0;
-    rows.forEach(row => {
-      const name = _colVal(row, 'name');
-      if (!name) return;
-      studentsData.push({
-        name,
-        roll: _colVal(row, 'roll', 'admission', 'no'),
-        grade: _colVal(row, 'grade', 'class', 'std') || 'Grade 1',
-        section: _colVal(row, 'section', 'div'),
-        gender: _colVal(row, 'gender', 'sex'),
-        dob: _colVal(row, 'dob', 'birth', 'date'),
-        parent: _colVal(row, 'parent', 'guardian', 'father', 'mother'),
-        phone: _colVal(row, 'phone', 'contact', 'mobile'),
-      });
-      count++;
+  const isExcel = /\.(xlsx|xls|ods)$/i.test(file.name);
+
+  if (isExcel && typeof XLSX !== 'undefined') {
+    const r = new FileReader();
+    r.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      _pendingWorkbook = wb;
+      if (wb.SheetNames.length === 1) {
+        // Single sheet — import directly
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+        let count = 0;
+        rows.forEach(row => { const rec = _parseStudentRow(row); if (rec) { studentsData.push(rec); count++; } });
+        _pendingWorkbook = null;
+        saveStudentsData(); renderStudentsPage();
+        toast(count + ' student records imported.');
+      } else {
+        // Multiple sheets — show picker
+        const list = document.getElementById('sheet-picker-list');
+        list.innerHTML = wb.SheetNames.map((name, i) => {
+          const ws = wb.Sheets[name];
+          const rowCount = XLSX.utils.sheet_to_json(ws).length;
+          return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:0.5px solid var(--bdr);border-radius:var(--r-md);cursor:pointer;font-size:13px">
+            <input type="checkbox" value="${name}" ${i===0?'checked':''} style="accent-color:var(--sage);width:15px;height:15px">
+            <div><div style="font-weight:500;color:var(--ink)">${name}</div>
+            <div style="font-size:11px;color:var(--ink-l)">${rowCount} rows</div></div>
+          </label>`;
+        }).join('');
+        document.getElementById('sheet-picker-modal').classList.add('open');
+      }
+    };
+    r.readAsArrayBuffer(file);
+  } else {
+    // CSV fallback
+    _parseSheetRows(file, rows => {
+      let count = 0;
+      rows.forEach(row => { const rec = _parseStudentRow(row); if (rec) { studentsData.push(rec); count++; } });
+      saveStudentsData(); renderStudentsPage();
+      toast(count + ' student records imported.');
     });
-    saveStudentsData(); renderStudentsPage();
-    toast(count + ' student records imported.');
-  });
+  }
   input.value = '';
 }
 
