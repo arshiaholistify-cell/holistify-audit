@@ -812,12 +812,6 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="login-error" id="li-error">Invalid user ID or password. Please try again.</div>
     <button class="login-btn" onclick="doLogin()">Sign in →</button>
 
-    <div class="login-demo-toggle">
-      <button onclick="toggleDemoAccounts()">View demo accounts</button>
-    </div>
-    <div class="login-demo-accounts" id="demo-accounts-panel">
-      <div style="font-size:11px;color:var(--ink-f);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Click to auto-fill</div>
-    </div>
   </div>
 </div>
 
@@ -7965,6 +7959,18 @@ function startAudit() {
     var sid = schoolKey(school);
     localStorage.setItem('hol_audit_meta_' + sid, JSON.stringify(auditMeta));
   } catch(e) {}
+  // Persist meta to Supabase so it survives localStorage clears / new devices
+  (async function(schName, meta) {
+    var sb = _sbClient(); if (!sb) return;
+    var sid2 = schoolKey(schName);
+    try {
+      await sb.from('schools').upsert({ id: sid2, name: schName, city: meta.city||'', board: meta.board||'' }, { onConflict: 'id' });
+      var existing = await sb.from('audit_states').select('data').eq('school_id', sid2).single();
+      var stateData = (existing.data && existing.data.data) || {};
+      stateData.meta = meta;
+      await sb.from('audit_states').upsert({ school_id: sid2, school_name: schName, data: stateData, updated_at: new Date().toISOString() }, { onConflict: 'school_id' });
+    } catch(e) { console.warn('Meta cloud save error:', e); }
+  })(school, auditMeta);
 
   // Hide all overlays and show main app in audit mode
   hideAllOverlays();
@@ -13332,20 +13338,40 @@ function closeSchoolDashboard() {
   _currentDashboardSchool = null;
 }
 
-function sdbLaunchAudit() {
+async function sdbLaunchAudit() {
   if (!_currentDashboardSchool) return;
   var sch = _currentDashboardSchool;
   var u = getCurrentUser();
   var isAdmin = u && (u.role === 'super_admin' || u.role === 'holistify_admin');
 
-  // Check if audit has already been set up for this school
+  // Check local meta first
   var savedMeta = null;
   try { savedMeta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || 'null'); } catch(e) {}
+
+  // If no local meta, check Supabase (handles new devices / cleared localStorage)
+  if (!savedMeta) {
+    var sb = _sbClient();
+    if (sb) {
+      try {
+        var res = await sb.from('audit_states').select('data').eq('school_id', sch.id).single();
+        if (res.data && res.data.data) {
+          var cloudData = res.data.data;
+          if (cloudData.meta) {
+            savedMeta = cloudData.meta;
+          } else {
+            // Audit state row exists (audit was started before) — reconstruct minimal meta
+            savedMeta = { school: sch.name, auditor: '', dateStart: cloudData.dateStart || '', board: sch.board||'', city: sch.city||'', cycle: '' };
+          }
+          try { localStorage.setItem('hol_audit_meta_' + sch.id, JSON.stringify(savedMeta)); } catch(e) {}
+        }
+      } catch(e) {}
+    }
+  }
 
   closeSchoolDashboard();
 
   if (isAdmin && !savedMeta) {
-    // Super admin, first time — show one-time setup screen
+    // First time for this school — show one-time setup screen
     var snEl = document.getElementById('setup-school');
     var saEl = document.getElementById('setup-auditor');
     var sbEl = document.getElementById('setup-board');
@@ -13359,7 +13385,7 @@ function sdbLaunchAudit() {
     document.getElementById('school-setup-screen').classList.add('visible');
     _currentDashboardSchool = sch;
   } else {
-    // Auditor or already-setup school — skip to audit dashboard directly
+    // Auditor or already-configured school — go straight to audit dashboard
     var meta = savedMeta || { school: sch.name, auditor: (u || {}).name || '', dateStart: new Date().toISOString().split('T')[0], board: sch.board || '', city: sch.city || '', cycle: '' };
     _currentDashboardSchool = sch;
     launchAuditDashboard(meta);
