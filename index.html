@@ -9890,6 +9890,7 @@ function saveStaffData() {
     const k = 'hol_staff_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     localStorage.setItem(k, JSON.stringify(staffData));
   } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderStaffPage() {
@@ -10118,6 +10119,7 @@ function saveStudentsData() {
     const k = 'hol_students_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     localStorage.setItem(k, JSON.stringify(studentsData));
   } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderStudentsPage() {
@@ -14011,6 +14013,7 @@ function saveAuditState(){
       customChecklists:customChecklists,sipProgress:sipProgress,sipOverrides:sipOverrides,
       sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
       lpScores:lpScores,journeyRecords:journeyRecords,
+      staffData:staffData,studentsData:studentsData,
       school:(document.getElementById('inp-school')||{}).value||'',
       date:(document.getElementById('inp-date')||{}).value||'',
       board:(document.getElementById('inp-board')||{}).value||'',
@@ -14033,6 +14036,8 @@ async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditSta
     if(d.sipCustomActions)sipCustomActions=d.sipCustomActions;
     teachers=d.teachers||[];teacherScores=d.teacherScores||{};lpScores=d.lpScores||{};
     if(d.journeyRecords)journeyRecords=d.journeyRecords;
+    if(d.staffData&&d.staffData.length){staffData=d.staffData;}
+    if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
     if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
     return true;
   }catch(e){return false;}
@@ -14112,6 +14117,8 @@ async function loadAuditStateFromCloud(schoolName) {
       if (d.sipCustomActions) sipCustomActions = d.sipCustomActions;
       teachers = d.teachers || []; teacherScores = d.teacherScores || {}; lpScores = d.lpScores || {};
       if (d.journeyRecords) journeyRecords = d.journeyRecords;
+      if (d.staffData && d.staffData.length) { staffData = d.staffData; try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
+      if (d.studentsData && d.studentsData.length) { studentsData = d.studentsData; try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
       if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
       // Update local cache
       try { localStorage.setItem('hol_audit_state_' + sid, JSON.stringify(d)); } catch(e) {}
