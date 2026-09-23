@@ -1676,7 +1676,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="tp-bars"></div>
   </div>
   <div class="card" style="margin-bottom:14px">
-    <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">Add teacher</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:500;color:var(--ink)">Add teacher</div>
+      <button class="btn btn-s" onclick="syncStaffToTeachers()" style="font-size:12px;padding:5px 12px" title="Import teaching staff from the uploaded Staff list">⬆ Import from Staff</button>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
       <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Name *</div><input id="tp-name" placeholder="e.g. Sunita Rao" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
       <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Subject(s)</div><input id="tp-sub" placeholder="e.g. Mathematics" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
@@ -5448,6 +5451,7 @@ function addTeacher() {
   activeLpTeacher = id;
   ['tp-name','tp-sub','tp-qual','tp-exp'].forEach(id2 => { const el = document.getElementById(id2); if(el) el.value=''; });
   updateTopbar();
+  queueSave();
   renderTeachers();
 }
 function removeTeacher(id) {
@@ -5457,7 +5461,33 @@ function removeTeacher(id) {
   if (activeTeacher===id) activeTeacher = teachers.length ? teachers[0].id : null;
   if (activeLpTeacher===id) activeLpTeacher = teachers.length ? teachers[0].id : null;
   updateTopbar();
+  queueSave();
   renderTeachers();
+}
+
+// Populate Teacher Performance list from staff data (teaching category)
+function syncStaffToTeachers() {
+  loadStaffData();
+  const teachingStaff = staffData.filter(function(s) {
+    return s.category === 'teaching' || (s.designation||'').toLowerCase().includes('teacher');
+  });
+  if (!teachingStaff.length) { toast('No teaching staff found. Upload staff data first.'); return; }
+  let added = 0;
+  teachingStaff.forEach(function(s) {
+    if (!teachers.find(function(t) { return t.name === s.name; })) {
+      const id = 'T' + Date.now() + Math.random().toString(36).slice(2,6);
+      teachers.push({ id, name: s.name, subject: s.subject||s.designation||'—', qual: s.qualification||'—', exp: s.experience||'—' });
+      teacherScores[id] = {};
+      lpScores[id] = {};
+      added++;
+    }
+  });
+  if (!added) { toast('All teaching staff are already in the list.'); return; }
+  if (!activeTeacher && teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
+  queueSave();
+  updateTopbar();
+  renderTeachers();
+  toast(added + ' teacher(s) imported from Staff data.', 'success');
 }
 function tpScore(tid, key) { return (teacherScores[tid]||{})[key]||0; }
 function setTpScore(tid, key, val) {
@@ -5516,6 +5546,7 @@ function setTpScore(tid, key, val) {
   // 6. Update school-wide summary panels and topbar
   renderTpSummary();
   updateTopbar();
+  queueSave();
   refreshCpaMergePanels();
   syncTpLpToCpa();
 }
