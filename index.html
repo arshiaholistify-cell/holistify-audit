@@ -289,7 +289,19 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .sa-signout-btn:hover { background:rgba(255,255,255,0.2); }
 .sa-body { flex:1; width:100%; max-width:1240px; margin:0 auto; padding:28px 24px; box-sizing:border-box; }
 .sa-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:32px; }
-.sa-stat-card { background:#fff; border-radius:14px; padding:20px 22px; border:1px solid #E4DDD2; }
+.sa-stat-card { background:#fff; border-radius:14px; padding:20px 22px; border:1px solid #E4DDD2; cursor:pointer; transition:all 0.15s; }
+.sa-stat-card:hover { border-color:#1A3028; box-shadow:0 4px 16px rgba(26,48,40,0.1); transform:translateY(-1px); }
+#stat-detail-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10500; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+#stat-detail-overlay.open { display:flex; }
+.stat-detail-panel { background:#fff; border-radius:20px; width:min(540px,96vw); max-height:80vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,0.25); }
+.stat-detail-header { background:#1A3028; color:#fff; padding:20px 24px; border-radius:20px 20px 0 0; display:flex; align-items:center; justify-content:space-between; }
+.stat-detail-title { font-family:'DM Serif Display',serif; font-size:20px; }
+.stat-detail-close { background:rgba(255,255,255,0.15); border:none; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:18px; line-height:1; }
+.stat-detail-body { padding:20px 24px; }
+.stat-detail-row { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#F5F2EC; border-radius:10px; margin-bottom:8px; font-size:13px; color:#1A3028; }
+.stat-detail-row-label { font-weight:500; }
+.stat-detail-row-meta { font-size:11px; color:#8A7F6E; margin-top:2px; }
+.stat-detail-empty { text-align:center; padding:32px 16px; color:#8A7F6E; font-size:13px; }
 .sa-stat-num { font-family:'DM Serif Display',serif; font-size:34px; color:#1A3028; line-height:1; }
 .sa-stat-label { font-size:12px; color:#8A7F6E; margin-top:5px; }
 .sa-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
@@ -823,21 +835,32 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="sa-body" id="sa-body">
     <!-- Stats row -->
     <div class="sa-stats-row" id="sa-stats-row">
-      <div class="sa-stat-card">
+      <div class="sa-stat-card" onclick="openStatDetail('schools')">
         <div class="sa-stat-num" id="stat-schools">0</div>
         <div class="sa-stat-label">Schools</div>
       </div>
-      <div class="sa-stat-card">
+      <div class="sa-stat-card" onclick="openStatDetail('auditors')">
         <div class="sa-stat-num" id="stat-auditors">0</div>
         <div class="sa-stat-label">Auditors</div>
       </div>
-      <div class="sa-stat-card">
+      <div class="sa-stat-card" onclick="openStatDetail('coaches')">
         <div class="sa-stat-num" id="stat-coaches">0</div>
         <div class="sa-stat-label">Coaches</div>
       </div>
-      <div class="sa-stat-card">
+      <div class="sa-stat-card" onclick="openStatDetail('audits')">
         <div class="sa-stat-num" id="stat-audits-done">0</div>
         <div class="sa-stat-label">Audits Done</div>
+      </div>
+    </div>
+
+    <!-- Stat detail overlay -->
+    <div id="stat-detail-overlay" onclick="if(event.target===this)closeStatDetail()">
+      <div class="stat-detail-panel">
+        <div class="stat-detail-header">
+          <div class="stat-detail-title" id="stat-detail-title">Detail</div>
+          <button class="stat-detail-close" onclick="closeStatDetail()">×</button>
+        </div>
+        <div class="stat-detail-body" id="stat-detail-body"></div>
       </div>
     </div>
 
@@ -13231,6 +13254,93 @@ function deleteUserById(uid) {
   renderCoachesList();
   renderSchoolCards();
   toast('User deleted.');
+}
+
+function openStatDetail(type) {
+  var title = '', html = '';
+  var users = getUsers();
+
+  if (type === 'schools') {
+    title = 'Schools (' + schoolRegistry.length + ')';
+    if (!schoolRegistry.length) {
+      html = '<div class="stat-detail-empty">No schools added yet.</div>';
+    } else {
+      html = schoolRegistry.map(function(sch) {
+        var hasAudit = false;
+        try { hasAudit = !!localStorage.getItem('hol_audit_meta_' + sch.id); } catch(e) {}
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + sch.name + '</div>' +
+          '<div class="stat-detail-row-meta">' + [sch.city, sch.board, sch.phase].filter(Boolean).join(' · ') + '</div></div>' +
+          '<span style="font-size:11px;padding:3px 9px;border-radius:20px;' + (hasAudit ? 'background:#EDF9F4;color:#1B5C30' : 'background:#FDF6E8;color:#7A4A00') + '">' + (hasAudit ? '✓ Audited' : 'Pending') + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+  } else if (type === 'auditors') {
+    var auditors = users.filter(function(u) { return u.role === 'auditor'; });
+    title = 'Auditors (' + auditors.length + ')';
+    if (!auditors.length) {
+      html = '<div class="stat-detail-empty">No auditors added yet.</div>';
+    } else {
+      html = auditors.map(function(u) {
+        var schoolNames = (u.assignedSchools || []).map(function(sid) {
+          var s = schoolRegistry.find(function(x) { return x.id === sid; });
+          return s ? s.name : sid;
+        }).join(', ') || 'None assigned';
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + u.name + '</div>' +
+          '<div class="stat-detail-row-meta">ID: ' + u.id + ' · Schools: ' + schoolNames + '</div></div>' +
+          '<button onclick="deleteUserById(\'' + u.id + '\');openStatDetail(\'auditors\')" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:15px;padding:4px">🗑</button>' +
+          '</div>';
+      }).join('');
+    }
+
+  } else if (type === 'coaches') {
+    var coaches = users.filter(function(u) { return u.role === 'coach'; });
+    title = 'Coaches (' + coaches.length + ')';
+    if (!coaches.length) {
+      html = '<div class="stat-detail-empty">No coaches added yet.</div>';
+    } else {
+      html = coaches.map(function(u) {
+        var schoolNames = (u.assignedSchools || []).map(function(sid) {
+          var s = schoolRegistry.find(function(x) { return x.id === sid; });
+          return s ? s.name : sid;
+        }).join(', ') || 'None assigned';
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + u.name + '</div>' +
+          '<div class="stat-detail-row-meta">ID: ' + u.id + ' · Schools: ' + schoolNames + '</div></div>' +
+          '<button onclick="deleteUserById(\'' + u.id + '\');openStatDetail(\'coaches\')" style="background:none;border:none;color:#C0392B;cursor:pointer;font-size:15px;padding:4px">🗑</button>' +
+          '</div>';
+      }).join('');
+    }
+
+  } else if (type === 'audits') {
+    var audited = schoolRegistry.filter(function(sch) {
+      try { return !!localStorage.getItem('hol_audit_meta_' + sch.id); } catch(e) { return false; }
+    });
+    title = 'Audits Done (' + audited.length + ')';
+    if (!audited.length) {
+      html = '<div class="stat-detail-empty">No audits completed yet.</div>';
+    } else {
+      html = audited.map(function(sch) {
+        var meta = {};
+        try { meta = JSON.parse(localStorage.getItem('hol_audit_meta_' + sch.id) || '{}'); } catch(e) {}
+        return '<div class="stat-detail-row">' +
+          '<div><div class="stat-detail-row-label">' + sch.name + '</div>' +
+          '<div class="stat-detail-row-meta">Auditor: ' + (meta.auditor || '—') + ' · Date: ' + (meta.dateStart || '—') + '</div></div>' +
+          '<span style="font-size:11px;padding:3px 9px;border-radius:20px;background:#EDF9F4;color:#1B5C30">✓ Done</span>' +
+          '</div>';
+      }).join('');
+    }
+  }
+
+  document.getElementById('stat-detail-title').textContent = title;
+  document.getElementById('stat-detail-body').innerHTML = html;
+  document.getElementById('stat-detail-overlay').classList.add('open');
+}
+
+function closeStatDetail() {
+  document.getElementById('stat-detail-overlay').classList.remove('open');
 }
 
 function deleteCurrentSchool() {
