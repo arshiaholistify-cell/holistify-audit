@@ -890,6 +890,9 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div id="sdb-audit-banner" style="display:none" class="sdb-audit-done-banner">
         ✅ Audit data available — Transformation is linked to this school's audit scores.
       </div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #F0EDE6;text-align:right">
+        <button onclick="deleteCurrentSchool()" style="background:none;border:1px solid #E8A0A0;color:#C0392B;padding:7px 16px;border-radius:8px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer" onmouseover="this.style.background='#FEF0EE'" onmouseout="this.style.background='none'">🗑 Delete School</button>
+      </div>
     </div>
   </div>
 </div>
@@ -13189,6 +13192,19 @@ function deleteUserById(uid) {
   renderCoachesList();
   renderSchoolCards();
   toast('User deleted.');
+}
+
+function deleteCurrentSchool() {
+  if (!_currentDashboardSchool) return;
+  var sch = _currentDashboardSchool;
+  if (!confirm('Delete "' + sch.name + '"? All audit data for this school will also be removed. This cannot be undone.')) return;
+  schoolRegistry = schoolRegistry.filter(function(s) { return s.id !== sch.id; });
+  saveSchoolRegistry();
+  try { localStorage.removeItem('hol_audit_state_' + sch.id); } catch(e) {}
+  try { localStorage.removeItem('hol_audit_meta_' + sch.id); } catch(e) {}
+  closeSchoolDashboard();
+  renderSchoolCards();
+  toast('"' + sch.name + '" deleted.');
 }
 
 // ═══════════════════════════════════════════
