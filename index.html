@@ -2244,6 +2244,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="tab-bar" id="assess-tabs">
     <button class="tab active" onclick="setAssessTab('scores',this)">📈 Score-based</button>
     <button class="tab" onclick="setAssessTab('rubric',this)">📋 Rubric-based</button>
+    <button class="tab" onclick="setAssessTab('grade',this)">🎓 By Grade</button>
     <button class="tab" onclick="setAssessTab('analytics',this)">📊 Analytics</button>
   </div>
 
@@ -2290,6 +2291,29 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     </div>
   </div>
 
+  <!-- By Grade panel (hidden by default) -->
+  <div id="assess-panel-grade" style="display:none">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <label style="font-size:13px;font-weight:500;color:var(--ink)">Select Grade:</label>
+      <select id="grade-view-sel" onchange="renderGradeWiseView()"
+        style="padding:7px 14px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="">— choose grade —</option>
+      </select>
+      <select id="grade-view-term" onchange="renderGradeWiseView()"
+        style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="all">All Terms</option>
+        <option>Term 1</option><option>Term 2</option><option>Term 3</option><option>Annual</option>
+      </select>
+      <select id="grade-view-type" onchange="renderGradeWiseView()"
+        style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="all">All Types</option>
+        <option value="scores">Score-based only</option>
+        <option value="rubric">Rubric-based only</option>
+      </select>
+    </div>
+    <div id="grade-view-body"><div style="text-align:center;padding:40px;color:var(--ink-f)">Select a grade to view attainment data.</div></div>
+  </div>
+
   <!-- Analytics panel (hidden by default) -->
   <div id="assess-panel-analytics" style="display:none">
     <div id="assess-analytics-body"></div>
@@ -2330,6 +2354,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         </select>
       </div>
     </div>
+    <div class="sip-field" style="margin:0 0 12px"><label>Curriculum Standard / Learning Objective</label>
+      <input id="am-standard" placeholder="e.g. CBSE Grade 5 – Fractions and Decimals"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-p" onclick="saveAssessment()">Create assessment</button>
       <button class="btn btn-s" onclick="document.getElementById('assess-modal').classList.remove('open')">Cancel</button>
@@ -10482,8 +10508,10 @@ function setAssessTab(tab, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('assess-panel-scores').style.display = tab==='scores'?'':'none';
   document.getElementById('assess-panel-rubric').style.display = tab==='rubric'?'':'none';
+  document.getElementById('assess-panel-grade').style.display = tab==='grade'?'':'none';
   document.getElementById('assess-panel-analytics').style.display = tab==='analytics'?'':'none';
   if (tab==='analytics') renderAssessAnalytics();
+  if (tab==='grade') _initGradeViewFilters();
 }
 
 function populateAssessFilters() {
@@ -10529,6 +10557,7 @@ function renderAssessmentTable() {
             ${a.subject} · Max: ${a.maxMarks||100} · ${a.date||''} · ${scores.length} students scored
             ${avg!==null?` · Avg: <strong style="color:var(--sage)">${avg}/${a.maxMarks||100}</strong>`:''}
             ${highest!==null?` · High: ${highest} · Low: ${lowest}`:''}
+            ${a.standard?`<br><span style="color:var(--blue);font-size:11px">📌 ${a.standard}</span>`:''}
           </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
@@ -10539,12 +10568,15 @@ function renderAssessmentTable() {
       ${scores.length ? `
       <div style="margin-top:10px;overflow-x:auto">
         <table class="data-table" style="font-size:12px">
-          <thead><tr><th>Roll No.</th><th>Student Name</th><th>Grade</th><th>Marks</th><th>%</th><th>Remarks</th></tr></thead>
+          <thead><tr><th>Roll No.</th><th>Student Name</th><th>Grade</th><th>Marks</th><th>%</th><th>Attainment</th><th>Remarks</th></tr></thead>
           <tbody>${scores.map(sc=>{
             const pct = a.maxMarks?Math.round((parseFloat(sc.score)||0)/a.maxMarks*100):null;
+            const att = _attainmentLabel(pct);
             return `<tr><td>${sc.roll||'—'}</td><td>${sc.name}</td><td>${sc.grade||'—'}</td>
               <td style="font-weight:500;color:${pct>=75?'var(--grn)':pct>=50?'var(--amb)':'var(--red)'}">${sc.score||'—'}</td>
-              <td>${pct!==null?pct+'%':'—'}</td><td style="color:var(--ink-l)">${sc.remarks||''}</td></tr>`;
+              <td>${pct!==null?pct+'%':'—'}</td>
+              <td><span style="font-size:11px;padding:2px 8px;border-radius:20px;${att.css}">${att.label}</span></td>
+              <td style="color:var(--ink-l)">${sc.remarks||''}</td></tr>`;
           }).join('')}</tbody>
         </table>
       </div>` : ''}
@@ -10555,7 +10587,7 @@ function renderAssessmentTable() {
 function openAddAssessment() {
   assessEditIdx = null;
   document.getElementById('assess-modal-title').textContent = 'New Assessment';
-  ['am-name','am-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['am-name','am-subject','am-standard'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('am-grade').value = 'all';
   document.getElementById('am-term').value = 'Term 1';
   document.getElementById('am-max').value = '100';
@@ -10575,6 +10607,7 @@ function openEditAssessment(idx) {
   document.getElementById('am-max').value = a.maxMarks||100;
   document.getElementById('am-date').value = a.date||'';
   document.getElementById('am-type').value = a.type||'Unit Test';
+  const stdEl = document.getElementById('am-standard'); if (stdEl) stdEl.value = a.standard||'';
   document.getElementById('am-del-btn').style.display = 'inline-flex';
   document.getElementById('assess-modal').classList.add('open');
 }
@@ -10588,7 +10621,8 @@ function saveAssessment() {
     term: document.getElementById('am-term').value,
     maxMarks: parseInt(document.getElementById('am-max').value)||100,
     date: document.getElementById('am-date').value,
-    type: document.getElementById('am-type').value };
+    type: document.getElementById('am-type').value,
+    standard: (document.getElementById('am-standard')||{value:''}).value.trim() };
   if (assessEditIdx!==null) assessments[assessEditIdx]=rec;
   else assessments.push(rec);
   saveAssessmentData();
@@ -10673,34 +10707,396 @@ function handleAssessmentUpload(input) {
   reader.readAsText(file); input.value='';
 }
 
+// ── Attainment helper ─────────────────────────────────────────────
+function _attainmentLabel(pct) {
+  if (pct === null || pct === undefined) return { label:'—', css:'background:var(--sur-r);color:var(--ink-l)' };
+  if (pct >= 80) return { label:'Exceeding Standard', css:'background:var(--grn-p);color:var(--grn)' };
+  if (pct >= 60) return { label:'Meeting Standard', css:'background:var(--blue-p);color:var(--blue)' };
+  if (pct >= 35) return { label:'Approaching Standard', css:'background:var(--gold-p);color:var(--gold)' };
+  return { label:'Below Standard', css:'background:var(--red-p);color:var(--red)' };
+}
+function _rubricAttainmentLabel(avg, scale) {
+  const pct = scale ? Math.round(avg / scale * 100) : null;
+  return _attainmentLabel(pct);
+}
+
+// ── By Grade view ──────────────────────────────────────────────────
+function _initGradeViewFilters() {
+  const sel = document.getElementById('grade-view-sel');
+  if (!sel) return;
+  // Collect all grades that have data
+  const gradeSet = new Set();
+  assessments.forEach(a => {
+    if (a.grade && a.grade !== 'all') gradeSet.add(a.grade);
+    (scoreEntries[a.id]||[]).forEach(s => { if (s.grade) gradeSet.add(s.grade); });
+  });
+  rubrics.forEach(r => {
+    const rg = Array.isArray(r.grade) ? r.grade : (r.grade && r.grade !== 'all' ? [r.grade] : []);
+    rg.forEach(g => gradeSet.add(g));
+    (rubricScores[r.id]||[]).forEach(s => { if (s.grade) gradeSet.add(s.grade); });
+  });
+  studentsData.forEach(s => { if (s.grade) gradeSet.add(s.grade); });
+  const sorted = GRADES_ORDER.filter(g => gradeSet.has(g));
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— choose grade —</option>' + sorted.map(g=>`<option${g===cur?' selected':''}>${g}</option>`).join('');
+  if (cur && gradeSet.has(cur)) sel.value = cur;
+  renderGradeWiseView();
+}
+
+function renderGradeWiseView() {
+  const grade = (document.getElementById('grade-view-sel')||{}).value || '';
+  const term = (document.getElementById('grade-view-term')||{}).value || 'all';
+  const typeFilter = (document.getElementById('grade-view-type')||{}).value || 'all';
+  const body = document.getElementById('grade-view-body');
+  if (!body) return;
+  if (!grade) { body.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-f)">Select a grade to view attainment data.</div>'; return; }
+
+  // Collect students for this grade
+  const gradeStudents = studentsData.filter(s => s.grade === grade);
+
+  // ── Score-based rows ──
+  let scoreRows = [];
+  if (typeFilter === 'all' || typeFilter === 'scores') {
+    assessments.forEach(a => {
+      if (a.grade !== 'all' && a.grade !== grade) return;
+      if (term !== 'all' && a.term !== term) return;
+      (scoreEntries[a.id]||[]).forEach(sc => {
+        const scGrade = sc.grade || a.grade;
+        if (scGrade !== grade && scGrade !== 'all' && a.grade !== 'all') return;
+        const pct = a.maxMarks ? Math.round((parseFloat(sc.score)||0)/a.maxMarks*100) : null;
+        const att = _attainmentLabel(pct);
+        scoreRows.push({ studentName: sc.name, roll: sc.roll||'', grade, subject: a.subject, assessName: a.name,
+          type: a.type||'Assessment', term: a.term, score: sc.score, maxMarks: a.maxMarks, pct, att,
+          standard: a.standard||'', source: 'score' });
+      });
+    });
+  }
+
+  // ── Rubric-based rows ──
+  let rubricRows = [];
+  if (typeFilter === 'all' || typeFilter === 'rubric') {
+    rubrics.forEach(r => {
+      const rGrades = r.grade === 'all' || !r.grade ? null : (Array.isArray(r.grade) ? r.grade : [r.grade]);
+      if (rGrades && !rGrades.includes(grade)) return;
+      (rubricScores[r.id]||[]).forEach(resp => {
+        const respGrade = resp.grade || grade;
+        if (respGrade !== grade && respGrade !== '') return;
+        const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
+        const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+        const att = _rubricAttainmentLabel(avg, r.scale||4);
+        rubricRows.push({ studentName: resp.name, grade, subject: r.subject||'', assessName: r.name,
+          type: 'Rubric', term: '—', avgScore: avg.toFixed(1), maxMarks: r.scale||4,
+          pct: Math.round(avg/(r.scale||4)*100), att, standard: '', source: 'rubric',
+          criteriaScores: r.criteria.map(c=>({ name:c.name, val: resp.scores[c.name]||'—' })) });
+      });
+    });
+  }
+
+  const allRows = [...scoreRows, ...rubricRows];
+  if (!allRows.length) {
+    body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--ink-f)">No assessment data found for <strong>${grade}</strong>${term!=='all'?' in '+term:''}.</div>`;
+    return;
+  }
+
+  // ── Summary cards ──
+  const allPcts = allRows.filter(r=>r.pct!==null).map(r=>r.pct);
+  const avgPct = allPcts.length ? Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length) : null;
+  const attCounts = { exc:0, meet:0, app:0, bel:0 };
+  allRows.forEach(r => {
+    if (r.pct>=80) attCounts.exc++;
+    else if (r.pct>=60) attCounts.meet++;
+    else if (r.pct>=35) attCounts.app++;
+    else attCounts.bel++;
+  });
+  const total = allRows.length;
+
+  // Unique students
+  const uniqueStudents = [...new Set(allRows.map(r=>r.studentName).filter(Boolean))];
+
+  // Subject-wise averages
+  const subjMap = {};
+  allRows.forEach(r => {
+    const s = r.subject||'Other';
+    if (!subjMap[s]) subjMap[s] = [];
+    if (r.pct !== null) subjMap[s].push(r.pct);
+  });
+
+  let html = `
+  <div style="margin-bottom:18px">
+    <div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:12px">${grade} — Attainment Overview</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
+      <div class="card" style="text-align:center;padding:14px 10px">
+        <div style="font-size:22px;font-weight:700;color:var(--blue)">${uniqueStudents.length}</div>
+        <div style="font-size:11px;color:var(--ink-f)">Students Assessed</div>
+      </div>
+      <div class="card" style="text-align:center;padding:14px 10px">
+        <div style="font-size:22px;font-weight:700;color:var(--sage)">${avgPct!==null?avgPct+'%':'—'}</div>
+        <div style="font-size:11px;color:var(--ink-f)">Overall Average</div>
+      </div>
+      <div class="card" style="text-align:center;padding:14px 10px;background:var(--grn-p)">
+        <div style="font-size:22px;font-weight:700;color:var(--grn)">${attCounts.exc}</div>
+        <div style="font-size:11px;color:var(--grn)">Exceeding Standard</div>
+      </div>
+      <div class="card" style="text-align:center;padding:14px 10px;background:var(--blue-p)">
+        <div style="font-size:22px;font-weight:700;color:var(--blue)">${attCounts.meet}</div>
+        <div style="font-size:11px;color:var(--blue)">Meeting Standard</div>
+      </div>
+      <div class="card" style="text-align:center;padding:14px 10px;background:var(--gold-p)">
+        <div style="font-size:22px;font-weight:700;color:var(--gold)">${attCounts.app}</div>
+        <div style="font-size:11px;color:var(--gold)">Approaching Standard</div>
+      </div>
+      <div class="card" style="text-align:center;padding:14px 10px;background:var(--red-p)">
+        <div style="font-size:22px;font-weight:700;color:var(--red)">${attCounts.bel}</div>
+        <div style="font-size:11px;color:var(--red)">Below Standard</div>
+      </div>
+    </div>`;
+
+  // Attainment bar
+  if (total > 0) {
+    html += `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">Attainment Distribution</div>
+      <div style="display:flex;height:20px;border-radius:6px;overflow:hidden;gap:2px">
+        ${attCounts.exc?`<div style="flex:${attCounts.exc};background:var(--grn);title='Exceeding'"></div>`:''}
+        ${attCounts.meet?`<div style="flex:${attCounts.meet};background:#3b82f6"></div>`:''}
+        ${attCounts.app?`<div style="flex:${attCounts.app};background:var(--gold)"></div>`:''}
+        ${attCounts.bel?`<div style="flex:${attCounts.bel};background:var(--red)"></div>`:''}
+      </div>
+      <div style="display:flex;gap:12px;margin-top:5px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--grn)">■ Exceeding ${Math.round(attCounts.exc/total*100)}%</span>
+        <span style="font-size:11px;color:#3b82f6">■ Meeting ${Math.round(attCounts.meet/total*100)}%</span>
+        <span style="font-size:11px;color:var(--gold)">■ Approaching ${Math.round(attCounts.app/total*100)}%</span>
+        <span style="font-size:11px;color:var(--red)">■ Below ${Math.round(attCounts.bel/total*100)}%</span>
+      </div>
+    </div>`;
+  }
+
+  // Subject averages
+  const subjKeys = Object.keys(subjMap).filter(s=>subjMap[s].length);
+  if (subjKeys.length > 1) {
+    html += `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px">Subject Performance</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">`;
+    subjKeys.forEach(s => {
+      const arr = subjMap[s];
+      const avg2 = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      const att2 = _attainmentLabel(avg2);
+      html += `<div style="flex:1;min-width:120px;padding:10px 12px;border-radius:var(--r-md);border:0.5px solid var(--bdr);background:var(--sur-r)">
+        <div style="font-size:13px;font-weight:500;color:var(--ink)">${s}</div>
+        <div style="font-size:20px;font-weight:700;margin:4px 0;${att2.css.replace('background:','').replace(';color:','color:').split(';')[1]||'color:var(--ink)'}">${avg2}%</div>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;${att2.css}">${att2.label}</span>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+
+  // ── Per-student table ──
+  // Group by student name
+  const studentMap = {};
+  allRows.forEach(r => {
+    const key = r.studentName || 'Unknown';
+    if (!studentMap[key]) studentMap[key] = { name: key, rows: [] };
+    studentMap[key].rows.push(r);
+  });
+
+  html += `<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:10px">Student Attainment Detail</div>
+  <div style="overflow-x:auto">
+  <table class="data-table" style="font-size:12px">
+    <thead><tr>
+      <th>Student</th>
+      <th>Subject</th>
+      <th>Assessment / Rubric</th>
+      <th>Type</th>
+      <th>Term</th>
+      <th>Score</th>
+      <th>%</th>
+      <th>Attainment</th>
+      <th>Standard</th>
+    </tr></thead>
+    <tbody>`;
+
+  Object.values(studentMap).sort((a,b)=>a.name.localeCompare(b.name)).forEach(st => {
+    st.rows.forEach((r, i) => {
+      html += `<tr>
+        ${i===0?`<td rowspan="${st.rows.length}" style="font-weight:500;vertical-align:top">${st.name}</td>`:''}
+        <td>${r.subject||'—'}</td>
+        <td>${r.assessName}</td>
+        <td style="color:var(--ink-l)">${r.type}</td>
+        <td style="color:var(--ink-l)">${r.term||'—'}</td>
+        <td style="font-weight:500">${r.source==='score'?`${r.score||'—'}/${r.maxMarks}`:r.avgScore+'/'+r.maxMarks}</td>
+        <td>${r.pct!==null?r.pct+'%':'—'}</td>
+        <td><span style="font-size:11px;padding:2px 7px;border-radius:20px;${r.att.css}">${r.att.label}</span></td>
+        <td style="color:var(--blue);font-size:11px">${r.standard||'—'}</td>
+      </tr>`;
+    });
+  });
+
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
 // Analytics
 function renderAssessAnalytics() {
   const el = document.getElementById('assess-analytics-body');
-  if (!el || !assessments.length) { if(el) el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-f)">Add assessments and scores to see analytics.</div>'; return; }
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">';
+  if (!el) return;
+
+  // Collect all grade data
+  const gradeAvgMap = {}; // grade -> [pct]
+  const subjectAvgMap = {}; // subject -> [pct]
+  const standardMap = {}; // standard -> {exc,meet,app,bel,total}
+  let totalStudents = 0, totalPct = 0, totalCount = 0;
+
   assessments.forEach(a => {
-    const scores = (scoreEntries[a.id]||[]).map(s=>parseFloat(s.score)||0).filter(s=>s>0);
-    if (!scores.length) return;
-    const avg = Math.round(scores.reduce((x,s)=>x+s,0)/scores.length);
+    (scoreEntries[a.id]||[]).forEach(sc => {
+      const g = sc.grade || a.grade;
+      const pct = a.maxMarks ? Math.round((parseFloat(sc.score)||0)/a.maxMarks*100) : null;
+      if (pct === null) return;
+      if (!gradeAvgMap[g]) gradeAvgMap[g] = [];
+      gradeAvgMap[g].push(pct);
+      if (a.subject) { if(!subjectAvgMap[a.subject]) subjectAvgMap[a.subject]=[]; subjectAvgMap[a.subject].push(pct); }
+      if (a.standard) {
+        if (!standardMap[a.standard]) standardMap[a.standard] = {exc:0,meet:0,app:0,bel:0,total:0};
+        standardMap[a.standard].total++;
+        if (pct>=80) standardMap[a.standard].exc++;
+        else if (pct>=60) standardMap[a.standard].meet++;
+        else if (pct>=35) standardMap[a.standard].app++;
+        else standardMap[a.standard].bel++;
+      }
+      totalPct += pct; totalCount++;
+    });
+  });
+  rubrics.forEach(r => {
+    (rubricScores[r.id]||[]).forEach(resp => {
+      const g = resp.grade || '';
+      const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
+      const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+      const pct = Math.round(avg/(r.scale||4)*100);
+      if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
+      if (r.subject) { if(!subjectAvgMap[r.subject]) subjectAvgMap[r.subject]=[]; subjectAvgMap[r.subject].push(pct); }
+      totalPct += pct; totalCount++;
+    });
+  });
+
+  const hasData = totalCount > 0;
+  if (!hasData) { el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-f)">Add assessments and scores to see analytics.</div>'; return; }
+
+  const overallAvg = Math.round(totalPct/totalCount);
+  const overallAtt = _attainmentLabel(overallAvg);
+
+  let html = `<div style="margin-bottom:20px">
+    <div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:12px">School-wide Assessment Analytics</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+      <div class="card" style="text-align:center;padding:16px 10px">
+        <div style="font-size:28px;font-weight:700;color:var(--sage)">${overallAvg}%</div>
+        <div style="font-size:11px;color:var(--ink-f);margin-top:4px">Overall Average</div>
+        <span style="font-size:10px;padding:2px 8px;border-radius:20px;margin-top:6px;display:inline-block;${overallAtt.css}">${overallAtt.label}</span>
+      </div>
+      <div class="card" style="text-align:center;padding:16px 10px">
+        <div style="font-size:28px;font-weight:700;color:var(--blue)">${Object.keys(gradeAvgMap).length}</div>
+        <div style="font-size:11px;color:var(--ink-f);margin-top:4px">Grades Assessed</div>
+      </div>
+      <div class="card" style="text-align:center;padding:16px 10px">
+        <div style="font-size:28px;font-weight:700;color:var(--blue)">${assessments.length + rubrics.length}</div>
+        <div style="font-size:11px;color:var(--ink-f);margin-top:4px">Total Assessments</div>
+      </div>
+      <div class="card" style="text-align:center;padding:16px 10px">
+        <div style="font-size:28px;font-weight:700;color:var(--sage)">${totalCount}</div>
+        <div style="font-size:11px;color:var(--ink-f);margin-top:4px">Student Records</div>
+      </div>
+    </div>`;
+
+  // Grade-wise bar chart
+  const gradeKeys = GRADES_ORDER.filter(g => gradeAvgMap[g]);
+  if (gradeKeys.length) {
+    html += `<div class="card" style="margin-bottom:16px;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px">Grade-wise Average Attainment</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:120px;overflow-x:auto">`;
+    gradeKeys.forEach(g => {
+      const arr = gradeAvgMap[g];
+      const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      const att = _attainmentLabel(avg);
+      const barH = Math.max(10, Math.round(avg * 1.1));
+      const col = avg>=80?'var(--grn)':avg>=60?'#3b82f6':avg>=35?'var(--gold)':'var(--red)';
+      html += `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:50px">
+        <div style="font-size:11px;font-weight:600;color:${col}">${avg}%</div>
+        <div style="width:100%;background:${col};border-radius:4px 4px 0 0;height:${barH}px;max-height:100px"></div>
+        <div style="font-size:10px;color:var(--ink-l);text-align:center;white-space:nowrap">${g.replace('Grade ','G')}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Subject heatmap
+  const subjectKeys = Object.keys(subjectAvgMap).filter(s=>subjectAvgMap[s].length);
+  if (subjectKeys.length) {
+    html += `<div class="card" style="margin-bottom:16px;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Subject Performance</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">`;
+    subjectKeys.forEach(s => {
+      const arr = subjectAvgMap[s];
+      const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      const att = _attainmentLabel(avg);
+      html += `<div style="padding:12px;border-radius:var(--r-md);${att.css};border:0.5px solid transparent">
+        <div style="font-size:13px;font-weight:500">${s}</div>
+        <div style="font-size:22px;font-weight:700;margin:4px 0">${avg}%</div>
+        <div style="font-size:10px">${arr.length} records · ${att.label}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Standards attainment table
+  const standardKeys = Object.keys(standardMap);
+  if (standardKeys.length) {
+    html += `<div class="card" style="margin-bottom:16px;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Standards Attainment</div>
+      <div style="overflow-x:auto">
+      <table class="data-table" style="font-size:12px">
+        <thead><tr><th>Standard / Learning Objective</th><th>Records</th><th style="color:var(--grn)">Exceeding</th><th style="color:#3b82f6">Meeting</th><th style="color:var(--gold)">Approaching</th><th style="color:var(--red)">Below</th></tr></thead>
+        <tbody>`;
+    standardKeys.forEach(st => {
+      const d = standardMap[st];
+      html += `<tr>
+        <td style="font-weight:500;color:var(--blue)">${st}</td>
+        <td>${d.total}</td>
+        <td style="color:var(--grn);font-weight:500">${d.exc} (${Math.round(d.exc/d.total*100)}%)</td>
+        <td style="color:#3b82f6;font-weight:500">${d.meet} (${Math.round(d.meet/d.total*100)}%)</td>
+        <td style="color:var(--gold);font-weight:500">${d.app} (${Math.round(d.app/d.total*100)}%)</td>
+        <td style="color:var(--red);font-weight:500">${d.bel} (${Math.round(d.bel/d.total*100)}%)</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div></div>';
+  }
+
+  // Individual assessment cards
+  html += `<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:10px">Assessment Breakdown</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">`;
+  assessments.forEach(a => {
+    const scoresArr = (scoreEntries[a.id]||[]).map(s=>parseFloat(s.score)||0).filter(s=>s>0);
+    if (!scoresArr.length) return;
+    const avg = Math.round(scoresArr.reduce((x,s)=>x+s,0)/scoresArr.length);
     const pct = Math.round(avg/a.maxMarks*100);
-    const pass = scores.filter(s=>s>=a.maxMarks*0.35).length;
-    const dist = [0,0,0,0]; // A B C D
-    scores.forEach(s=>{const p=s/a.maxMarks*100;if(p>=75)dist[0]++;else if(p>=60)dist[1]++;else if(p>=35)dist[2]++;else dist[3]++;});
-    html += `<div class="card"><div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:10px">${a.name}</div>
+    const pass = scoresArr.filter(s=>s>=a.maxMarks*0.35).length;
+    const dist = [0,0,0,0];
+    scoresArr.forEach(s=>{const p=s/a.maxMarks*100;if(p>=80)dist[0]++;else if(p>=60)dist[1]++;else if(p>=35)dist[2]++;else dist[3]++;});
+    const att = _attainmentLabel(pct);
+    html += `<div class="card"><div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:4px">${a.name}</div>
+      <div style="font-size:11px;color:var(--ink-l);margin-bottom:10px">${a.subject} · ${a.grade==='all'?'All Grades':a.grade} · ${a.term}${a.standard?'<br>📌 '+a.standard:''}</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         <div style="text-align:center"><div style="font-size:20px;font-weight:600;color:var(--sage)">${avg}/${a.maxMarks}</div><div style="font-size:11px;color:var(--ink-f)">Average</div></div>
-        <div style="text-align:center"><div style="font-size:20px;font-weight:600;color:${pct>=75?'var(--grn)':pct>=50?'var(--amb)':'var(--red)'}">${pct}%</div><div style="font-size:11px;color:var(--ink-f)">Score %</div></div>
-        <div style="text-align:center"><div style="font-size:20px;font-weight:600;color:var(--blue)">${pass}/${scores.length}</div><div style="font-size:11px;color:var(--ink-f)">Passed</div></div>
+        <div style="text-align:center"><div style="font-size:20px;font-weight:600;${att.css.split(';')[1]||'color:var(--ink)'}">${pct}%</div><div style="font-size:11px;color:var(--ink-f)">Score %</div></div>
+        <div style="text-align:center"><div style="font-size:20px;font-weight:600;color:var(--blue)">${pass}/${scoresArr.length}</div><div style="font-size:11px;color:var(--ink-f)">Passed</div></div>
       </div>
       <div style="font-size:11px;color:var(--ink-l);display:flex;gap:6px;flex-wrap:wrap">
-        <span style="background:var(--grn-p);color:var(--grn);padding:1px 8px;border-radius:20px">A: ${dist[0]}</span>
-        <span style="background:var(--blue-p);color:var(--blue);padding:1px 8px;border-radius:20px">B: ${dist[1]}</span>
-        <span style="background:var(--gold-p);color:var(--gold);padding:1px 8px;border-radius:20px">C: ${dist[2]}</span>
-        <span style="background:var(--red-p);color:var(--red);padding:1px 8px;border-radius:20px">D/Fail: ${dist[3]}</span>
+        <span style="background:var(--grn-p);color:var(--grn);padding:1px 8px;border-radius:20px">Exc: ${dist[0]}</span>
+        <span style="background:var(--blue-p);color:var(--blue);padding:1px 8px;border-radius:20px">Meet: ${dist[1]}</span>
+        <span style="background:var(--gold-p);color:var(--gold);padding:1px 8px;border-radius:20px">App: ${dist[2]}</span>
+        <span style="background:var(--red-p);color:var(--red);padding:1px 8px;border-radius:20px">Below: ${dist[3]}</span>
       </div>
     </div>`;
   });
-  html += '</div>';
+  html += '</div></div>';
   el.innerHTML = html;
 }
 
