@@ -20,10 +20,17 @@ script:
 npm run build   # node build.js → dist/
 ```
 
-**Worth knowing:** only `index.html` carries the credential placeholders;
-everything else is copied verbatim from the `STATIC` list in `build.js`. **Add
-new static files to that list**, or they will 404 on the deployed site — a local
-`npm run build` reproduces this, so check `dist/` before pushing.
+**Worth knowing:** only `index.html` carries the credential placeholders.
+`build.js` finds everything else by scanning the repo root against an extension
+allowlist (`.html`, `.css`, `.js`, images, fonts), so a new static file is served
+without touching the build script — but a new *extension* needs adding to
+`SERVED`. The allowlist is deliberately not a denylist: it is what keeps `.env`,
+`*.sql`, `package.json` and `build.js` itself out of `dist/`.
+
+The build fails rather than warns when `SUPABASE_URL` / `SUPABASE_ANON_KEY` are
+missing, or when a placeholder survives substitution. Both would otherwise
+produce a site that loads fine and silently never reaches Supabase; failing
+leaves the last good deploy live instead of replacing it with a broken one.
 
 ## Deployment
 
