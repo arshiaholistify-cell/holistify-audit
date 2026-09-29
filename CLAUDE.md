@@ -81,6 +81,27 @@ migrated. Two things to keep in mind when touching it:
   them, and `loadUsers()` still lowercases stored IDs, because `doLogin()`
   lowercases what is typed.
 
+### Where account lists come from
+
+Two different reads, deliberately:
+
+- `getUsers()` is the **local credential store** (`localStorage`). The sign-in
+  fallback, export/import and the migration use it, because profiles rows carry
+  no password.
+- `getDirectory()` is what every **list and count** in the UI shows. Once signed
+  in through Supabase Auth it returns `public.profiles` — the same on every
+  device — merged with any local account not yet migrated, flagged
+  `_notMigrated`.
+
+This distinction matters: `localStorage` is per-browser and per-origin, so an
+admin signing in on a new device saw empty auditor and coach lists even though
+the accounts existed. Lists must read the directory; anything touching
+passwords must read the local store.
+
+`refreshDirectory()` runs after sign-in, after session restore, and after any
+account is created, deleted or migrated. A failed fetch keeps the previous list
+rather than blanking it.
+
 ### Password rules
 
 New passwords must be at least 8 characters, enforced in the app and again in

@@ -7962,7 +7962,7 @@ function switchLoginTab(tab) {
 
 // ── Credentials panel ─────────────────────────────────────────────────────────
 function openCredentials() {
-  var users = getUsers();
+  var users = getDirectory();
   var sections = [
     { title: 'Holistify Admin & Staff', roles: ['super_admin','holistify_admin','holistify_member'] },
     { title: 'School Staff',            roles: ['school_principal','school_staff'] },
@@ -7977,13 +7977,19 @@ function openCredentials() {
     html += '<table class="creds-table"><thead><tr><th>Name</th><th>Login ID</th><th>Password</th><th>Role</th></tr></thead><tbody>';
     group.forEach(function(u) {
       var roleLbl = (ROLES[u.role] || {}).label || u.role;
-      var safePwd = u.pwd.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // Once an account is in Supabase Auth its password is bcrypt-hashed
+      // server-side and cannot be read back — which is the point. Only accounts
+      // still in the local store have one to show.
+      var rawPwd = (typeof u.pwd === 'string') ? u.pwd : '';
+      var safePwd = rawPwd.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       html += '<tr>' +
         '<td class="creds-name">' + u.name + (u.holistifyTeam ? ' <span style="font-size:10px;padding:1px 6px;border-radius:20px;background:#EDF9F4;color:#1A3028">Holistify</span>' : '') + '</td>' +
         '<td class="creds-id">' + u.id + '</td>' +
-        '<td><div class="creds-pwd-cell"><span class="creds-pwd-text" data-pwd="' + u.pwd.replace(/"/g,'&quot;') + '">••••••••</span>' +
-          '<button class="creds-eye" onclick="credsTogglePwd(this)" title="Show/hide">👁</button>' +
-          '<button class="creds-copy" onclick="credsCopy(\'' + safePwd + '\')">Copy</button></div></td>' +
+        (rawPwd
+          ? ('<td><div class="creds-pwd-cell"><span class="creds-pwd-text" data-pwd="' + rawPwd.replace(/"/g,'&quot;') + '">••••••••</span>' +
+             '<button class="creds-eye" onclick="credsTogglePwd(this)" title="Show/hide">👁</button>' +
+             '<button class="creds-copy" onclick="credsCopy(\'' + safePwd + '\')">Copy</button></div></td>')
+          : '<td style="font-size:11px;color:#8A7F6E">Stored by Supabase Auth<br>Reset it to set a new one</td>') +
         '<td><span class="creds-role-badge">' + roleLbl + '</span></td>' +
         '</tr>';
     });
@@ -8000,7 +8006,7 @@ function closeCredentials() {
 
 // ── Auditor Summary ───────────────────────────────────────────────────────────
 function openAuditorSummary() {
-  var users = getUsers();
+  var users = getDirectory();
   var auditors = users.filter(function(u) { return u.role === 'auditor'; });
 
   // Collect raw audit states + metas for all schools
@@ -8319,7 +8325,7 @@ function deleteUser(id) {
 function renderUsersTable() {
   const tbody = document.getElementById('users-tbody');
   if (!tbody) return;
-  const users = getUsers();
+  const users = getDirectory();
   tbody.innerHTML = users.map(u => {
     const role = ROLES[u.role] || {};
     const pageList = u.pageAccess ? u.pageAccess.slice(0,3).join(', ') + (u.pageAccess.length > 3 ? '…' : '') : 'All';
@@ -8586,7 +8592,7 @@ function openSectionPage(type) {
   var actionsEl = document.getElementById('sp-actions');
   var schoolsWrap = document.getElementById('sp-schools-wrap');
   var spContent = document.getElementById('sp-content');
-  var users = getUsers();
+  var users = getDirectory();
 
   // Reset
   if (schoolsWrap) schoolsWrap.style.display = 'none';
@@ -8934,7 +8940,7 @@ function closeAccessControl() {
 function renderAcRoleSummary() {
   const el = document.getElementById('ac-role-summary');
   if (!el) return;
-  const users = getUsers();
+  const users = getDirectory();
   el.innerHTML = Object.entries(ROLES).map(([key, role]) => {
     const count = users.filter(u => u.role === key).length;
     return `<div class="mc" style="background:${role.bg}">
@@ -9013,7 +9019,7 @@ function acResetPwd(id) {
 function renderAcUsersTable() {
   const tbody = document.getElementById('ac-users-tbody');
   if (!tbody) return;
-  const users = getUsers();
+  const users = getDirectory();
   tbody.innerHTML = users.map(u => {
     const role = ROLES[u.role] || {};
     const pages = u.pageAccess ? u.pageAccess.join(', ') : 'All pages';
@@ -9103,6 +9109,9 @@ doLogin = function() {
     document.getElementById('li-password').classList.remove('error');
     setCurrentUser(res.user);
     _routeAfterLogin(res.user);
+    // Accounts live in profiles once migrated, so load them before any list
+    // is shown; otherwise an admin on a fresh device sees an empty directory.
+    refreshDirectoryAndRender();
     if (_authWeakPassword) {
       toast('Your password appears in a known data breach. Please change it from the topbar.', 'warn');
       _authWeakPassword = null;
@@ -15229,7 +15238,7 @@ function renderSchoolCards() {
   if (!grid) return;
 
   // Update stats
-  var users = getUsers();
+  var users = getDirectory();
   var auditors = users.filter(function(u) { return u.role === 'auditor'; });
   var coaches = users.filter(function(u) { return u.role === 'coach'; });
   var auditsDone = schoolRegistry.filter(function(sch) {
@@ -15464,7 +15473,7 @@ function getCheckedSchools(containerId) {
 }
 
 function renderAuditorsList() {
-  var users = getUsers();
+  var users = getDirectory();
   var list = document.getElementById('auditors-list');
   if (!list) return;
   var auditors = users.filter(function(u) { return u.role === 'auditor'; });
@@ -15515,7 +15524,7 @@ function closeAddCoachModal() {
 }
 
 function renderCoachesList() {
-  var users = getUsers();
+  var users = getDirectory();
   var list = document.getElementById('coaches-list');
   if (!list) return;
   var coaches = users.filter(function(u) { return u.role === 'coach'; });
@@ -15563,7 +15572,7 @@ function deleteUserById(uid) {
 
 function openStatDetail(type) {
   var title = '', html = '';
-  var users = getUsers();
+  var users = getDirectory();
 
   if (type === 'schools') {
     title = 'Schools (' + schoolRegistry.length + ')';
@@ -15930,9 +15939,58 @@ async function authBootstrap() {
     var session = res && res.data && res.data.session;
     if (session && session.user) {
       var profile = await _loadProfileUser(sb, session.user.id);
-      if (profile.user) { _authSessionActive = true; setCurrentUser(profile.user); }
+      if (profile.user) {
+        _authSessionActive = true;
+        setCurrentUser(profile.user);
+        await refreshDirectory();
+      }
     }
   } catch (e) {}
+}
+
+// Account directory for every list and count the UI shows.
+//
+// getUsers() reads localStorage, which is per-browser and per-origin: an admin
+// signing in on a new device, or on a domain the accounts were never created
+// on, sees an empty auditor list even though the accounts exist. Once signed in
+// through Supabase Auth, public.profiles is the authoritative source and is the
+// same everywhere.
+//
+// getUsers() is deliberately NOT changed: it remains the local credential store
+// that the sign-in fallback, export/import and the migration read, and profiles
+// rows carry no password.
+var _directory = null;   // profiles rows as user objects, or null when unknown
+
+async function refreshDirectory() {
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) { _directory = null; return; }
+  try {
+    var res = await _authWithTimeout(sb.from('profiles').select('*'), 10000,
+                                     { error: { message: 'timeout' } });
+    if (res.error || !res.data) return;   // keep the previous list rather than blanking it
+    _directory = res.data.map(_profileToUser);
+  } catch (e) {}
+}
+
+// Profiles first, then any local account that has not been migrated yet, so an
+// admin mid-transition can still see who is missing.
+function getDirectory() {
+  var local = getUsers();
+  if (!_directory) return local;
+  var seen = {};
+  var out = _directory.map(function(u) { seen[u.id] = true; return u; });
+  local.forEach(function(u) {
+    if (!seen[u.id]) out.push(Object.assign({}, u, { _notMigrated: true }));
+  });
+  return out;
+}
+
+// Reload the directory and repaint anything that lists accounts.
+function refreshDirectoryAndRender() {
+  return refreshDirectory().then(function() {
+    ['renderAuditorsList', 'renderCoachesList', 'renderUsersTable', 'renderSchoolCards']
+      .forEach(function(fn) { if (typeof window[fn] === 'function') { try { window[fn](); } catch (e) {} } });
+  });
 }
 
 async function authSignOut() {
@@ -15967,12 +16025,15 @@ function authSyncCreate(account) {
   if (!_authSessionActive) return;
   adminAccountsCall({ action: 'create', account: account }).then(function(res) {
     if (res && res.error) toast('Account saved locally, but not created in Supabase: ' + res.error, 'warn');
+    refreshDirectoryAndRender();
   });
 }
 
 function authSyncDelete(loginId) {
   if (!_authSessionActive) return;
-  adminAccountsCall({ action: 'delete', id: loginId }).then(function() {});
+  adminAccountsCall({ action: 'delete', id: loginId }).then(function() {
+    refreshDirectoryAndRender();
+  });
 }
 
 // One-time migration: push every local account into Supabase Auth, keeping
@@ -15990,6 +16051,7 @@ async function migrateAccountsToAuth() {
   toast('Migrating ' + accounts.length + ' account(s)…', 'info');
   var res = await adminAccountsCall({ action: 'migrate', accounts: accounts });
   if (res.error) { toast('Migration failed: ' + res.error, 'error'); return; }
+  await refreshDirectoryAndRender();
 
   var failed = (res.results || []).filter(function(r) { return !r.ok; });
   var msg = res.created + ' created, ' + res.skipped + ' already present';
