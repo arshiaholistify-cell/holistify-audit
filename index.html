@@ -908,6 +908,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="sa-logo-text">Holistify<span>.</span></div>
     <div class="sa-topbar-right">
       <span class="sa-user-badge" id="sa-user-badge">Admin</span>
+      <button class="sa-signout-btn" onclick="openChangePasswordModal()">Change password</button>
       <button class="sa-signout-btn" onclick="doLogout()">Sign out</button>
     </div>
   </div>
@@ -1077,6 +1078,21 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+<!-- Change Password Modal -->
+<div class="mgmt-modal-overlay" id="change-pwd-modal">
+  <div class="mgmt-modal">
+    <div class="mgmt-modal-title">Change Password <button class="mgmt-close" onclick="closeChangePasswordModal()">×</button></div>
+    <div class="mgmt-field"><label>Current password *</label><input id="cp-current" type="password" placeholder="Your current password" autocomplete="current-password"></div>
+    <div class="mgmt-field"><label>New password *</label><input id="cp-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></div>
+    <div class="mgmt-field"><label>Confirm new password *</label><input id="cp-confirm" type="password" placeholder="Re-enter the new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitChangePassword()"></div>
+    <div id="cp-error" style="display:none;font-size:12px;color:#C0392B;margin:2px 0 12px"></div>
+    <div class="mgmt-footer">
+      <button class="sa-btn sa-btn-primary" onclick="submitChangePassword()">Update password</button>
+      <button class="sa-btn sa-btn-secondary" onclick="closeChangePasswordModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Auditor Modal -->
 <div class="mgmt-modal-overlay" id="add-auditor-modal">
   <div class="mgmt-modal">
@@ -1242,6 +1258,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div style="margin-left:auto;display:flex;gap:8px">
       <button onclick="openHubAddSchool()" class="btn-top">+ Add school</button>
       <button id="hub-access-btn" onclick="openAccessControl()" class="btn-top" style="display:none">👥 Access Control</button>
+      <button onclick="openChangePasswordModal()" class="btn-top" style="background:rgba(255,255,255,0.12)">🔑 Password</button>
       <button onclick="doLogout()" class="btn-top" style="background:rgba(255,255,255,0.12)">⏻ Logout</button>
     </div>
   </div>
@@ -1378,6 +1395,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div id="user-access-badge" class="access-badge" style="background:rgba(255,255,255,0.12);color:#fff"></div>
   <button class="btn-top" onclick="printReport()">⬇ Export report</button>
   <button id="mob-nav-btn" onclick="toggleMobileNav()" title="Menu">☰</button>
+  <button onclick="openChangePasswordModal()" title="Change password" style="background:rgba(255,255,255,0.12);border:none;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">🔑 Password</button>
   <button onclick="doLogout()" title="Log out" style="background:rgba(255,255,255,0.12);border:none;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">⏻ Logout</button>
 </div>
 </header>
@@ -8246,6 +8264,59 @@ function renderUsersTable() {
   }).join('');
 }
 
+// ── Change own password ───────────────────────────────────────────────────────
+// Any signed-in user can change their own password. Accounts live in
+// localStorage, so this rewrites the stored entry and refreshes the session
+// copy, which setCurrentUser() keeps in sessionStorage.
+function openChangePasswordModal() {
+  if (!getCurrentUser()) { toast('Please sign in first.', 'error'); return; }
+  ['cp-current', 'cp-new', 'cp-confirm'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const err = document.getElementById('cp-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+  const modal = document.getElementById('change-pwd-modal');
+  if (modal) modal.classList.add('open');
+  const first = document.getElementById('cp-current');
+  if (first) first.focus();
+}
+
+function closeChangePasswordModal() {
+  const modal = document.getElementById('change-pwd-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+function submitChangePassword() {
+  const err = document.getElementById('cp-error');
+  function fail(msg) {
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+    else toast(msg, 'error');
+  }
+
+  const u = getCurrentUser();
+  if (!u) { fail('You are not signed in.'); return; }
+
+  const current = (document.getElementById('cp-current') || {}).value || '';
+  const next    = (document.getElementById('cp-new') || {}).value || '';
+  const confirm = (document.getElementById('cp-confirm') || {}).value || '';
+
+  const users = getUsers();
+  const idx = users.findIndex(function(x) { return x.id === u.id; });
+  if (idx === -1) { fail('This account no longer exists in this browser.'); return; }
+  if (users[idx].pwd !== current) { fail('Your current password is not correct.'); return; }
+  if (next.length < 6) { fail('The new password must be at least 6 characters.'); return; }
+  if (next !== confirm) { fail('The two new passwords do not match.'); return; }
+  if (next === current) { fail('The new password is the same as your current one.'); return; }
+
+  users[idx].pwd = next;
+  saveUsers(users);
+  setCurrentUser(users[idx]);  // keep the session copy in step with the store
+  if (typeof renderUsersTable === 'function') renderUsersTable();
+  closeChangePasswordModal();
+  toast('Password updated.', 'success');
+}
+
 // ── Account backup / transfer ─────────────────────────────────────────────────
 // Accounts live in localStorage, which is scoped to the origin, so they do not
 // follow the user to another domain or device — moving the site between domains
@@ -8435,6 +8506,7 @@ function openSectionPage(type) {
     if (titleEl) titleEl.textContent = 'Schools';
     if (actionsEl) actionsEl.innerHTML = '<button class="sa-btn sa-btn-primary" onclick="openAddSchoolModal()">+ Add School</button>';
     if (schoolsWrap) schoolsWrap.style.display = 'block';
+    loadSchoolRegistry(true);  // deliberate navigation — pull a fresh list once
     renderSchoolCards();
 
   } else if (type === 'auditors') {
@@ -14983,9 +15055,17 @@ function initCurriculumAndAttendance(){
 // SCHOOL REGISTRY
 // ═══════════════════════════════════════════════════════
 var schoolRegistry = [];
+// Supabase sync state for the registry: 'idle' | 'running' | 'done'.
+// The sync used to run on every loadSchoolRegistry() call, and its .then()
+// calls renderSchoolCards(), which calls loadSchoolRegistry() again — so every
+// fetch started another fetch. The cascade grew without bound: it hammered the
+// database and rebuilt the school cards continuously, so a click on a card
+// landed on an element that was about to be replaced and appeared to do
+// nothing. Sync once per page load, or on an explicit refresh.
+var _schoolSyncState = 'idle';
 var _currentDashboardSchool = null;
 
-function loadSchoolRegistry() {
+function loadSchoolRegistry(forceSync) {
   try {
     var s = localStorage.getItem('hol_school_registry');
     if (s) schoolRegistry = JSON.parse(s);
@@ -15000,24 +15080,30 @@ function loadSchoolRegistry() {
       }
     } catch(e) {}
   }
-  // Always sync from Supabase — authoritative source across all sessions/devices.
-  // Runs async so local data shows instantly; updates the list once the fetch lands.
+  // Sync from Supabase — authoritative across sessions and devices. Runs async
+  // so local data shows instantly and the list updates once the fetch lands.
+  // Guarded: one fetch per page load unless a refresh is explicitly requested.
+  if (_schoolSyncState === 'running') return;
+  if (_schoolSyncState === 'done' && !forceSync) return;
   var sb = _sbClient();
-  if (sb) {
-    sb.from('schools').select('*').order('created_at', { ascending: true }).then(function(res) {
-      if (res.data && res.data.length) {
-        // Merge: Supabase is authoritative but preserve any locally-added entry not yet synced
-        var merged = res.data.slice();
-        schoolRegistry.forEach(function(local) {
-          if (!merged.find(function(r) { return r.id === local.id; })) merged.push(local);
-        });
-        schoolRegistry = merged;
-        try { localStorage.setItem('hol_school_registry', JSON.stringify(schoolRegistry)); } catch(e) {}
-        if (typeof renderSchoolCards === 'function') renderSchoolCards();
-        if (typeof renderHubGrid === 'function') renderHubGrid();
-      }
-    });
-  }
+  if (!sb) return;  // client not ready yet — leave state idle so a later call retries
+  _schoolSyncState = 'running';
+  sb.from('schools').select('*').order('created_at', { ascending: true }).then(function(res) {
+    _schoolSyncState = 'done';
+    if (res.data && res.data.length) {
+      // Merge: Supabase is authoritative but preserve any locally-added entry not yet synced
+      var merged = res.data.slice();
+      schoolRegistry.forEach(function(local) {
+        if (!merged.find(function(r) { return r.id === local.id; })) merged.push(local);
+      });
+      schoolRegistry = merged;
+      try { localStorage.setItem('hol_school_registry', JSON.stringify(schoolRegistry)); } catch(e) {}
+      if (typeof renderSchoolCards === 'function') renderSchoolCards();
+      if (typeof renderHubGrid === 'function') renderHubGrid();
+    }
+  }, function() {
+    _schoolSyncState = 'idle';  // fetch failed — allow a later call to retry
+  });
 }
 
 function saveSchoolRegistry() {
