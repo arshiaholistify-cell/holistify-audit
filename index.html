@@ -9091,17 +9091,18 @@ doLogin = function() {
   // authSignIn tries Supabase Auth, then the local store for anyone not yet
   // migrated. It is async, so the button is disabled while it runs.
   if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
-  authSignIn(userId, pwd).then(function(user) {
+  authSignIn(userId, pwd).then(function(res) {
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in →'; }
-    if (!user) {
-      errEl.textContent = 'Invalid user ID or password. Please try again.';
+    if (!res || !res.user) {
+      errEl.textContent = (res && res.error) || 'Invalid user ID or password. Please try again.';
       errEl.classList.add('show');
       document.getElementById('li-password').classList.add('error');
       return;
     }
     errEl.classList.remove('show');
-    setCurrentUser(user);
-    _routeAfterLogin(user);
+    document.getElementById('li-password').classList.remove('error');
+    setCurrentUser(res.user);
+    _routeAfterLogin(res.user);
   });
 };
 
@@ -15821,30 +15822,52 @@ function _profileToUser(p) {
   };
 }
 
+// Distinguishes "this account has no profile" from "the request failed".
+// Treating a dropped request as a missing profile would sign a valid user out
+// and silently fall through to the local store, rejecting a correct password.
+// Returns { user } | { missing: true } | { error: '...' }.
 async function _loadProfileUser(sb, uid) {
-  try {
-    var res = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-    if (res.data) return _profileToUser(res.data);
-  } catch (e) {}
-  return null;
+  var lastError = '';
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try {
+      var res = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+      if (res.error) { lastError = res.error.message || 'profile lookup failed'; continue; }
+      if (res.data) return { user: _profileToUser(res.data) };
+      return { missing: true };
+    } catch (e) {
+      lastError = (e && e.message) || 'profile lookup failed';
+    }
+  }
+  return { error: lastError || 'profile lookup failed' };
 }
 
 // Auth first, local store second. Returns a user object or null.
+// Returns { user } on success, or { error } with a message to show. The local
+// store is the fallback for anyone not migrated yet, so a wrong Supabase
+// password is not the end of the attempt — but a *reachable* Supabase that
+// fails for any other reason is reported rather than hidden.
 async function authSignIn(loginId, pwd) {
   var sb = _sbClient();
   if (sb) {
     try {
       var res = await sb.auth.signInWithPassword({ email: _authEmail(loginId), password: pwd });
       if (!res.error && res.data && res.data.user) {
-        var profileUser = await _loadProfileUser(sb, res.data.user.id);
-        if (profileUser) { _authSessionActive = true; return profileUser; }
-        // Signed in but no profile row — treat as unusable and fall through.
+        var profile = await _loadProfileUser(sb, res.data.user.id);
+        if (profile.user) { _authSessionActive = true; return { user: profile.user }; }
+        if (profile.error) {
+          // The password was right. Do not sign out and do not fall through to
+          // the local store, or a dropped request looks like a bad password.
+          return { error: 'Signed in, but your profile could not be loaded. Check your connection and try again.' };
+        }
+        // Authenticated with no profile row: unusable, so give up this route.
         try { await sb.auth.signOut(); } catch (e) {}
       }
     } catch (e) {}
   }
   var users = getUsers();
-  return users.find(function(u) { return u.id === loginId && u.pwd === pwd; }) || null;
+  var local = users.find(function(u) { return u.id === loginId && u.pwd === pwd; });
+  if (local) return { user: local };
+  return { error: 'Invalid user ID or password. Please try again.' };
 }
 
 // Restore an existing Supabase session before the app decides what to show.
@@ -15855,8 +15878,8 @@ async function authBootstrap() {
     var res = await sb.auth.getSession();
     var session = res && res.data && res.data.session;
     if (session && session.user) {
-      var u = await _loadProfileUser(sb, session.user.id);
-      if (u) { _authSessionActive = true; setCurrentUser(u); }
+      var profile = await _loadProfileUser(sb, session.user.id);
+      if (profile.user) { _authSessionActive = true; setCurrentUser(profile.user); }
     }
   } catch (e) {}
 }

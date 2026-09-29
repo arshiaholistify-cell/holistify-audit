@@ -55,25 +55,43 @@ Substituted into `__SUPABASE_URL__` and `__SUPABASE_ANON_KEY__` in `index.html`
 at build time. Only the anon key is used here, and it ends up in the served HTML
 — so keep anything sensitive behind RLS rather than in this client.
 
-## Accounts
+## Accounts and authentication
 
-User accounts are **not** in Supabase. They live in `localStorage` under
-`holistify_users`, seeded from `DEFAULT_USERS` when that key is absent. Two
-consequences that have each caused a bug report:
+Identity is **Supabase Auth**; role and scope live in `public.profiles`, keyed
+to `auth.users(id)`. Login IDs are not email addresses, so each maps to
+`<login_id>@audit.holistify.ai`. That domain passes Supabase's address
+validation — a `.local` one is rejected outright — and nothing is ever sent to
+it, because accounts are created pre-confirmed.
 
-- `localStorage` is scoped to the origin, so accounts do not follow the site to
-  another domain, browser or device. User Management has export/import buttons
-  for moving them.
-- `doLogin()` lowercases the typed ID before comparing, so an ID stored with
-  capitals can never be matched — the account exists, lists normally, and
-  rejects every login. Creation paths normalise on save, and `loadUsers()` runs
-  a one-time lowercase pass over stored IDs. That pass deliberately leaves
-  whitespace alone (`addUser()` permits spaces and `doLogin()` does not strip
-  them) and never merges or drops a colliding entry.
+Creating a user needs the service-role key, so it happens in the
+`admin-accounts` edge function (`supabase/functions/`), never in the browser.
+Supabase injects the key into the function runtime. Every action there requires
+a signed-in caller holding an admin role in `profiles`; `verify_jwt` alone is
+not enough, because the anon key is itself a valid JWT.
 
-Passwords are stored in plain text. Fixing that properly means Supabase Auth:
-the anon key is public in the served HTML, and the RLS policies here grant
-`anon` full access, so a users table would be world-readable credentials.
+`authSignIn()` tries Supabase Auth first and falls back to the old
+`localStorage` store (`holistify_users`, plaintext passwords) for anyone not yet
+migrated. Two things to keep in mind when touching it:
+
+- A failed *profile* fetch is not a failed login. Treating a dropped request as
+  a missing profile signs a valid user out and makes a correct password look
+  wrong, so `_loadProfileUser()` distinguishes "no row" from "request failed".
+- `localStorage` is scoped to the origin, so the legacy accounts do not follow
+  the site to another domain or device. User Management can export and import
+  them, and `loadUsers()` still lowercases stored IDs, because `doLogin()`
+  lowercases what is typed.
+
+### Migration state
+
+`supabase_auth_migration.sql` is applied and is deliberately additive: the old
+`anon` policies still sit alongside the new `authenticated` ones, so unmigrated
+users keep working. **The migration is not finished until
+`supabase_auth_lockdown.sql` is run**, which drops those anon policies. Until
+then the anon key in the served HTML still grants full read/write to every
+table, which is the hole this work exists to close.
+
+Run the lockdown only once every account appears in `profiles` and has signed
+in through Auth at least once.
 
 ## Database
 
