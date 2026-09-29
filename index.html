@@ -870,6 +870,22 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-p" onclick="addUser()" style="height:34px">+ Add user</button>
     </div>
 
+    <!-- Backup & transfer -->
+    <div style="background:var(--sur);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px">Backup &amp; transfer</div>
+      <div style="font-size:11px;color:var(--ink-f);margin-bottom:10px;line-height:1.5">
+        Accounts are stored in this browser only, separately for each domain — they do not follow you
+        to another domain, browser or device. Export them here to move them across.
+        <strong>The exported file contains passwords in plain text</strong>, so keep it somewhere safe
+        and delete it once you have imported it.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-s" onclick="exportUsers()" style="height:34px">⬇ Export accounts</button>
+        <button class="btn btn-s" onclick="triggerUsersImport()" style="height:34px">⬆ Import accounts</button>
+        <input type="file" id="users-import-file" accept="application/json,.json" style="display:none" onchange="importUsersFile(this)">
+      </div>
+    </div>
+
     <!-- Users table -->
     <div style="overflow-x:auto">
       <table class="tbl" id="users-table">
@@ -8228,6 +8244,83 @@ function renderUsersTable() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── Account backup / transfer ─────────────────────────────────────────────────
+// Accounts live in localStorage, which is scoped to the origin, so they do not
+// follow the user to another domain or device — moving the site between domains
+// leaves every account behind. These two handlers carry them across.
+function exportUsers() {
+  const users = getUsers();
+  const payload = JSON.stringify({ exported: new Date().toISOString(), users: users }, null, 2);
+  const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'holistify-accounts-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(users.length + ' account(s) exported. The file contains passwords — keep it safe.', 'success');
+}
+
+function triggerUsersImport() {
+  const input = document.getElementById('users-import-file');
+  if (input) input.click();
+}
+
+// Merges rather than replaces: an account whose ID is already here is left
+// untouched, so importing can never overwrite the credentials you are using.
+function importUsersFile(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onerror = function() {
+    toast('Could not read that file.', 'error');
+    input.value = '';
+  };
+  reader.onload = function() {
+    let incoming;
+    try {
+      const parsed = JSON.parse(reader.result);
+      incoming = Array.isArray(parsed) ? parsed : (parsed && parsed.users);
+    } catch (e) {
+      toast('That file is not valid JSON.', 'error');
+      input.value = '';
+      return;
+    }
+    const valid = (incoming || []).filter(function(u) {
+      return u && typeof u.id === 'string' && u.id.trim() && typeof u.pwd === 'string';
+    });
+    if (!valid.length) {
+      toast('No accounts found in that file.', 'error');
+      input.value = '';
+      return;
+    }
+
+    const users = getUsers();
+    const seen = {};
+    users.forEach(function(u) { seen[String(u.id).toLowerCase()] = true; });
+
+    let added = 0, skipped = 0;
+    valid.forEach(function(u) {
+      // doLogin lowercases what is typed, so an ID stored with capitals could
+      // never be matched. Normalise on the way in.
+      const id = String(u.id).trim().toLowerCase();
+      if (seen[id]) { skipped++; return; }
+      seen[id] = true;
+      users.push(Object.assign({}, u, { id: id }));
+      added++;
+    });
+
+    saveUsers(users);
+    renderUsersTable();
+    input.value = '';
+    toast(added + ' account(s) imported' +
+      (skipped ? ', ' + skipped + ' already existed and were kept' : '') + '.',
+      added ? 'success' : 'warn');
+  };
+  reader.readAsText(file);
 }
 
 // ── INIT: check session on load ───────────────────────────────────────────────
