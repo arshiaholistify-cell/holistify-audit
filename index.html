@@ -886,6 +886,18 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       </div>
     </div>
 
+    <!-- Supabase Auth migration -->
+    <div style="background:var(--sur);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px">Supabase Auth</div>
+      <div style="font-size:11px;color:var(--ink-f);margin-bottom:10px;line-height:1.5">
+        Moves the accounts in this browser into Supabase, so they work on any device and
+        passwords are no longer stored in plain text. <strong>Existing passwords are kept</strong> —
+        nobody needs new credentials. Accounts already migrated are skipped, so running this
+        more than once is safe.
+      </div>
+      <button class="btn btn-p" onclick="migrateAccountsToAuth()" style="height:34px">⇪ Migrate accounts to Supabase Auth</button>
+    </div>
+
     <!-- Users table -->
     <div style="overflow-x:auto">
       <table class="tbl" id="users-table">
@@ -8283,6 +8295,7 @@ function addUser() {
 
   users.push(newUser);
   saveUsers(users);
+  authSyncCreate(newUser);
   renderUsersTable();
   renderDemoAccounts();
 
@@ -8298,6 +8311,7 @@ function deleteUser(id) {
   if (!confirm('Delete user "' + id + '"?')) return;
   const users = getUsers().filter(u => u.id !== id);
   saveUsers(users);
+  authSyncDelete(id);
   renderUsersTable();
   renderDemoAccounts();
 }
@@ -8367,6 +8381,24 @@ function submitChangePassword() {
   if (next.length < 6) { fail('The new password must be at least 6 characters.'); return; }
   if (next !== confirm) { fail('The two new passwords do not match.'); return; }
   if (next === current) { fail('The new password is the same as your current one.'); return; }
+
+  // When signed in through Supabase Auth, that is the password that actually
+  // matters; the local copy is kept in step so the fallback stays usable.
+  if (_authSessionActive) {
+    var sb = _sbClient();
+    if (sb) {
+      sb.auth.updateUser({ password: next }).then(function(res) {
+        if (res && res.error) { fail('Supabase rejected the new password: ' + res.error.message); return; }
+        users[idx].pwd = next;
+        saveUsers(users);
+        setCurrentUser(users[idx]);
+        if (typeof renderUsersTable === 'function') renderUsersTable();
+        closeChangePasswordModal();
+        toast('Password updated.', 'success');
+      });
+      return;
+    }
+  }
 
   users[idx].pwd = next;
   saveUsers(users);
@@ -9049,23 +9081,31 @@ doLogin = function() {
   var userId = (document.getElementById('li-username').value || '').trim().toLowerCase();
   var pwd = document.getElementById('li-password').value || '';
   var errEl = document.getElementById('li-error');
+  var btn = document.querySelector('.login-btn');
 
   if (!userId || !pwd) {
     errEl.textContent = 'Please enter your user ID and password.';
     errEl.classList.add('show'); return;
   }
 
-  var users = getUsers();
-  var user = users.find(function(u) { return u.id === userId && u.pwd === pwd; });
-  if (!user) {
-    errEl.textContent = 'Invalid user ID or password. Please try again.';
-    errEl.classList.add('show');
-    document.getElementById('li-password').classList.add('error');
-    return;
-  }
+  // authSignIn tries Supabase Auth, then the local store for anyone not yet
+  // migrated. It is async, so the button is disabled while it runs.
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  authSignIn(userId, pwd).then(function(user) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign in →'; }
+    if (!user) {
+      errEl.textContent = 'Invalid user ID or password. Please try again.';
+      errEl.classList.add('show');
+      document.getElementById('li-password').classList.add('error');
+      return;
+    }
+    errEl.classList.remove('show');
+    setCurrentUser(user);
+    _routeAfterLogin(user);
+  });
+};
 
-  errEl.classList.remove('show');
-  setCurrentUser(user);
+function _routeAfterLogin(user) {
   hideLoginScreen();
 
   var shell = document.querySelector('.shell');
@@ -9102,6 +9142,7 @@ doLogin = function() {
 const _origDoLogout = doLogout;
 doLogout = function() {
   if (!confirm('Log out of Holistify?')) return;
+  authSignOut();
   clearSession();
   try { sessionStorage.removeItem('hol_last_screen'); } catch(e) {}
   hideAllOverlays();
@@ -15438,6 +15479,7 @@ function saveAuditor() {
   var holistifyTeam = !!(document.getElementById('aud-holistify') || {}).checked;
   users.push({ id: uid, pwd: pwd, name: name, role: 'auditor', school: '', assignedSchools: assigned, holistifyTeam: holistifyTeam, pageAccess: ['audit-vc','audit-fac','audit-cpa','audit-hr','audit-ext','audit-mg','audit-sa','overview','report'] });
   saveUsers(users);
+  authSyncCreate(users[users.length - 1]);
   toast('Auditor "' + name + '" created. ID: ' + uid + ' · Password saved.', 'success');
   closeAddAuditorModal();
   renderSchoolCards();
@@ -15486,6 +15528,7 @@ function saveCoach() {
   var assigned = getCheckedSchools('cch-school-list');
   users.push({ id: uid, pwd: pwd, name: name, role: 'coach', school: '', assignedSchools: assigned, pageAccess: ['journey','sip','checklists','overview','report','teachers','lessonplan'] });
   saveUsers(users);
+  authSyncCreate(users[users.length - 1]);
   toast('Coach "' + name + '" created. ID: ' + uid + ' · Password saved.', 'success');
   closeAddCoachModal();
   renderSchoolCards();
@@ -15495,6 +15538,7 @@ function deleteUserById(uid) {
   if (!confirm('Delete user "' + uid + '"? This cannot be undone.')) return;
   var users = getUsers().filter(function(u) { return u.id !== uid; });
   saveUsers(users);
+  authSyncDelete(uid);
   renderAuditorsList();
   renderCoachesList();
   renderSchoolCards();
@@ -15747,6 +15791,143 @@ function _sbClient() {
   return _sb;
 }
 
+// === SUPABASE AUTH ===========================================================
+// Identity lives in Supabase Auth; role and scope live in public.profiles.
+// Login IDs are not email addresses, so each maps to a synthetic one. The
+// domain is real (it passes Supabase's address validation) but nothing is ever
+// sent there — accounts are created pre-confirmed by the admin-accounts edge
+// function, which holds the service-role key server-side.
+//
+// localStorage remains a fallback for anyone not yet migrated, so nobody is
+// locked out mid-transition. Once every account is migrated, the fallback and
+// the anon database policies can both be removed.
+var AUTH_EMAIL_DOMAIN = 'audit.holistify.ai';
+var _authSessionActive = false;   // true when a real Supabase session is in play
+
+function _authEmail(loginId) {
+  return String(loginId).trim().toLowerCase().replace(/\s/g, '') + '@' + AUTH_EMAIL_DOMAIN;
+}
+
+// Shape a profiles row like the user objects the rest of the app expects.
+function _profileToUser(p) {
+  return {
+    id: p.login_id,
+    name: p.name || p.login_id,
+    role: p.role,
+    school: p.school || '',
+    assignedSchools: p.assigned_schools || [],
+    pageAccess: p.page_access || undefined,
+    holistifyTeam: !!p.holistify_team
+  };
+}
+
+async function _loadProfileUser(sb, uid) {
+  try {
+    var res = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+    if (res.data) return _profileToUser(res.data);
+  } catch (e) {}
+  return null;
+}
+
+// Auth first, local store second. Returns a user object or null.
+async function authSignIn(loginId, pwd) {
+  var sb = _sbClient();
+  if (sb) {
+    try {
+      var res = await sb.auth.signInWithPassword({ email: _authEmail(loginId), password: pwd });
+      if (!res.error && res.data && res.data.user) {
+        var profileUser = await _loadProfileUser(sb, res.data.user.id);
+        if (profileUser) { _authSessionActive = true; return profileUser; }
+        // Signed in but no profile row — treat as unusable and fall through.
+        try { await sb.auth.signOut(); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  var users = getUsers();
+  return users.find(function(u) { return u.id === loginId && u.pwd === pwd; }) || null;
+}
+
+// Restore an existing Supabase session before the app decides what to show.
+async function authBootstrap() {
+  var sb = _sbClient();
+  if (!sb) return;
+  try {
+    var res = await sb.auth.getSession();
+    var session = res && res.data && res.data.session;
+    if (session && session.user) {
+      var u = await _loadProfileUser(sb, session.user.id);
+      if (u) { _authSessionActive = true; setCurrentUser(u); }
+    }
+  } catch (e) {}
+}
+
+async function authSignOut() {
+  _authSessionActive = false;
+  var sb = _sbClient();
+  if (!sb) return;
+  try { await sb.auth.signOut(); } catch (e) {}
+}
+
+// Call the admin-only edge function with the caller's session token. The
+// function re-checks the caller's role server-side; this is only a convenience.
+async function adminAccountsCall(payload) {
+  var sb = _sbClient();
+  if (!sb) return { error: 'No connection to Supabase.' };
+  try {
+    var res = await sb.functions.invoke('admin-accounts', { body: payload });
+    if (res.error) {
+      var detail = '';
+      try { detail = (await res.error.context.json()).error; } catch (e) {}
+      return { error: detail || res.error.message || 'Request failed.' };
+    }
+    return res.data || {};
+  } catch (e) {
+    return { error: (e && e.message) || 'Request failed.' };
+  }
+}
+
+// Best-effort: keep Supabase Auth in step when accounts change locally. Never
+// blocks or reverses the local change, so account management still works for
+// an admin who is on the localStorage fallback.
+function authSyncCreate(account) {
+  if (!_authSessionActive) return;
+  adminAccountsCall({ action: 'create', account: account }).then(function(res) {
+    if (res && res.error) toast('Account saved locally, but not created in Supabase: ' + res.error, 'warn');
+  });
+}
+
+function authSyncDelete(loginId) {
+  if (!_authSessionActive) return;
+  adminAccountsCall({ action: 'delete', id: loginId }).then(function() {});
+}
+
+// One-time migration: push every local account into Supabase Auth, keeping
+// each person's existing password so nobody has to be told a new one.
+async function migrateAccountsToAuth() {
+  if (!_authSessionActive) {
+    toast('Sign in with a Supabase account first — the migration runs as an admin.', 'error');
+    return;
+  }
+  var accounts = getUsers();
+  if (!accounts.length) { toast('No local accounts to migrate.', 'warn'); return; }
+  if (!confirm('Create Supabase Auth accounts for ' + accounts.length + ' local account(s)?\n\n' +
+               'Existing passwords are kept, so nobody needs new credentials.')) return;
+
+  toast('Migrating ' + accounts.length + ' account(s)…', 'info');
+  var res = await adminAccountsCall({ action: 'migrate', accounts: accounts });
+  if (res.error) { toast('Migration failed: ' + res.error, 'error'); return; }
+
+  var failed = (res.results || []).filter(function(r) { return !r.ok; });
+  var msg = res.created + ' created, ' + res.skipped + ' already present';
+  if (failed.length) {
+    msg += ', ' + failed.length + ' failed (' +
+      failed.map(function(r) { return r.id + ': ' + r.reason; }).join('; ') + ')';
+    toast(msg, 'warn');
+  } else {
+    toast(msg + '. Everyone can sign in with their existing password.', 'success');
+  }
+}
+
 // Save audit state to Supabase (called from queueSave after localStorage)
 async function syncAuditStateToCloud(schoolName, data) {
   var sb = _sbClient(); if (!sb || !schoolName) return;
@@ -15829,7 +16010,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(updateSidebarBadges,500);
   const shell=document.querySelector('.shell');
   if(shell)shell.style.display='none';
-  authInit();
+  // Restore a Supabase session first, so authInit() does not flash the login
+  // screen at someone who is already signed in.
+  authBootstrap().then(function(){ authInit(); });
 });
 
 </script>
