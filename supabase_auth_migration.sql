@@ -47,7 +47,12 @@ as $$
   );
 $$;
 
+-- Supabase's default privileges on the public schema grant EXECUTE on new
+-- functions to anon and authenticated, so revoking from PUBLIC alone leaves
+-- those role grants in place. anon has no reason to call this; authenticated
+-- must keep it, because RLS policy expressions run as the querying role.
 revoke all on function public.is_admin() from public;
+revoke execute on function public.is_admin() from anon;
 grant execute on function public.is_admin() to authenticated;
 
 drop policy if exists profiles_select_own on public.profiles;
