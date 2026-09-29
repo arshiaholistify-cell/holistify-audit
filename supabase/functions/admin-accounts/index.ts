@@ -62,12 +62,16 @@ Deno.serve(async (req) => {
   const action = String(body.action || '');
 
   // ── Create one account ────────────────────────────────────────────────────
-  async function createAccount(acc: Record<string, unknown>) {
+  // New accounts must meet the 8-character minimum the app now enforces.
+  // Migration keeps the old 6-character floor, because it carries passwords
+  // people already have: rejecting them would strand those accounts rather
+  // than make anything safer. They get rotated through the normal change flow.
+  async function createAccount(acc: Record<string, unknown>, minLength: number) {
     const loginId = String(acc.id ?? '').trim().toLowerCase().replace(/\s/g, '');
     const password = String(acc.pwd ?? '');
     if (!loginId) return { id: acc.id, ok: false, reason: 'missing id' };
-    if (password.length < 6) {
-      return { id: loginId, ok: false, reason: 'password shorter than 6 characters' };
+    if (password.length < minLength) {
+      return { id: loginId, ok: false, reason: `password shorter than ${minLength} characters` };
     }
 
     const { data: existing } = await admin
@@ -109,8 +113,9 @@ Deno.serve(async (req) => {
     if (!accounts.length) return json({ error: 'No accounts supplied.' }, 400);
     if (accounts.length > 200) return json({ error: 'Too many accounts in one call.' }, 400);
 
+    const minLength = action === 'create' ? 8 : 6;
     const results = [];
-    for (const acc of accounts) results.push(await createAccount(acc as Record<string, unknown>));
+    for (const acc of accounts) results.push(await createAccount(acc as Record<string, unknown>, minLength));
     return json({
       results,
       created: results.filter((r) => r.created).length,
@@ -123,7 +128,7 @@ Deno.serve(async (req) => {
   if (action === 'set_password') {
     const loginId = String(body.id ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
-    if (password.length < 6) return json({ error: 'Password must be at least 6 characters.' }, 400);
+    if (password.length < 8) return json({ error: 'Password must be at least 8 characters.' }, 400);
     const { data: target } = await admin
       .from('profiles').select('id').eq('login_id', loginId).maybeSingle();
     if (!target) return json({ error: 'No such account.' }, 404);

@@ -851,7 +851,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">User ID *</div><input id="nu-id" placeholder="e.g. priya.sharma" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px;text-transform:lowercase" oninput="this.value=this.value.toLowerCase()"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-        <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Password *</div><input id="nu-pwd" placeholder="Min 6 chars" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
+        <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Password *</div><input id="nu-pwd" placeholder="Min 8 chars" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
         <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Role</div>
           <select id="nu-role" style="width:100%;height:34px;padding:0 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-sm);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)" onchange="renderPageAccessOptions()">
             <option value="holistify_admin">Holistify Admin</option>
@@ -1095,7 +1095,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="mgmt-modal">
     <div class="mgmt-modal-title">Change Password <button class="mgmt-close" onclick="closeChangePasswordModal()">×</button></div>
     <div class="mgmt-field"><label>Current password *</label><input id="cp-current" type="password" placeholder="Your current password" autocomplete="current-password"></div>
-    <div class="mgmt-field"><label>New password *</label><input id="cp-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></div>
+    <div class="mgmt-field"><label>New password *</label><input id="cp-new" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
     <div class="mgmt-field"><label>Confirm new password *</label><input id="cp-confirm" type="password" placeholder="Re-enter the new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitChangePassword()"></div>
     <div id="cp-error" style="display:none;font-size:12px;color:#C0392B;margin:2px 0 12px"></div>
     <div class="mgmt-footer">
@@ -1331,7 +1331,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">User ID *</div><input id="ac-nu-id" placeholder="user.id" class="ev-area" style="min-height:0;resize:none;height:36px;padding:7px 10px;text-transform:lowercase" oninput="this.value=this.value.toLowerCase().replace(/\s/g,'')"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-        <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Password *</div><input id="ac-nu-pwd" placeholder="Min 6 chars" class="ev-area" style="min-height:0;resize:none;height:36px;padding:7px 10px"></div>
+        <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Password *</div><input id="ac-nu-pwd" placeholder="Min 8 chars" class="ev-area" style="min-height:0;resize:none;height:36px;padding:7px 10px"></div>
         <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Role *</div>
           <select id="ac-nu-role" onchange="renderAcPageAccess()" style="width:100%;height:36px;padding:0 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-sm);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
             <option value="holistify_admin">Holistify Admin</option>
@@ -8284,7 +8284,7 @@ function addUser() {
   const school = document.getElementById('nu-school').value.trim();
 
   if (!id || !pwd) { toast('User ID and password are required.'); return; }
-  if (pwd.length < 6) { toast('Password must be at least 6 characters.'); return; }
+  if (pwd.length < 8) { toast('Password must be at least 8 characters.'); return; }
 
   const users = getUsers();
   if (users.find(u => u.id === id)) { toast('A user with this ID already exists.'); return; }
@@ -8378,7 +8378,7 @@ function submitChangePassword() {
   const idx = users.findIndex(function(x) { return String(x.id).toLowerCase() === myId; });
   if (idx === -1) { fail('This account no longer exists in this browser.'); return; }
   if (users[idx].pwd !== current) { fail('Your current password is not correct.'); return; }
-  if (next.length < 6) { fail('The new password must be at least 6 characters.'); return; }
+  if (next.length < 8) { fail('The new password must be at least 8 characters.'); return; }
   if (next !== confirm) { fail('The two new passwords do not match.'); return; }
   if (next === current) { fail('The new password is the same as your current one.'); return; }
 
@@ -8973,7 +8973,7 @@ function acAddUser() {
   const school = document.getElementById('ac-nu-school').value.trim();
 
   if (!id || !pwd) { toast('User ID and password are required.'); return; }
-  if (pwd.length < 6) { toast('Password must be at least 6 characters.'); return; }
+  if (pwd.length < 8) { toast('Password must be at least 8 characters.'); return; }
 
   const users = getUsers();
   if (users.find(u => u.id === id)) { toast('User ID "' + id + '" already exists.'); return; }
@@ -9004,7 +9004,7 @@ function acDeleteUser(id) {
 
 function acResetPwd(id) {
   const newPwd = prompt('Enter new password for "' + id + '" (min 6 chars):');
-  if (!newPwd || newPwd.length < 6) { toast('Password too short.'); return; }
+  if (!newPwd || newPwd.length < 8) { toast('Password must be at least 8 characters.'); return; }
   const users = getUsers();
   const u = users.find(x => x.id === id);
   if (u) { u.pwd = newPwd; saveUsers(users); toast('Password updated.'); }
@@ -9103,6 +9103,10 @@ doLogin = function() {
     document.getElementById('li-password').classList.remove('error');
     setCurrentUser(res.user);
     _routeAfterLogin(res.user);
+    if (_authWeakPassword) {
+      toast('Your password appears in a known data breach. Please change it from the topbar.', 'warn');
+      _authWeakPassword = null;
+    }
   });
 };
 
@@ -15410,8 +15414,19 @@ function saveSchool() {
 
 // ── Password Generator ──
 function generatePassword(inputId) {
+  // These become real auditor and coach credentials, so they come from the
+  // platform CSPRNG rather than Math.random(), which is predictable and never
+  // belongs in anything security-bearing. The alphabet omits characters that
+  // are easy to confuse when a password is read out or copied by hand.
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  var pwd = Array.from({length: 10}, function() { return chars[Math.floor(Math.random() * chars.length)]; }).join('');
+  var pwd = '';
+  if (window.crypto && window.crypto.getRandomValues) {
+    var bytes = new Uint32Array(14);
+    window.crypto.getRandomValues(bytes);
+    for (var i = 0; i < bytes.length; i++) pwd += chars[bytes[i] % chars.length];
+  } else {
+    for (var j = 0; j < 14; j++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  }
   var el = document.getElementById(inputId);
   if (el) { el.value = pwd; }
 }
@@ -15804,6 +15819,7 @@ function _sbClient() {
 // the anon database policies can both be removed.
 var AUTH_EMAIL_DOMAIN = 'audit.holistify.ai';
 var _authSessionActive = false;   // true when a real Supabase session is in play
+var _authWeakPassword = null;    // set when Supabase flags the password as breached/weak
 
 // Supabase calls must never be able to hang the app. A request that never
 // settles would leave the sign-in button stuck, and — because authBootstrap()
@@ -15870,6 +15886,17 @@ async function authSignIn(loginId, pwd) {
         sb.auth.signInWithPassword({ email: _authEmail(loginId), password: pwd }),
         12000, { error: { message: '__timeout__' } });
       if (res.error && res.error.message === '__timeout__') authTimedOut = true;
+      // With leaked-password protection on, Supabase reports a password that is
+      // known-breached or below the project's strength rules. Depending on the
+      // release it arrives either as data.weakPassword on an otherwise
+      // successful sign-in, or as a weak-password error. Handle both, and never
+      // treat it as a wrong password — the credentials were correct.
+      if (res.error && /weak.?password/i.test((res.error.name || '') + ' ' + (res.error.code || '') + ' ' + (res.error.message || ''))) {
+        return { error: 'That password appears in a known data breach. Ask an admin to reset it before signing in.' };
+      }
+      if (!res.error && res.data && res.data.weakPassword) {
+        _authWeakPassword = res.data.weakPassword;
+      }
       if (!res.error && res.data && res.data.user) {
         var profile = await _loadProfileUser(sb, res.data.user.id);
         if (profile.user) { _authSessionActive = true; return { user: profile.user }; }

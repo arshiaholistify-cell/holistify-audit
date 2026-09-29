@@ -81,6 +81,29 @@ migrated. Two things to keep in mind when touching it:
   them, and `loadUsers()` still lowercases stored IDs, because `doLogin()`
   lowercases what is typed.
 
+### Password rules
+
+New passwords must be at least 8 characters, enforced in the app and again in
+the edge function. **Migration deliberately keeps the old 6-character floor**,
+because it carries passwords people already have — rejecting them would strand
+those accounts rather than make anything safer.
+
+`generatePassword()` draws from `crypto.getRandomValues`, not `Math.random()`;
+these become real auditor and coach credentials.
+
+Leaked-password protection is a project setting, not something this repo can
+turn on — it lives in Auth → Providers → Email and needs the Pro plan. When it
+is enabled, Supabase reports a breached password either as `data.weakPassword`
+on an otherwise successful sign-in or as a weak-password error, and
+`authSignIn()` handles both: it warns the user in the first case and, in the
+second, says the password is breached rather than falling back to the local
+store and implying the credentials were wrong.
+
+Note that three of the `DEFAULT_USERS` seed passwords (`consult123`,
+`school123`, `staff123`) appear in HaveIBeenPwned. Rotate or delete those
+accounts before enabling the setting, or their holders will be pushed onto the
+fallback path.
+
 ### Migration state
 
 `supabase_auth_migration.sql` is applied and is deliberately additive: the old
