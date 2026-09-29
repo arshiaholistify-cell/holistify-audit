@@ -15367,11 +15367,14 @@ function renderAuditorsList() {
 
 function saveAuditor() {
   var name = (document.getElementById('aud-name').value || '').trim();
-  var uid = (document.getElementById('aud-id').value || '').trim();
+  // doLogin() lowercases what is typed, so an ID stored with capitals or
+  // spaces could never be matched. The field's oninput normalises it, but
+  // that does not fire for autofill or a programmatic set — normalise here too.
+  var uid = (document.getElementById('aud-id').value || '').trim().toLowerCase().replace(/\s/g, '');
   var pwd = (document.getElementById('aud-pwd').value || '').trim();
   if (!name || !uid || !pwd) { toast('Name, Login ID and Password are required.', 'error'); return; }
   var users = getUsers();
-  if (users.find(function(u) { return u.id === uid; })) { toast('Login ID already taken.', 'error'); return; }
+  if (users.find(function(u) { return String(u.id).toLowerCase() === uid; })) { toast('Login ID already taken.', 'error'); return; }
   var assigned = getCheckedSchools('aud-school-list');
   var holistifyTeam = !!(document.getElementById('aud-holistify') || {}).checked;
   users.push({ id: uid, pwd: pwd, name: name, role: 'auditor', school: '', assignedSchools: assigned, holistifyTeam: holistifyTeam, pageAccess: ['audit-vc','audit-fac','audit-cpa','audit-hr','audit-ext','audit-mg','audit-sa','overview','report'] });
@@ -15413,11 +15416,14 @@ function renderCoachesList() {
 
 function saveCoach() {
   var name = (document.getElementById('cch-name').value || '').trim();
-  var uid = (document.getElementById('cch-id').value || '').trim();
+  // doLogin() lowercases what is typed, so an ID stored with capitals or
+  // spaces could never be matched. The field's oninput normalises it, but
+  // that does not fire for autofill or a programmatic set — normalise here too.
+  var uid = (document.getElementById('cch-id').value || '').trim().toLowerCase().replace(/\s/g, '');
   var pwd = (document.getElementById('cch-pwd').value || '').trim();
   if (!name || !uid || !pwd) { toast('Name, Login ID and Password are required.', 'error'); return; }
   var users = getUsers();
-  if (users.find(function(u) { return u.id === uid; })) { toast('Login ID already taken.', 'error'); return; }
+  if (users.find(function(u) { return String(u.id).toLowerCase() === uid; })) { toast('Login ID already taken.', 'error'); return; }
   var assigned = getCheckedSchools('cch-school-list');
   users.push({ id: uid, pwd: pwd, name: name, role: 'coach', school: '', assignedSchools: assigned, pageAccess: ['journey','sip','checklists','overview','report','teachers','lessonplan'] });
   saveUsers(users);
