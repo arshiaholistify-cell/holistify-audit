@@ -55,6 +55,26 @@ Substituted into `__SUPABASE_URL__` and `__SUPABASE_ANON_KEY__` in `index.html`
 at build time. Only the anon key is used here, and it ends up in the served HTML
 — so keep anything sensitive behind RLS rather than in this client.
 
+## Accounts
+
+User accounts are **not** in Supabase. They live in `localStorage` under
+`holistify_users`, seeded from `DEFAULT_USERS` when that key is absent. Two
+consequences that have each caused a bug report:
+
+- `localStorage` is scoped to the origin, so accounts do not follow the site to
+  another domain, browser or device. User Management has export/import buttons
+  for moving them.
+- `doLogin()` lowercases the typed ID before comparing, so an ID stored with
+  capitals can never be matched — the account exists, lists normally, and
+  rejects every login. Creation paths normalise on save, and `loadUsers()` runs
+  a one-time lowercase pass over stored IDs. That pass deliberately leaves
+  whitespace alone (`addUser()` permits spaces and `doLogin()` does not strip
+  them) and never merges or drops a colliding entry.
+
+Passwords are stored in plain text. Fixing that properly means Supabase Auth:
+the anon key is public in the served HTML, and the RLS policies here grant
+`anon` full access, so a users table would be world-readable credentials.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:

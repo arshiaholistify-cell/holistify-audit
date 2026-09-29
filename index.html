@@ -7748,10 +7748,68 @@ const DEFAULT_USERS = [
   { id: 'staff',           pwd: 'staff123',      name: 'School Staff',     role: 'school_staff',     school: 'Demo School', pageAccess: ['overview','report'] },
 ];
 
+// One-time repair for accounts saved before saveAuditor()/saveCoach()
+// normalised their Login ID. doLogin() lowercases what is typed, so an account
+// stored with capitals can never be matched — it exists, lists normally, and
+// rejects every login.
+//
+// Lowercase only. addUser() allows spaces in an ID and doLogin() does not strip
+// them, so an account stored as 'john smith' works today and would break if
+// whitespace were touched here.
+//
+// Never drops an entry: if lowercasing an ID would collide with one already
+// present, that entry is left exactly as it was for an admin to resolve, rather
+// than silently merging two accounts into one.
+var _userIdsNormalised = false;
+
+function normaliseStoredUserIds(users) {
+  if (!Array.isArray(users)) return false;
+  var taken = {};
+  users.forEach(function(u) {
+    if (u && typeof u.id === 'string') taken[u.id] = true;
+  });
+  var changed = false;
+  users.forEach(function(u) {
+    if (!u || typeof u.id !== 'string') return;
+    var lower = u.id.toLowerCase();
+    if (lower === u.id) return;
+    if (taken[lower]) return;  // collision — leave this entry untouched
+    delete taken[u.id];
+    taken[lower] = true;
+    u.id = lower;
+    changed = true;
+  });
+  return changed;
+}
+
+// The session holds its own copy of the user object, so keep its ID in step.
+function normaliseSessionUserId() {
+  try {
+    var raw = sessionStorage.getItem('holistify_session');
+    if (!raw) return;
+    var u = JSON.parse(raw);
+    if (u && typeof u.id === 'string' && u.id !== u.id.toLowerCase()) {
+      u.id = u.id.toLowerCase();
+      sessionStorage.setItem('holistify_session', JSON.stringify(u));
+      currentUser = u;
+    }
+  } catch(e) {}
+}
+
 function loadUsers() {
   try {
     const stored = localStorage.getItem('holistify_users');
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const users = JSON.parse(stored);
+      if (!_userIdsNormalised) {
+        _userIdsNormalised = true;
+        if (normaliseStoredUserIds(users)) {
+          saveUsers(users);
+          normaliseSessionUserId();
+        }
+      }
+      return users;
+    }
   } catch(e) {}
   saveUsers(DEFAULT_USERS);
   return DEFAULT_USERS;
@@ -8302,7 +8360,8 @@ function submitChangePassword() {
   const confirm = (document.getElementById('cp-confirm') || {}).value || '';
 
   const users = getUsers();
-  const idx = users.findIndex(function(x) { return x.id === u.id; });
+  const myId = String(u.id).toLowerCase();
+  const idx = users.findIndex(function(x) { return String(x.id).toLowerCase() === myId; });
   if (idx === -1) { fail('This account no longer exists in this browser.'); return; }
   if (users[idx].pwd !== current) { fail('Your current password is not correct.'); return; }
   if (next.length < 6) { fail('The new password must be at least 6 characters.'); return; }
