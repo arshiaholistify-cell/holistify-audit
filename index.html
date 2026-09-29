@@ -15805,6 +15805,19 @@ function _sbClient() {
 var AUTH_EMAIL_DOMAIN = 'audit.holistify.ai';
 var _authSessionActive = false;   // true when a real Supabase session is in play
 
+// Supabase calls must never be able to hang the app. A request that never
+// settles would leave the sign-in button stuck, and — because authBootstrap()
+// gates authInit() — could stop the app initialising at all. Every await below
+// goes through this, so a stalled network degrades to the local fallback
+// instead of a dead page. Observed for real: a hung signInWithPassword left
+// login unusable even though the fallback would have worked.
+function _authWithTimeout(promise, ms, onTimeout) {
+  return Promise.race([
+    Promise.resolve(promise).catch(function() { return onTimeout; }),
+    new Promise(function(resolve) { setTimeout(function() { resolve(onTimeout); }, ms); })
+  ]);
+}
+
 function _authEmail(loginId) {
   return String(loginId).trim().toLowerCase().replace(/\s/g, '') + '@' + AUTH_EMAIL_DOMAIN;
 }
@@ -15830,7 +15843,9 @@ async function _loadProfileUser(sb, uid) {
   var lastError = '';
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      var res = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+      var res = await _authWithTimeout(
+        sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
+        10000, { error: { message: 'timed out' } });
       if (res.error) { lastError = res.error.message || 'profile lookup failed'; continue; }
       if (res.data) return { user: _profileToUser(res.data) };
       return { missing: true };
@@ -15848,9 +15863,13 @@ async function _loadProfileUser(sb, uid) {
 // fails for any other reason is reported rather than hidden.
 async function authSignIn(loginId, pwd) {
   var sb = _sbClient();
+  var authTimedOut = false;
   if (sb) {
     try {
-      var res = await sb.auth.signInWithPassword({ email: _authEmail(loginId), password: pwd });
+      var res = await _authWithTimeout(
+        sb.auth.signInWithPassword({ email: _authEmail(loginId), password: pwd }),
+        12000, { error: { message: '__timeout__' } });
+      if (res.error && res.error.message === '__timeout__') authTimedOut = true;
       if (!res.error && res.data && res.data.user) {
         var profile = await _loadProfileUser(sb, res.data.user.id);
         if (profile.user) { _authSessionActive = true; return { user: profile.user }; }
@@ -15867,6 +15886,11 @@ async function authSignIn(loginId, pwd) {
   var users = getUsers();
   var local = users.find(function(u) { return u.id === loginId && u.pwd === pwd; });
   if (local) return { user: local };
+  // Only say the credentials are wrong when we actually heard back. A request
+  // that timed out tells us nothing about the password.
+  if (authTimedOut) {
+    return { error: 'Could not reach the server. Check your connection and try again.' };
+  }
   return { error: 'Invalid user ID or password. Please try again.' };
 }
 
@@ -15875,7 +15899,7 @@ async function authBootstrap() {
   var sb = _sbClient();
   if (!sb) return;
   try {
-    var res = await sb.auth.getSession();
+    var res = await _authWithTimeout(sb.auth.getSession(), 6000, { data: { session: null } });
     var session = res && res.data && res.data.session;
     if (session && session.user) {
       var profile = await _loadProfileUser(sb, session.user.id);
