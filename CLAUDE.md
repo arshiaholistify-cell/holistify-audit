@@ -137,6 +137,18 @@ table, which is the hole this work exists to close.
 Run the lockdown only once every account appears in `profiles` and has signed
 in through Auth at least once.
 
+User Management shows where each account stands: the table has an **Account**
+column reading "Supabase Auth" or "This browser only", and the Supabase Auth
+panel counts what is left. `pendingMigrationCount()` returns `null`, not `0`,
+before the directory has been fetched — `getDirectory()` falls back to the local
+accounts with no `_notMigrated` flag on them, so a plain count would read zero
+and claim the migration was finished. That number is what the lockdown decision
+rests on, so it says "unknown" rather than guessing.
+
+The modal is reached from the sidebar inside a school (👥 Users) and from the
+**User Management** tile on the admin hub. The hub tile is the one that matters,
+because accounts are managed from the hub, not from inside an audit.
+
 ## Teachers imported with numbers for names
 
 An early staff import took a serial-number column as the name, so teachers were

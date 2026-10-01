@@ -314,6 +314,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .sp-body { flex:1; overflow-y:auto; padding:28px 24px; width:100%; box-sizing:border-box; max-width:1240px; margin:0 auto; }
 /* ── Quick-access tiles on home screen ── */
 .sa-quick-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:22px; }
+.sa-quick-sub { font-size:10px; color:#C9952A; margin-top:3px; font-weight:500 }
 .sa-quick-tile { background:#fff; border-radius:14px; padding:22px 14px 18px; cursor:pointer; transition:all 0.15s; border:1.5px solid #E4DDD2; text-align:center; }
 .sa-quick-tile:hover { border-color:#1A3028; box-shadow:0 4px 16px rgba(26,48,40,0.1); transform:translateY(-2px); }
 .sa-quick-icon { font-size:26px; margin-bottom:8px; }
@@ -895,6 +896,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         nobody needs new credentials. Accounts already migrated are skipped, so running this
         more than once is safe.
       </div>
+      <div id="migrate-status" style="font-size:12px;margin-bottom:10px"></div>
       <button class="btn btn-p" onclick="migrateAccountsToAuth()" style="height:34px">⇪ Migrate accounts to Supabase Auth</button>
     </div>
 
@@ -902,7 +904,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div style="overflow-x:auto">
       <table class="tbl" id="users-table">
         <thead><tr>
-          <th>Name</th><th>User ID</th><th>Role</th><th>School</th><th>Page Access</th><th style="width:80px"></th>
+          <th>Name</th><th>User ID</th><th>Role</th><th>School</th><th>Page Access</th><th>Account</th><th style="width:80px"></th>
         </tr></thead>
         <tbody id="users-tbody"></tbody>
       </table>
@@ -962,6 +964,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="sa-quick-tile" onclick="openCredentials()">
         <div class="sa-quick-icon">🔑</div>
         <div class="sa-quick-label">Credentials</div>
+      </div>
+      <div class="sa-quick-tile" onclick="openUsersModal()">
+        <div class="sa-quick-icon">👥</div>
+        <div class="sa-quick-label">User Management</div>
+        <div class="sa-quick-sub" id="sa-quick-users-sub"></div>
       </div>
     </div>
 
@@ -8556,7 +8563,31 @@ function deleteUser(id) {
   renderDemoAccounts();
 }
 
+// How many accounts still exist only in this browser. Until this is zero the
+// Supabase Auth migration is unfinished, and supabase_auth_lockdown.sql would
+// cut those people off from every school's data.
+function pendingMigrationCount() {
+  if (!_directory) return null;          // directory not fetched — unknown, not zero
+  return getDirectory().filter(function(u) { return u._notMigrated; }).length;
+}
+
+function renderMigrateStatus() {
+  const n = pendingMigrationCount();
+  const el = document.getElementById('migrate-status');
+  if (el) {
+    el.innerHTML = n === null
+      ? '<span style="color:var(--ink-f)">Checking which accounts are in Supabase Auth…</span>'
+      : n
+        ? '<span style="color:var(--amb)">⚠ ' + n + ' account' + (n === 1 ? '' : 's') +
+          ' still exist' + (n === 1 ? 's' : '') + ' only in this browser.</span>'
+        : '<span style="color:var(--grn)">✓ Every account is in Supabase Auth.</span>';
+  }
+  const tile = document.getElementById('sa-quick-users-sub');
+  if (tile) tile.textContent = n ? n + ' not migrated' : '';
+}
+
 function renderUsersTable() {
+  renderMigrateStatus();
   const tbody = document.getElementById('users-tbody');
   if (!tbody) return;
   const users = getDirectory();
@@ -8569,6 +8600,9 @@ function renderUsersTable() {
       <td><span style="background:${role.bg};color:${role.color};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">${role.label || u.role}</span></td>
       <td style="color:var(--ink-l)">${u.school || '—'}</td>
       <td style="font-size:11px;color:var(--ink-f)">${pageList}</td>
+      <td>${u._notMigrated
+        ? '<span title="Exists only in this browser. It will not work on another device, and it loses access to cloud data once anon access is locked down." style="background:var(--amb-p);color:var(--amb);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">This browser only</span>'
+        : '<span title="Migrated to Supabase Auth — works on any device." style="background:var(--grn-p);color:var(--grn);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">Supabase Auth</span>'}</td>
       <td style="text-align:center">
         ${u.id !== 'admin' ? `<button onclick="deleteUser('${u.id}')" style="font-size:11px;padding:3px 9px;border-radius:var(--r-sm);border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer">Delete</button>` : '<span style="font-size:11px;color:var(--ink-f)">Protected</span>'}
       </td>
@@ -8807,6 +8841,7 @@ function showHomeScreen() {
     // Show quick-access grid only for admins who can manage things
     const qg = document.getElementById('sa-quick-grid');
     if (qg) qg.style.display = canManageUsers() ? '' : 'none';
+    if (canManageUsers() && typeof renderMigrateStatus === 'function') renderMigrateStatus();
     // Show/hide stats row for non-admins
     const sr = document.getElementById('sa-stats-row');
     if (sr) sr.style.display = canManageUsers() ? '' : 'none';
