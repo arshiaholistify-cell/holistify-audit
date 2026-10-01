@@ -7999,12 +7999,18 @@ const PRINCIPAL_DEFAULT_PAGES = ['overview','report','journey','sip','checklists
 
 // ── User store (default accounts) ────────────────────────────────────────────
 // In production this would be a backend. Here we use localStorage with a default seed.
-const DEFAULT_USERS = [
-  { id: 'admin',           pwd: 'holistify2024', name: 'Holistify Admin',  role: 'holistify_admin',  school: '' },
-  { id: 'consultant',      pwd: 'consult123',    name: 'Rahul Mehta',      role: 'holistify_member', school: '' },
-  { id: 'principal',       pwd: 'school123',     name: 'School Principal', role: 'school_principal', school: 'Demo School', pageAccess: PRINCIPAL_DEFAULT_PAGES },
-  { id: 'staff',           pwd: 'staff123',      name: 'School Staff',     role: 'school_staff',     school: 'Demo School', pageAccess: ['overview','report'] },
-];
+// Deliberately empty. Four demo accounts (admin, consultant, principal, staff)
+// used to be seeded into localStorage on any browser that had none, each with
+// a fixed password written in this file. Three of those passwords appear in
+// HaveIBeenPwned and the admin one granted the app's full admin UI, so a fresh
+// browser handed out four known credentials — and this file is served to it.
+// The passwords are not repeated here for the same reason.
+//
+// Identity is Supabase Auth now: real accounts live in public.profiles and sign
+// in against Supabase, so nothing needs seeding. A browser with no local store
+// simply has no fallback accounts, which is the correct state after the
+// migration. Use Import accounts if a local set is genuinely needed.
+const DEFAULT_USERS = [];
 
 // One-time repair for accounts saved before saveAuditor()/saveCoach()
 // normalised their Login ID. doLogin() lowercases what is typed, so an account
@@ -8401,7 +8407,7 @@ function renderDemoAccounts() {
   let html = label ? label.outerHTML : '';
   users.forEach(u => {
     const role = ROLES[u.role];
-    html += `<div class="demo-account" onclick="fillDemoLogin('${u.id}','${u.pwd}')">
+    html += `<div class="demo-account" onclick="fillDemoLogin('${u.id}')">
       <div class="da-info">
         <div class="da-name">${u.name}</div>
         <div class="da-role"><span style="background:${role.bg};color:${role.color};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:500">${role.label}</span>${u.school ? ' · ' + u.school : ''} &nbsp;·&nbsp; ID: <code style="font-size:11px">${u.id}</code></div>
@@ -8412,9 +8418,11 @@ function renderDemoAccounts() {
   panel.innerHTML = html;
 }
 
-function fillDemoLogin(id, pwd) {
+// The panel this belongs to is no longer in the markup. Keep it from ever
+// typing a password into the login form if one is reinstated: filling the ID is
+// a convenience, filling the password publishes it.
+function fillDemoLogin(id) {
   document.getElementById('li-username').value = id;
-  document.getElementById('li-password').value = pwd;
   var _dap = document.getElementById('demo-accounts-panel');
   if (_dap) _dap.classList.remove('open');
 }

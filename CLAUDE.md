@@ -120,10 +120,19 @@ on an otherwise successful sign-in or as a weak-password error, and
 second, says the password is breached rather than falling back to the local
 store and implying the credentials were wrong.
 
-Note that three of the `DEFAULT_USERS` seed passwords (`consult123`,
-`school123`, `staff123`) appear in HaveIBeenPwned. Rotate or delete those
-accounts before enabling the setting, or their holders will be pushed onto the
-fallback path.
+`DEFAULT_USERS` is now **empty**, and must stay that way. It used to seed four
+demo accounts into `localStorage` on any browser that had none; three of their
+passwords were in HaveIBeenPwned and the admin one granted the full admin UI, so
+a fresh browser was handed four known credentials. The passwords are not
+repeated in the source, because `index.html` is served to the public.
+
+A browser with no local store therefore has no fallback accounts at all, which
+is the correct state now that identity is Supabase Auth. Use **Import accounts**
+if a local set is genuinely needed.
+
+The `principal` and `staff` demo accounts were deleted from Supabase and
+`consultant` was given a fresh generated password; only `admin`, `consultant`
+and the seven auditors remain in `profiles`.
 
 ### Migration state
 
