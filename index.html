@@ -2365,6 +2365,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   <!-- Analytics panel (hidden by default) -->
   <div id="assess-panel-analytics" style="display:none">
+    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-s" onclick="downloadAssessmentBreakdownCsv()">⬇ Breakdown (.csv)</button>
+      <button class="btn btn-p" onclick="downloadAssessmentBreakdownXlsx()">⬇ Full report (.xlsx)</button>
+    </div>
     <div id="assess-analytics-body"></div>
   </div>
 </div>
@@ -11581,15 +11585,213 @@ function renderGradeWiseView() {
 }
 
 // Analytics
-function renderAssessAnalytics() {
-  const el = document.getElementById('assess-analytics-body');
-  if (!el) return;
+// ── Assessment breakdown downloads ───────────────────────────────────────────
+// Two formats, both built from _assessAggregates() and the same source arrays
+// the analytics screen renders from. Excel carries every section on its own
+// sheet; CSV is the flat breakdown table on its own, for anyone who just wants
+// the list in a spreadsheet or a pivot.
 
-  // Collect all grade data
+function _band(pct) {
+  return pct >= 80 ? 'Exceeding' : pct >= 60 ? 'Meeting' : pct >= 35 ? 'Approaching' : 'Below';
+}
+
+// Row-per-assessment: the "Assessment Breakdown" cards, as a table.
+function _assessBreakdownRows() {
+  const rows = [];
+  assessments.forEach(a => {
+    const entries = (scoreEntries[a.id] || []).filter(s => (parseFloat(s.score) || 0) > 0);
+    if (!entries.length) return;
+    const scores = entries.map(s => parseFloat(s.score) || 0);
+    const avg = scores.reduce((x, y) => x + y, 0) / scores.length;
+    const max = a.maxMarks || 100;
+    const pct = Math.round(avg / max * 100);
+    const dist = { Exceeding: 0, Meeting: 0, Approaching: 0, Below: 0 };
+    scores.forEach(sc => { dist[_band(sc / max * 100)]++; });
+    rows.push({
+      Assessment: a.name || '', Subject: a.subject || '',
+      Grade: a.grade === 'all' ? 'All Grades' : (a.grade || ''),
+      Term: a.term || '', Standard: a.standard || '',
+      'Max Marks': max, 'Students Scored': scores.length,
+      Average: Math.round(avg * 100) / 100, 'Average %': pct, Attainment: _band(pct),
+      Passed: scores.filter(sc => sc >= max * 0.35).length,
+      Exceeding: dist.Exceeding, Meeting: dist.Meeting,
+      Approaching: dist.Approaching, Below: dist.Below
+    });
+  });
+  return rows;
+}
+
+// One row per student per assessment, and per student per rubric criterion.
+function _assessStudentRows() {
+  const rows = [];
+  assessments.forEach(a => {
+    const max = a.maxMarks || 100;
+    (scoreEntries[a.id] || []).forEach(sc => {
+      const raw = parseFloat(sc.score);
+      if (isNaN(raw)) return;
+      const pct = Math.round(raw / max * 100);
+      rows.push({
+        Type: 'Score', Assessment: a.name || '', Subject: a.subject || '',
+        Grade: sc.grade || a.grade || '', Student: sc.name || '', Roll: sc.roll || '',
+        Skill: '', Score: raw, 'Out Of': max, 'Percent': pct, Attainment: _band(pct),
+        Remarks: sc.remarks || ''
+      });
+    });
+  });
+  rubrics.forEach(r => {
+    const scale = r.scale || 4;
+    (rubricScores[r.id] || []).forEach(resp => {
+      (r.criteria || []).forEach(c => {
+        const lv = parseInt(resp.scores ? resp.scores[c.name] : '');
+        const pct = (lv >= 1 && lv <= scale) ? Math.round(lv / scale * 100) : '';
+        rows.push({
+          Type: 'Rubric', Assessment: r.name || '', Subject: r.subject || '',
+          Grade: resp.grade || '', Student: resp.name || '', Roll: '',
+          Skill: c.name || '', Score: (lv >= 1 ? lv : 'Not scored'), 'Out Of': scale,
+          'Percent': pct, Attainment: pct === '' ? 'Not scored' : _band(pct), Remarks: ''
+        });
+      });
+    });
+  });
+  return rows;
+}
+
+// Skill-wise grouping: which students sit at each level, per rubric and grade.
+function _assessSkillLevelRows() {
+  const rows = [];
+  rubrics.forEach(r => {
+    const responses = rubricScores[r.id] || [];
+    if (!responses.length) return;
+    const scale = r.scale || 4;
+    const byGrade = {};
+    responses.forEach(resp => {
+      const g = resp.grade || 'Unspecified';
+      (byGrade[g] = byGrade[g] || []).push(resp);
+    });
+    Object.keys(byGrade).forEach(grade => {
+      (r.criteria || []).forEach(c => {
+        for (let lv = 1; lv <= scale; lv++) {
+          const names = byGrade[grade]
+            .filter(resp => parseInt(resp.scores ? resp.scores[c.name] : '') === lv)
+            .map(resp => resp.name || '');
+          rows.push({
+            Rubric: r.name || '', Subject: r.subject || '', Grade: grade,
+            Skill: c.name || '', Level: lv, 'Level %': Math.round(lv / scale * 100),
+            Students: names.length, Names: names.join('; ')
+          });
+        }
+        const unscored = byGrade[grade].filter(resp => {
+          const lv = parseInt(resp.scores ? resp.scores[c.name] : '');
+          return !(lv >= 1 && lv <= scale);
+        }).map(resp => resp.name || '');
+        if (unscored.length) {
+          rows.push({
+            Rubric: r.name || '', Subject: r.subject || '', Grade: grade,
+            Skill: c.name || '', Level: 'Not scored', 'Level %': '',
+            Students: unscored.length, Names: unscored.join('; ')
+          });
+        }
+      });
+    });
+  });
+  return rows;
+}
+
+function _assessHasData() {
+  return _assessBreakdownRows().length > 0 || _assessSkillLevelRows().length > 0;
+}
+
+function _assessFilePrefix() {
+  const school = (document.getElementById('inp-school') || {}).value || 'School';
+  return school.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') +
+         '-assessment-breakdown-' + new Date().toISOString().slice(0, 10);
+}
+
+function downloadAssessmentBreakdownXlsx() {
+  if (typeof XLSX === 'undefined') { toast('The spreadsheet library did not load. Try the CSV instead.', 'error'); return; }
+  if (!_assessHasData()) { toast('No assessment scores to export yet.', 'warn'); return; }
+
+  const agg = _assessAggregates();
+  const wb = XLSX.utils.book_new();
+  const add = (name, rows) => {
+    if (!rows.length) return;
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
+  };
+
+  const overall = agg.totalCount ? Math.round(agg.totalPct / agg.totalCount) : 0;
+  add('Summary', [
+    { Metric: 'School', Value: (document.getElementById('inp-school') || {}).value || '' },
+    { Metric: 'Generated', Value: new Date().toLocaleString() },
+    { Metric: 'Overall average %', Value: overall },
+    { Metric: 'Overall attainment', Value: _band(overall) },
+    { Metric: 'Grades assessed', Value: Object.keys(agg.gradeAvgMap).length },
+    { Metric: 'Total assessments', Value: assessments.length + rubrics.length },
+    { Metric: 'Student records', Value: agg.totalCount }
+  ]);
+
+  add('Grade Averages', Object.keys(agg.gradeAvgMap).map(g => {
+    const arr = agg.gradeAvgMap[g];
+    const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+    return { Grade: g, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+  }));
+
+  add('Subject Performance', Object.keys(agg.subjectAvgMap).map(sub => {
+    const arr = agg.subjectAvgMap[sub];
+    const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+    return { Subject: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+  }));
+
+  add('Standards Attainment', Object.keys(agg.standardMap).map(st => {
+    const d = agg.standardMap[st];
+    return {
+      'Standard / Learning Objective': st, Records: d.total,
+      Exceeding: d.exc, 'Exceeding %': Math.round(d.exc / d.total * 100),
+      Meeting: d.meet, 'Meeting %': Math.round(d.meet / d.total * 100),
+      Approaching: d.app, 'Approaching %': Math.round(d.app / d.total * 100),
+      Below: d.bel, 'Below %': Math.round(d.bel / d.total * 100)
+    };
+  }));
+
+  add('Assessment Breakdown', _assessBreakdownRows());
+  add('Skill Levels', _assessSkillLevelRows());
+  add('Student Scores', _assessStudentRows());
+
+  XLSX.writeFile(wb, _assessFilePrefix() + '.xlsx');
+  toast('Assessment breakdown downloaded.', 'success');
+}
+
+// Quote every cell and double any embedded quote: student name lists are
+// semicolon-joined but free text can still contain commas and quotes.
+function _csvRows(rows) {
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const cell = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+  return cols.map(cell).join(',') + '\n' +
+         rows.map(r => cols.map(c => cell(r[c])).join(',')).join('\n') + '\n';
+}
+
+function downloadAssessmentBreakdownCsv() {
+  const rows = _assessBreakdownRows();
+  if (!rows.length) { toast('No assessment scores to export yet.', 'warn'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([_csvRows(rows)], { type: 'text/csv' }));
+  a.download = _assessFilePrefix() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast('Assessment breakdown downloaded.', 'success');
+}
+
+// ── Assessment analytics: shared aggregation ─────────────────────────────────
+// Used by both the on-screen analytics and the downloads, so the numbers in an
+// exported file always match what the page shows. The banding thresholds
+// (80 / 60 / 35) live here only.
+function _assessAggregates() {
   const gradeAvgMap = {}; // grade -> [pct]
   const subjectAvgMap = {}; // subject -> [pct]
   const standardMap = {}; // standard -> {exc,meet,app,bel,total}
-  let totalStudents = 0, totalPct = 0, totalCount = 0;
+  let totalPct = 0, totalCount = 0;
 
   assessments.forEach(a => {
     (scoreEntries[a.id]||[]).forEach(sc => {
@@ -11621,6 +11823,18 @@ function renderAssessAnalytics() {
       totalPct += pct; totalCount++;
     });
   });
+
+  return { gradeAvgMap: gradeAvgMap, subjectAvgMap: subjectAvgMap,
+           standardMap: standardMap, totalPct: totalPct, totalCount: totalCount };
+}
+
+function renderAssessAnalytics() {
+  const el = document.getElementById('assess-analytics-body');
+  if (!el) return;
+
+  const agg = _assessAggregates();
+  const gradeAvgMap = agg.gradeAvgMap, subjectAvgMap = agg.subjectAvgMap,
+        standardMap = agg.standardMap, totalPct = agg.totalPct, totalCount = agg.totalCount;
 
   const hasData = totalCount > 0;
   if (!hasData) { el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-f)">Add assessments and scores to see analytics.</div>'; return; }

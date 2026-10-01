@@ -137,6 +137,27 @@ table, which is the hole this work exists to close.
 Run the lockdown only once every account appears in `profiles` and has signed
 in through Auth at least once.
 
+## Assessment exports
+
+The Analytics tab offers two downloads, both built from `_assessAggregates()`
+— the same aggregation the screen renders from, so an exported file can never
+disagree with what is on display. The 80 / 60 / 35 banding thresholds live in
+that function and in `_band()`, nowhere else.
+
+- **`.csv`** — the Assessment Breakdown table alone, one row per assessment.
+- **`.xlsx`** — Summary, Grade Averages, Subject Performance, Standards
+  Attainment, Assessment Breakdown, Skill Levels (one row per rubric × grade ×
+  skill × level, with the student names) and Student Scores (one row per
+  student per assessment, and per rubric criterion).
+
+SheetJS is loaded from a CDN for reading uploads and is now used for writing
+too. `downloadAssessmentBreakdownXlsx()` checks `typeof XLSX` first and points
+at the CSV if the script did not load, rather than failing silently.
+
+Use `_csvRows()` for any new CSV: it quotes every cell and doubles embedded
+quotes. The older exports in this file build CSV by hand and would mangle a
+value containing a comma or a quote.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:
