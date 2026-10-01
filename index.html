@@ -8580,7 +8580,10 @@ function renderMigrateStatus() {
   const n = pendingMigrationCount();
   const el = document.getElementById('migrate-status');
   if (el) {
-    el.innerHTML = n === null
+    el.innerHTML = !_authSessionActive
+      ? '<span style="color:var(--amb)">⚠ You are signed in through the local fallback, not Supabase, so the migration cannot run and the list below cannot be checked.<br>' +
+        'Sign out and sign in again as <strong>admin</strong> using your <strong>Supabase</strong> password — it may differ from the one stored in this browser.</span>'
+      : n === null
       ? '<span style="color:var(--ink-f)">Checking which accounts are in Supabase Auth…</span>'
       : n
         ? '<span style="color:var(--amb)">⚠ ' + n + ' account' + (n === 1 ? '' : 's') +
@@ -8588,7 +8591,7 @@ function renderMigrateStatus() {
         : '<span style="color:var(--grn)">✓ Every account is in Supabase Auth.</span>';
   }
   const tile = document.getElementById('sa-quick-users-sub');
-  if (tile) tile.textContent = n ? n + ' not migrated' : '';
+  if (tile) tile.textContent = !_authSessionActive ? 'local session' : (n ? n + ' not migrated' : '');
 }
 
 function renderUsersTable() {
@@ -8596,6 +8599,7 @@ function renderUsersTable() {
   const tbody = document.getElementById('users-tbody');
   if (!tbody) return;
   const users = getDirectory();
+  const known = !!_directory;
   tbody.innerHTML = users.map(u => {
     const role = ROLES[u.role] || {};
     const pageList = u.pageAccess ? u.pageAccess.slice(0,3).join(', ') + (u.pageAccess.length > 3 ? '…' : '') : 'All';
@@ -8605,7 +8609,9 @@ function renderUsersTable() {
       <td><span style="background:${role.bg};color:${role.color};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">${role.label || u.role}</span></td>
       <td style="color:var(--ink-l)">${u.school || '—'}</td>
       <td style="font-size:11px;color:var(--ink-f)">${pageList}</td>
-      <td>${u._notMigrated
+      <td>${!known
+        ? '<span title="Not checked yet — sign in with your Supabase password to see which accounts have been migrated." style="background:var(--sur);color:var(--ink-f);padding:2px 9px;border-radius:20px;font-size:11px">Not checked</span>'
+        : u._notMigrated
         ? '<span title="Exists only in this browser. It will not work on another device, and it loses access to cloud data once anon access is locked down." style="background:var(--amb-p);color:var(--amb);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">This browser only</span>'
         : '<span title="Migrated to Supabase Auth — works on any device." style="background:var(--grn-p);color:var(--grn);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500">Supabase Auth</span>'}</td>
       <td style="text-align:center">

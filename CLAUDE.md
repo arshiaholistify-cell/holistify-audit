@@ -137,13 +137,23 @@ table, which is the hole this work exists to close.
 Run the lockdown only once every account appears in `profiles` and has signed
 in through Auth at least once.
 
-User Management shows where each account stands: the table has an **Account**
-column reading "Supabase Auth" or "This browser only", and the Supabase Auth
-panel counts what is left. `pendingMigrationCount()` returns `null`, not `0`,
-before the directory has been fetched — `getDirectory()` falls back to the local
-accounts with no `_notMigrated` flag on them, so a plain count would read zero
-and claim the migration was finished. That number is what the lockdown decision
-rests on, so it says "unknown" rather than guessing.
+User Management shows where each account stands: the **Account** column reads
+"Supabase Auth", "This browser only", or "Not checked", and the Supabase Auth
+panel counts what is left.
+
+"Not checked" is the important one. `_directory` is only populated when there is
+a real Supabase session (`_authSessionActive`), and `getDirectory()` otherwise
+falls back to the local accounts, none of which carry `_notMigrated`. Read
+naively that looks like "everyone is migrated" — the one wrong answer this
+column must never give, since it is what the lockdown decision rests on. So
+`pendingMigrationCount()` returns `null` rather than `0`, and the table renders
+"Not checked" rather than green.
+
+Signing in through the localStorage fallback produces exactly that state, and
+it is easy to land in: `authSignIn()` tries Supabase first and falls back
+silently, so an admin whose local password differs from their Supabase one is
+signed in but has no session. The panel now says so and says what to do, rather
+than waiting for the migrate button to fail with a toast.
 
 The modal is reached from the sidebar inside a school (👥 Users) and from the
 **User Management** tile on the admin hub. The hub tile is the one that matters,
