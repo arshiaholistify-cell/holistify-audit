@@ -149,6 +149,22 @@ The modal is reached from the sidebar inside a school (👥 Users) and from the
 **User Management** tile on the admin hub. The hub tile is the one that matters,
 because accounts are managed from the hub, not from inside an audit.
 
+Two things had to be fixed before it would show at all, and both are easy to
+reintroduce:
+
+- `#login-screen` was missing its closing `</div>`, so the parser made
+  `#users-modal-overlay` a *child* of it. Once signed in the login screen is
+  `display:none`, which hid the modal with it — the click worked and the
+  overlay got its `.open` class, but nothing appeared. It was the only element
+  affected; everything after it still parsed to `body`.
+- Its `z-index` was 1000, below `#home-screen` (8000). It is now 10600, above
+  the hub, `#section-page` (8500), `#school-dashboard-overlay` (9000),
+  `.mgmt-modal-overlay` (10000) and `#creds-overlay` (10500).
+
+A modal that can open over the admin hub needs a z-index above 8000. The
+generic `.modal-overlay` (1000) is fine only because it is used inside the
+audit shell, which the hub covers anyway.
+
 ## Teachers imported with numbers for names
 
 An early staff import took a serial-number column as the name, so teachers were

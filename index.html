@@ -712,7 +712,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 .ni.locked::after { content:'🔒'; font-size:10px; margin-left:auto; }
 
 /* ══ USER MANAGEMENT PANEL ══ */
-#users-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:flex-start; justify-content:center; padding:24px 12px; overflow-y:auto; }
+/* Above #home-screen (8000), #section-page (8500), #school-dashboard-overlay
+   (9000), .mgmt-modal-overlay (10000) and #creds-overlay (10500). At the old
+   z-index of 1000 this modal opened *behind* the admin hub: the click worked,
+   the overlay got its .open class, and nothing appeared. */
+#users-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10600; align-items:flex-start; justify-content:center; padding:24px 12px; overflow-y:auto; }
 #users-modal-overlay.open { display:flex; }
 .users-modal { background:var(--sur-r); border-radius:var(--r-xl); padding:24px; width:min(680px,96vw); box-shadow:var(--sh-lg); }
 
@@ -835,6 +839,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   </div>
 </div>
+</div><!-- /#login-screen -->
 
 <!-- ═══════════════════ USER MANAGEMENT MODAL ═══════════════════ -->
 <div id="users-modal-overlay">
