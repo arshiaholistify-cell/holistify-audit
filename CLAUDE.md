@@ -180,9 +180,57 @@ Two things to keep in mind:
   opened and read from those keys, so without that write-through a stale local
   copy would overwrite what just came from the cloud.
 
+`loadAuditStateFromCloud()` calls `_applyAuditSnapshot(d, sid)` rather than
+restoring fields itself. It used to carry its own shorter copy of the restore,
+and since `loadAuditStateForSchool()` tries the cloud first and returns on
+success, everything the copy had not been taught about — checklist comments,
+every per-module key above — was saved to Supabase and then silently dropped on
+the way back. Keep the restore in one function.
+
 The sidebar Save/Load session buttons were removed once this was true: a manual
 file backup of state the server already holds is a second source of truth and
 another thing to go stale.
+
+## Checklists
+
+`CHECKLISTS` holds the five Holistify checklists; `customChecklists` holds
+user-created ones. `getAllChecklists()` merges them, and a key present in
+**both** is an *edited built-in*: the custom copy wins, but keeps
+`builtin: true`, so it offers "Reset to original" instead of Delete.
+
+Each item carries a tick, an optional mapping to an audit standard, and an
+optional **comment** — the auditor's evidence note, saved on every keystroke by
+`setClComment()`. That handler deliberately does not re-render: redrawing the
+list would destroy the textarea being typed into.
+
+Three stores are keyed by **position** — `clChecked`, `clComments` and
+`clLinks`, all `"<checklistKey>-<itemIndex>"`. That is the thing to be careful
+about when touching the editor:
+
+- Rows in the edit modal carry `_from`, the position they held when the modal
+  opened. `saveChecklist()` passes them to `_clRemapItemState()`, which moves
+  each item's tick and comment to its new index. Without it, deleting one row
+  slides every comment below it onto the wrong item.
+- Each saved item also carries `origIdx`, its position in the built-in original.
+  That is what `resetChecklist()` uses to put ticks and comments back when the
+  override is discarded; state recorded against an item that only existed in the
+  edited copy has nowhere to go and is lost (the confirm says so).
+- Reset deliberately drops `clLinks` for that key, so items fall back to
+  `CL_MAPPINGS_DEFAULT`. For an override those defaults are *never* consulted —
+  the item at a given position may no longer be the one they describe — which is
+  why mappings are stored on the override's items.
+
+Editing a built-in used to save only the mappings and throw the reworded text
+away, and a rename wrote a bare string to `customChecklists['<key>_label']`,
+which rendered as an empty checklist called "undefined". Those entries are still
+in saved rows, so `_sanitizeCustomChecklists()` drops anything that is not
+`{label, items: []}` on load.
+
+Item text and comments are user input going into `innerHTML`, so they go through
+`_escHtml()`. Nothing passes item text through an `onclick` attribute any more:
+`openLinkModalForCl(key, idx)` looks the text up, which also removed a
+`decodeURIComponent()` that threw `URIError` on any item containing a bare `%`
+("…show 75%+ for all students" among the built-ins).
 
 ## Assessment exports
 

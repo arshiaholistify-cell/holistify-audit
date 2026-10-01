@@ -1699,6 +1699,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="act-row">
       <button class="btn btn-p" onclick="saveChecklist()">Save checklist</button>
       <button class="btn btn-s" onclick="closeClEditModal()">Cancel</button>
+      <button class="btn btn-s" id="cl-reset-btn" onclick="resetChecklist()" style="display:none">↺ Reset to original</button>
       <button class="btn btn-s" id="cl-delete-btn" onclick="deleteChecklist()" style="display:none;color:var(--red)">Delete checklist</button>
     </div>
   </div>
@@ -4202,6 +4203,8 @@ let notes = {};         // {domainId-stdIdx: text}
 let planDone = {};      // {planId: bool}
 let clChecked = {};     // {clKey-itemIdx: bool}
 let clLinks = {};       // {clKey-itemIdx: {domain, stdIdx}}
+let clComments = {};    // {clKey-itemIdx: text} — auditor's note on a checklist item
+let clNoteOpen = {};    // {clKey-itemIdx: bool} — which comment boxes are open; view state only, not saved
 let teachers = [];      // [{id,name,subject,qual,exp}]
 let teacherScores = {}; // {teacherId: {domId-si: 1-4}}
 let lpScores = {};      // {teacherId: {domId-si: 1-4}}
@@ -4701,7 +4704,12 @@ let customChecklists = {}; // key -> {label, items:[{text, domainId, stdIdx}]}
 let clEditKey = null; // key being edited in modal
 let clEditItems = []; // [{text, domainId, stdIdx}] for current edit
 
-// Get all checklists (built-in + custom), each item includes mapping
+// Get all checklists (built-in + custom), each item includes mapping.
+//
+// A key present in both CHECKLISTS and customChecklists is an *edited* built-in:
+// the custom copy wins, but it keeps builtin:true so it can be reset rather than
+// deleted. Each item carries origIdx — where it sits in the built-in original —
+// so a reset can put the ticks and comments back where they belong.
 function getAllChecklists() {
   const all = {};
   // Built-in: convert to extended format with mappings baked in
@@ -4713,12 +4721,37 @@ function getAllChecklists() {
       items: cl.items.map((text, i) => {
         const key = k + '-' + i;
         const map = clLinks[key] || CL_MAPPINGS_DEFAULT[key] || null;
-        return { text, domainId: map ? map.domain : null, stdIdx: map ? map.stdIdx : null, note: map ? map.note : null };
+        return { text, origIdx: i, domainId: map ? map.domain : null, stdIdx: map ? map.stdIdx : null, note: map ? map.note : null };
       })
     };
   });
-  // Custom
-  Object.assign(all, customChecklists);
+  // Custom checklists, and edited copies of the built-in ones under the same key.
+  Object.keys(customChecklists).forEach(k => {
+    const cl = customChecklists[k];
+    // An earlier version of saveChecklist() wrote a bare string under
+    // "<key>_label" when a built-in was renamed, which rendered as an empty
+    // checklist called "undefined". Skip anything that is not a real checklist.
+    if (!cl || typeof cl !== 'object' || !Array.isArray(cl.items)) return;
+    const isBuiltin = !!CHECKLISTS[k];
+    all[k] = {
+      label: cl.label || (isBuiltin ? CHECKLISTS[k].label : k),
+      builtin: isBuiltin,
+      edited: isBuiltin,
+      items: cl.items.map((it, i) => {
+        // clLinks wins: it is what the "Change" button on the card writes. The
+        // built-in defaults are deliberately not consulted here — the item at
+        // this position may no longer be the one they describe.
+        const map = clLinks[k + '-' + i] || null;
+        return {
+          text: String(it.text == null ? '' : it.text),
+          origIdx: (it.origIdx === null || it.origIdx === undefined) ? null : it.origIdx,
+          domainId: map ? map.domain : (it.domainId || null),
+          stdIdx: map ? map.stdIdx : ((it.stdIdx === null || it.stdIdx === undefined) ? null : it.stdIdx),
+          note: map ? map.note : (it.note || null)
+        };
+      })
+    };
+  });
   return all;
 }
 
@@ -4751,10 +4784,11 @@ function renderChecklists() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div>
           <div style="font-size:14px;font-weight:500;color:var(--ink)">${cl.label}</div>
-          <div style="font-size:11px;color:var(--ink-f);margin-top:2px">${items.length} items · ${done}/${items.length} checked${unmapped > 0 ? ' · <span style="color:var(--amb)">'+unmapped+' unmapped</span>' : ' · <span style="color:var(--grn)">all mapped ✓</span>'}</div>
+          <div style="font-size:11px;color:var(--ink-f);margin-top:2px">${items.length} items · ${done}/${items.length} checked${unmapped > 0 ? ' · <span style="color:var(--amb)">'+unmapped+' unmapped</span>' : ' · <span style="color:var(--grn)">all mapped ✓</span>'}${cl.edited ? ' · <span style="color:var(--blue)">edited</span>' : ''}</div>
         </div>
         <div style="display:flex;gap:6px">
           <button onclick="openEditChecklist('${k}')" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer">✏ Edit</button>
+          ${cl.edited ? `<button onclick="resetChecklist('${k}')" title="Restore the original Holistify items" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer">↺ Reset</button>` : ''}
           ${cl.builtin ? '' : `<button onclick="deleteChecklist('${k}')" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer">✕</button>`}
         </div>
       </div>
@@ -4765,17 +4799,30 @@ function renderChecklists() {
         const std = (dom && item.stdIdx !== null && item.stdIdx !== undefined) ? dom.standards[item.stdIdx] : null;
         const mapText = dom ? (std ? dom.emoji + ' ' + std.sub : dom.emoji + ' ' + dom.label) : null;
         const noteText = item.note || (std ? std.sub : null);
+        const cmtKey = k + '-' + i;
+        const comment = clComments[cmtKey] || '';
+        const noteOpen = !!clNoteOpen[cmtKey];
         return `<div class="cl-item">
           <div class="cl-cb${ck ? ' ck' : ''}" onclick="toggleCL('${k}',${i})">✓</div>
           <div style="flex:1">
-            <div class="cl-lbl${ck ? ' ck' : ''}" onclick="toggleCL('${k}',${i})">${item.text}</div>
+            <div class="cl-lbl${ck ? ' ck' : ''}" onclick="toggleCL('${k}',${i})">${_escHtml(item.text)}</div>
             <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap">
               ${mapText
                 ? `<span style="font-size:10px;background:var(--grn-p);color:var(--grn);padding:1px 7px;border-radius:20px;font-weight:500">${mapText}${noteText ? ' · ' + noteText : ''}</span>`
                 : '<span style="font-size:10px;color:var(--amb);background:var(--amb-p);padding:1px 7px;border-radius:20px">⚠ Not mapped to audit standard</span>'
               }
-              <button onclick="openLinkModalForCl('${k}',${i},'${item.text.replace(/'/g,"&#39;").replace(/"/g,"&quot;")}')" style="font-size:10px;padding:1px 7px;border-radius:20px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);cursor:pointer">${mapText ? '↗ Change' : '+ Map to standard'}</button>
+              <button onclick="openLinkModalForCl('${k}',${i})" style="font-size:10px;padding:1px 7px;border-radius:20px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);cursor:pointer">${mapText ? '↗ Change' : '+ Map to standard'}</button>
+              <button onclick="toggleClNote('${k}',${i})" style="font-size:10px;padding:1px 7px;border-radius:20px;border:0.5px solid ${comment ? 'var(--blue-p)' : 'var(--bdr-s)'};background:${comment ? 'var(--blue-p)' : 'var(--sur-r)'};color:${comment ? 'var(--blue)' : 'var(--ink-f)'};cursor:pointer">${comment ? '💬 Comment' : '＋ Comment'}</button>
+              ${comment ? `<button onclick="clearClComment('${k}',${i})" title="Remove this comment" style="font-size:10px;padding:1px 7px;border-radius:20px;border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer">✕</button>` : ''}
             </div>
+            ${noteOpen
+              ? `<textarea id="cl-note-${cmtKey}" class="ev-area" style="min-height:54px;margin-top:6px"
+                   placeholder="What did you see? Evidence, gaps, follow-up…"
+                   oninput="setClComment('${k}',${i},this)">${_escHtml(comment)}</textarea>`
+              : (comment
+                  ? `<div onclick="toggleClNote('${k}',${i})" style="font-size:11px;color:var(--ink-l);background:var(--sur);border-left:2px solid var(--blue);padding:5px 9px;border-radius:var(--r-sm);margin-top:5px;white-space:pre-wrap;cursor:text">${_escHtml(comment)}</div>`
+                  : '')
+            }
           </div>
         </div>`;
       }).join('')}
@@ -4790,12 +4837,48 @@ function filterCLByKey(k) {
   renderChecklists();
 }
 
+// Checklist item text and comments are typed by users and go straight into
+// innerHTML, so escape them. Without this a stray < or & mangles the row.
+function _escHtml(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toggleClNote(k, i) {
+  const key = k + '-' + i;
+  clNoteOpen[key] = !clNoteOpen[key];
+  renderChecklists();
+  if (clNoteOpen[key]) {
+    const el = document.getElementById('cl-note-' + key);
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+
+// Saves on every keystroke but deliberately does not re-render: redrawing the
+// list here would destroy the textarea the user is typing into.
+function setClComment(k, i, el) {
+  const key = k + '-' + i;
+  const text = (el.value || '').trim();
+  if (text) clComments[key] = el.value; else delete clComments[key];
+  queueSave();
+}
+
+function clearClComment(k, i) {
+  const key = k + '-' + i;
+  delete clComments[key];
+  clNoteOpen[key] = false;
+  queueSave();
+  renderChecklists();
+}
+
 // Updated toggleCL that also re-renders the chip
 function toggleCL(k, i) {
   const key = k + '-' + i;
   clChecked[key] = !clChecked[key];
   renderChecklists();
   updateTopbar();
+  queueSave();
 }
 
 // ── Create / Edit modal ──────────────────────────────────────────────────────
@@ -4805,6 +4888,8 @@ function openCreateChecklist() {
   document.getElementById('cl-modal-title').textContent = 'New checklist';
   document.getElementById('cl-edit-name').value = '';
   document.getElementById('cl-delete-btn').style.display = 'none';
+  const _rst = document.getElementById('cl-reset-btn');
+  if (_rst) _rst.style.display = 'none';
   renderClEditItems();
   document.getElementById('cl-edit-modal').classList.add('open');
 }
@@ -4814,11 +4899,16 @@ function openEditChecklist(k) {
   const cl = all[k];
   if (!cl) return;
   clEditKey = k;
-  clEditItems = cl.items.map(it => ({ ...it }));
+  // _from is the row's position as the modal opened. Ticks, comments and
+  // mappings are keyed by position, so saveChecklist() needs it to follow an
+  // item that was moved or had rows removed above it.
+  clEditItems = cl.items.map((it, i) => ({ ...it, _from: i }));
   document.getElementById('cl-modal-title').textContent = 'Edit: ' + cl.label;
   document.getElementById('cl-edit-name').value = cl.label;
   const del = document.getElementById('cl-delete-btn');
   del.style.display = cl.builtin ? 'none' : 'inline-flex';
+  const rst = document.getElementById('cl-reset-btn');
+  if (rst) rst.style.display = cl.edited ? 'inline-flex' : 'none';
   renderClEditItems();
   document.getElementById('cl-edit-modal').classList.add('open');
 }
@@ -4830,7 +4920,8 @@ function closeClEditModal() {
 }
 
 function addClItem() {
-  clEditItems.push({ text: '', domainId: null, stdIdx: null, note: null });
+  // _from: null — a brand new row, so there is no earlier tick or comment to carry.
+  clEditItems.push({ text: '', origIdx: null, domainId: null, stdIdx: null, note: null, _from: null });
   renderClEditItems();
   // Focus last input
   const inputs = document.querySelectorAll('.cl-item-input');
@@ -4838,7 +4929,22 @@ function addClItem() {
 }
 
 function removeClItem(i) {
+  const it = clEditItems[i];
+  if (it && it.text.trim() && it._from !== null && it._from !== undefined) {
+    const key = clEditKey ? clEditKey + '-' + it._from : null;
+    const hasState = key && (clChecked[key] || clComments[key]);
+    if (hasState && !confirm('Remove this item? Its tick and comment go with it.')) return;
+  }
   clEditItems.splice(i, 1);
+  renderClEditItems();
+}
+
+function moveClItem(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= clEditItems.length) return;
+  const t = clEditItems[i];
+  clEditItems[i] = clEditItems[j];
+  clEditItems[j] = t;
   renderClEditItems();
 }
 
@@ -4854,10 +4960,16 @@ function renderClEditItems() {
     const std = (dom && item.stdIdx !== null && item.stdIdx !== undefined) ? dom.standards[item.stdIdx] : null;
     const mapLabel = dom ? (std ? dom.emoji + ' ' + std.sub : dom.emoji + ' ' + dom.label) : 'Not mapped';
     const mapColor = dom ? 'var(--grn)' : 'var(--amb)';
+    const cmtKey = clEditKey ? clEditKey + '-' + item._from : null;
+    const hasCmt = cmtKey && clComments[cmtKey];
     return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--bdr)">
       <span style="font-size:12px;color:var(--ink-f);padding-top:8px;flex-shrink:0">${i+1}.</span>
+      <div style="display:flex;flex-direction:column;gap:2px;padding-top:4px;flex-shrink:0">
+        <button onclick="moveClItem(${i},-1)" title="Move up" ${i===0?'disabled':''} style="font-size:9px;line-height:1;padding:2px 4px;border-radius:3px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);cursor:${i===0?'default':'pointer'};opacity:${i===0?'0.3':'1'}">▲</button>
+        <button onclick="moveClItem(${i},1)" title="Move down" ${i===clEditItems.length-1?'disabled':''} style="font-size:9px;line-height:1;padding:2px 4px;border-radius:3px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);cursor:${i===clEditItems.length-1?'default':'pointer'};opacity:${i===clEditItems.length-1?'0.3':'1'}">▼</button>
+      </div>
       <div style="flex:1">
-        <input class="cl-item-input" value="${item.text.replace(/"/g,'&quot;')}" 
+        <input class="cl-item-input" value="${_escHtml(item.text)}" 
           oninput="clEditItems[${i}].text=this.value"
           onblur="autoMapClItem(${i})"
           placeholder="Checklist item text..."
@@ -4865,6 +4977,7 @@ function renderClEditItems() {
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
           <span style="font-size:10px;color:${mapColor};background:${dom?'var(--grn-p)':'var(--amb-p)'};padding:1px 7px;border-radius:20px">${mapLabel}</span>
           <button onclick="openItemLinkModal(${i})" style="font-size:10px;padding:1px 7px;border-radius:20px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);cursor:pointer">${dom ? '↗ Change' : '+ Map'}</button>
+          ${hasCmt ? '<span title="This item has a comment on the checklist" style="font-size:10px;color:var(--blue);background:var(--blue-p);padding:1px 7px;border-radius:20px">💬 comment</span>' : ''}
           <button onclick="removeClItem(${i})" style="font-size:10px;padding:1px 6px;border-radius:20px;border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer;margin-left:auto">✕</button>
         </div>
       </div>
@@ -4975,17 +5088,23 @@ function openItemLinkModal(idx) {
   if (modal) modal.classList.add('open');
 }
 
-function openLinkModalForCl(clKey, itemIdx, itemText) {
+// The item text is looked up rather than passed through the onclick attribute:
+// quoting it inline needed two levels of escaping, and the text it was then
+// handed went through decodeURIComponent, which throws URIError on any item
+// containing a bare % — "…show 75%+ for all students" among the built-ins.
+function openLinkModalForCl(clKey, itemIdx) {
   linkModalKey = clKey + '-' + itemIdx;
   const modal = document.getElementById('link-modal');
   const itemEl = document.getElementById('lm-item-text');
-  if (itemEl) itemEl.textContent = '"' + decodeURIComponent(itemText) + '"';
+  const cl = getAllChecklists()[clKey];
+  const itemText = (cl && cl.items[itemIdx]) ? cl.items[itemIdx].text : '';
+  if (itemEl) itemEl.textContent = '"' + itemText + '"';
   const domSel = document.getElementById('lm-domain');
   domSel.innerHTML = '<option value="">— pick a domain —</option>' +
     DOMAINS.map(d => `<option value="${d.id}">${d.emoji} ${d.label}</option>`).join('');
   const existing = clLinks[linkModalKey] || CL_MAPPINGS_DEFAULT[linkModalKey];
   if (existing && existing.domain) { domSel.value = existing.domain; loadLmStandards();
-    setTimeout(() => { const s = document.getElementById('lm-std'); if(s && existing.stdIdx!==null) s.value=String(existing.stdIdx); }, 60); }
+    setTimeout(() => { const s = document.getElementById('lm-std'); if(s && existing.stdIdx!==null && existing.stdIdx!==undefined) s.value=String(existing.stdIdx); }, 60); }
   else loadLmStandards();
   if (modal) modal.classList.add('open');
 }
@@ -5011,47 +5130,124 @@ saveLinkModal = function() {
   }
 };
 
-// Save checklist from modal
+// Every per-item key for one checklist: "<key>-<n>" and nothing else, so a
+// checklist called custom_1 never picks up custom_12's rows.
+function _clItemKeys(store, key) {
+  const out = {};
+  Object.keys(store).forEach(kk => {
+    if (kk.indexOf(key + '-') !== 0) return;
+    if (!/^\d+$/.test(kk.slice(key.length + 1))) return;
+    out[kk] = store[kk];
+  });
+  return out;
+}
+
+function _clDropItemState(key) {
+  [clChecked, clComments, clLinks].forEach(store => {
+    Object.keys(_clItemKeys(store, key)).forEach(kk => { delete store[kk]; });
+  });
+}
+
+// Ticks, comments and mappings are keyed by position, so an item that moved —
+// or that had rows inserted or deleted above it — must take its state with it.
+// Each row carries _from, the position it held when the editor opened; a row
+// added in this session has _from null and starts clean.
+function _clRemapItemState(key, items) {
+  const wasChecked = _clItemKeys(clChecked, key);
+  const wasComments = _clItemKeys(clComments, key);
+  _clDropItemState(key);
+  items.forEach((it, i) => {
+    const to = key + '-' + i;
+    if (it._from !== null && it._from !== undefined) {
+      const from = key + '-' + it._from;
+      if (wasChecked[from] !== undefined) clChecked[to] = wasChecked[from];
+      if (wasComments[from] !== undefined) clComments[to] = wasComments[from];
+    }
+    if (it.domainId) {
+      clLinks[to] = { domain: it.domainId, stdIdx: (it.stdIdx === undefined ? null : it.stdIdx), note: it.note || null };
+    }
+  });
+}
+
+// Save checklist from modal.
+//
+// An edited built-in is stored under its own key in customChecklists, which
+// getAllChecklists() then prefers over the original. That is what makes renaming
+// a built-in, rewording an item, adding one or dropping one actually stick —
+// the previous version saved only the mappings and threw the text away.
 function saveChecklist() {
   const name = document.getElementById('cl-edit-name').value.trim();
   if (!name) { toast('Please enter a checklist name.'); return; }
   const items = clEditItems.filter(it => it.text.trim());
   if (!items.length) { toast('Please add at least one item.'); return; }
 
-  if (clEditKey && CHECKLISTS[clEditKey]) {
-    // Editing a built-in checklist - save custom links
-    items.forEach((item, i) => {
-      const key = clEditKey + '-' + i;
-      if (item.domainId) {
-        clLinks[key] = { domain: item.domainId, stdIdx: item.stdIdx, note: item.note };
-      }
-    });
-    // Update label in a custom override
-    if (!customChecklists[clEditKey]) customChecklists[clEditKey + '_label'] = name;
-  } else {
-    // New or custom checklist
-    const key = clEditKey || 'custom_' + Date.now();
-    customChecklists[key] = { label: name, items: items.map(it => ({ ...it })) };
-    // Pre-populate links for all items
-    items.forEach((item, i) => {
-      if (item.domainId) {
-        clLinks[key + '-' + i] = { domain: item.domainId, stdIdx: item.stdIdx, note: item.note };
-      }
-    });
-  }
+  const key = clEditKey || 'custom_' + Date.now();
+  _clRemapItemState(key, items);
+
+  customChecklists[key] = {
+    label: name,
+    items: items.map(it => ({
+      text: it.text.trim(),
+      // Where this item sits in the built-in original, so resetChecklist() can
+      // put its tick and comment back. null for anything added since.
+      origIdx: (it.origIdx === null || it.origIdx === undefined) ? null : it.origIdx,
+      domainId: it.domainId || null,
+      stdIdx: (it.stdIdx === null || it.stdIdx === undefined) ? null : it.stdIdx,
+      note: it.note || null
+    }))
+  };
+
+  if (clFilter !== 'all' && clFilter !== key && !clEditKey) clFilter = key;
+  closeClEditModal();
+  queueSave();
+  renderChecklists();
+  updateTopbar();
+  toast('Checklist saved.', 'success');
+}
+
+// Discard an edited built-in and go back to the Holistify original.
+function resetChecklist(k) {
+  if (!k) k = clEditKey;
+  if (!k || !CHECKLISTS[k]) return;             // only a built-in has a default
+  if (!customChecklists[k]) { toast('This checklist is already the original.'); return; }
+  if (!confirm('Restore "' + CHECKLISTS[k].label + '" to its original items?\n\nTicks and comments return to the items they were on. Anything recorded against an item you added is lost, because that item goes away.')) return;
+
+  // Move state from the edited positions back to the original ones before the
+  // override disappears; origIdx is the only thing that still connects them.
+  const cur = (customChecklists[k].items || []);
+  const checked = {}, comments = {};
+  cur.forEach((it, i) => {
+    const oi = (it.origIdx === null || it.origIdx === undefined) ? null : it.origIdx;
+    if (oi === null) return;
+    if (clChecked[k + '-' + i] !== undefined) checked[k + '-' + oi] = clChecked[k + '-' + i];
+    if (clComments[k + '-' + i] !== undefined) comments[k + '-' + oi] = clComments[k + '-' + i];
+  });
+  // Dropping clLinks for this key is the point of a reset: the items fall back
+  // to the default mappings in CL_MAPPINGS_DEFAULT.
+  _clDropItemState(k);
+  Object.assign(clChecked, checked);
+  Object.assign(clComments, comments);
+  delete customChecklists[k];
 
   closeClEditModal();
+  queueSave();
   renderChecklists();
+  updateTopbar();
+  toast('Restored the original checklist.', 'success');
 }
 
 function deleteChecklist(k) {
   if (!k) k = clEditKey;
-  if (!k || CHECKLISTS[k]) return; // can't delete built-in
-  if (!confirm('Delete this checklist?')) return;
+  if (!k || !customChecklists[k]) return;
+  if (CHECKLISTS[k]) { resetChecklist(k); return; }  // a built-in resets, never deletes
+  if (!confirm('Delete this checklist? Its ticks and comments go with it.')) return;
   delete customChecklists[k];
+  _clDropItemState(k);
   if (clFilter === k) clFilter = 'all';
   closeClEditModal();
+  queueSave();
   renderChecklists();
+  updateTopbar();
 }
 
 // ── Upload checklist from Excel/CSV ─────────────────────────────────────────
@@ -5481,11 +5677,13 @@ function saveLinkModal() {
   if (!domId) { toast('Please select a domain.'); return; }
   clLinks[linkModalKey] = { domain: domId, stdIdx: stdIdx !== '' ? parseInt(stdIdx) : null };
   closeLinkModal();
+  queueSave();
   renderChecklists();
 }
 function clearLink() {
   delete clLinks[linkModalKey];
   closeLinkModal();
+  queueSave();
   renderChecklists();
 }
 function closeLinkModal() {
@@ -15990,6 +16188,7 @@ function _auditStateKey(){
 function _buildAuditSnapshot(){
   var _sk = schoolKey((document.getElementById('inp-school')||{}).value||'default');
   return {scores:scores,notes:notes,planDone:planDone,clChecked:clChecked,clLinks:clLinks,
+    clComments:clComments,
     // Modules that used to persist to this browser only. School Records,
     // attendance, the timetable, PD, lesson and curriculum plans existed
     // nowhere but localStorage: clearing site data or moving device lost them,
@@ -16014,9 +16213,26 @@ function _buildAuditSnapshot(){
     auditor:(document.getElementById('inp-auditor')||{}).value||''};
 }
 
-function _applyAuditSnapshot(d){
+// Drop anything in customChecklists that is not {label, items:[…]}. An earlier
+// saveChecklist() wrote a bare string under "<key>_label" when a built-in was
+// renamed, and those entries are still sitting in saved rows.
+function _sanitizeCustomChecklists(o){
+  var out={};
+  Object.keys(o||{}).forEach(function(k){
+    var cl=o[k];
+    if(cl&&typeof cl==='object'&&Array.isArray(cl.items))out[k]=cl;
+  });
+  return out;
+}
+
+// skOverride: the school key to restore the per-module localStorage copies
+// under. The cloud loader passes it, because it runs before inp-school is
+// necessarily showing the school it just fetched.
+function _applyAuditSnapshot(d, skOverride){
   scores=d.scores||{};notes=d.notes||{};planDone=d.planDone||{};
-  clChecked=d.clChecked||{};clLinks=d.clLinks||{};customChecklists=d.customChecklists||{};
+  clChecked=d.clChecked||{};clLinks=d.clLinks||{};
+  customChecklists=_sanitizeCustomChecklists(d.customChecklists);
+  clComments=d.clComments||{};
   sipProgress=d.sipProgress||{};
   if(d.sipOverrides)sipOverrides=d.sipOverrides;
   if(d.sipCustomActions)sipCustomActions=d.sipCustomActions;
@@ -16034,7 +16250,7 @@ function _applyAuditSnapshot(d){
   // localStorage key. The load*Data() helpers run again whenever their page is
   // opened and read from those keys, so without this write-through a stale
   // local copy would overwrite what just came from the cloud.
-  var _sk = schoolKey((document.getElementById('inp-school')||{}).value||'default');
+  var _sk = skOverride || schoolKey((document.getElementById('inp-school')||{}).value||'default');
   if(d.recordsOverrides){recordsOverrides=d.recordsOverrides;
     try{localStorage.setItem('hol_rec_'+_sk,JSON.stringify(recordsOverrides));}catch(e){}}
   if(d.attendanceRecords){attendanceRecords=d.attendanceRecords;
@@ -16394,20 +16610,14 @@ async function loadAuditStateFromCloud(schoolName) {
     var res = await sb.from('audit_states').select('data').eq('school_id', sid).single();
     if (res.data && res.data.data) {
       var d = res.data.data;
-      scores = d.scores || {}; notes = d.notes || {}; planDone = d.planDone || {};
-      clChecked = d.clChecked || {}; clLinks = d.clLinks || {};
-      customChecklists = d.customChecklists || {};
-      sipProgress = d.sipProgress || {};
-      if (d.sipOverrides) sipOverrides = d.sipOverrides;
-      if (d.sipCustomActions) sipCustomActions = d.sipCustomActions;
-      teachers = d.teachers || []; teacherScores = d.teacherScores || {}; lpScores = d.lpScores || {};
-      if (d.journeyRecords) journeyRecords = d.journeyRecords;
-      if (d.staffData && d.staffData.length) { staffData = d.staffData; try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
-      if (d.studentsData && d.studentsData.length) { studentsData = d.studentsData; try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
-      if (d.rubricScores) { rubricScores = d.rubricScores; }
-      if (d.assessData) { assessments = d.assessData; _assessCloudLoaded = true; }
-      if (d.assessScores) { scoreEntries = d.assessScores; }
-      if (d.assessRubrics) { rubrics = d.assessRubrics; }
+      // One restore, shared with the localStorage path. This used to be a second,
+      // shorter copy of _applyAuditSnapshot, and it silently lacked everything
+      // added since — checklist comments and every per-module key (School
+      // Records, attendance, timetable, PD, lesson and curriculum plans, org,
+      // docs) were saved to the cloud and then dropped on the way back.
+      _applyAuditSnapshot(d, sid);
+      if (d.staffData && d.staffData.length) { try { localStorage.setItem('hol_staff_' + sid, JSON.stringify(staffData)); } catch(e) {} }
+      if (d.studentsData && d.studentsData.length) { try { localStorage.setItem('hol_students_' + sid, JSON.stringify(studentsData)); } catch(e) {} }
       if (d.assessData || d.assessScores || d.assessRubrics) {
         try { localStorage.setItem('hol_assess_' + sid, JSON.stringify({ assessments, scores: scoreEntries, rubrics })); } catch(e) {}
       } else {
@@ -16422,7 +16632,6 @@ async function loadAuditStateFromCloud(schoolName) {
           }
         } catch(e) {}
       }
-      if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
       // Update local cache
       try { localStorage.setItem('hol_audit_state_' + sid, JSON.stringify(d)); } catch(e) {}
       return true;
