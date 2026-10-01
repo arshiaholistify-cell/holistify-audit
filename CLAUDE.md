@@ -153,31 +153,36 @@ the staff sync re-add it correctly. A record that cannot be matched but *does*
 have scores is left alone for a human to rename — putting the wrong name on
 someone's appraisal is worse than leaving a number.
 
-## Session backup (the sidebar Save / Load)
+## What syncs, and how
 
-Separate from the automatic Supabase sync; this is for taking a copy off the
-machine or moving a school's work between accounts.
+Everything auto-saves. Any edit calls `queueSave()`, which debounces 300 ms and
+then runs `saveAuditState()`: localStorage, then an upsert of the whole
+`_buildAuditSnapshot()` payload into `audit_states` via `syncAuditStateToCloud()`.
+There is no manual save.
 
-The file is `{_format, _version, exportedAt, audit, modules}`. The `audit` half
-comes from `_buildAuditSnapshot()` — the same object the Supabase sync sends,
-so the file cannot drift from what the app stores. `modules` lists the state
-that persists under its own localStorage key and therefore has to be enumerated:
-org, docs, timetable, school structure, PD, records, attendance, lesson and
-curriculum plans.
+`_buildAuditSnapshot()` / `_applyAuditSnapshot()` are the single definition of
+what a school's state *is*. Add anything new to both.
 
-`_applySessionBackup()` restores, then asks each module to write itself and
-calls `saveAuditState()`, so a restore survives a reload. **`saveSchoolStructure()`
-is deliberately excluded from that loop**: it reads the period inputs from the
-DOM rather than the variable, so calling it there replaced the restored values
-with whatever defaults were on screen. That key is written directly instead.
+The modules that persist under their own localStorage key — School Records,
+attendance, timetable, school structure, PD, lesson and curriculum plans, org,
+docs — used to stop at the browser: their save functions wrote a key and
+returned. They now end with `queueSave()` as well, so they ride along in the
+same row. The debounce means a burst of module saves still produces one upsert.
 
-Version 1 files were a flat audit object with no `modules`; `_applySessionBackup()`
-still reads them. Load confirms before overwriting and rejects a file that is
-not a backup.
+Two things to keep in mind:
 
-There used to be two definitions of `saveSession`/`loadSession` — the originals
-and an override added for the SIP fields — so the first pair was dead code and
-reading it gave the wrong picture of what the buttons did. There is now one.
+- `orgData` and `docsData` hold **every** school keyed by `schoolKey`, so the
+  snapshot carries only this school's slice (`orgNodes`, `docsEntry`). Storing
+  the whole object in a per-school row would let one school's load overwrite
+  another's.
+- `_applyAuditSnapshot()` writes each restored module back to its own
+  localStorage key. The `load*Data()` helpers run again whenever their page is
+  opened and read from those keys, so without that write-through a stale local
+  copy would overwrite what just came from the cloud.
+
+The sidebar Save/Load session buttons were removed once this was true: a manual
+file backup of state the server already holds is a second source of truth and
+another thing to go stale.
 
 ## Assessment exports
 

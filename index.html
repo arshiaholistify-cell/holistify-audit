@@ -1552,13 +1552,6 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <label id="coach-label">Transformation Coach</label>
     <input id="inp-auditor" placeholder="Coach / Auditor name">
   </div>
-  <div class="sb-section">
-    <label>Session</label>
-    <div class="sb-btns">
-      <button class="btn-sm" onclick="saveSession()">💾 Save</button>
-      <button class="btn-sm" onclick="loadSession()">📂 Load</button>
-    </div>
-  </div>
 </nav>
 
 <!-- MAIN CONTENT -->
@@ -1596,7 +1589,6 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="report-body"></div>
     <div class="act-row">
       <button class="btn btn-p" onclick="printReport()">Print / Export PDF</button>
-      <button class="btn btn-s" onclick="saveSession()">Save session</button>
     </div>
   </div>
 
@@ -6269,143 +6261,12 @@ function _buildSaInlineEvidence(standardText, subText) {
 // ═══════════════════════════════════════════
 // SESSION
 // ═══════════════════════════════════════════
-// ── Session backup file ──────────────────────────────────────────────────────
-// Save writes a JSON backup of this school's work; Load reads one back. The
-// day-to-day sync to Supabase is separate and automatic — this is for taking a
-// copy off the machine, or moving a school's work between accounts.
-//
-// The audit half comes from _buildAuditSnapshot(), the same object the Supabase
-// sync sends, so the file cannot quietly fall behind what the app stores. The
-// modules below each persist under their own localStorage key and so have to be
-// listed; previously none of them were in the file at all, which made "Save"
-// look like a backup while leaving out staff, students, assessments,
-// attendance, timetable, PD, school records and more.
-const SESSION_FILE_VERSION = 2;
+// The sidebar Save/Load session buttons were removed once every module began
+// syncing to Supabase: a manual file backup of state the server already holds
+// is a second source of truth and another thing to get out of date.
+// _buildAuditSnapshot() / _applyAuditSnapshot() remain — they are what the
+// sync itself is built from.
 
-function _buildSessionBackup() {
-  return {
-    _format: 'holistify-session',
-    _version: SESSION_FILE_VERSION,
-    exportedAt: new Date().toISOString(),
-    audit: _buildAuditSnapshot(),
-    modules: {
-      orgData: orgData, docsData: docsData,
-      workloadData: workloadData, periodBifurcation: periodBifurcation,
-      meetingsData: meetingsData, schoolStructure: schoolStructure,
-      pdData: pdData, pdAttendance: pdAttendance,
-      recordsOverrides: recordsOverrides, attendanceRecords: attendanceRecords,
-      lessonPlans: lessonPlans, curriculumPlans: curriculumPlans
-    }
-  };
-}
-
-function _applySessionBackup(d) {
-  // Version 1 files were a flat audit object with no modules; still readable.
-  _applyAuditSnapshot(d.audit || d);
-
-  const m = d.modules || {};
-  if (m.orgData) orgData = m.orgData;
-  if (m.docsData) docsData = m.docsData;
-  if (m.workloadData) workloadData = m.workloadData;
-  if (m.periodBifurcation) periodBifurcation = m.periodBifurcation;
-  if (m.meetingsData) meetingsData = m.meetingsData;
-  if (m.schoolStructure) schoolStructure = m.schoolStructure;
-  if (m.pdData) pdData = m.pdData;
-  if (m.pdAttendance) pdAttendance = m.pdAttendance;
-  if (m.recordsOverrides) recordsOverrides = m.recordsOverrides;
-  if (m.attendanceRecords) attendanceRecords = m.attendanceRecords;
-  if (m.lessonPlans) lessonPlans = m.lessonPlans;
-  if (m.curriculumPlans) curriculumPlans = m.curriculumPlans;
-
-  const header = d.audit || d;
-  [['inp-school', header.school], ['inp-date', header.date],
-   ['inp-board', header.board], ['inp-auditor', header.auditor]].forEach(function(pair) {
-    if (!pair[1]) return;
-    const el = document.getElementById(pair[0]);
-    if (el) el.value = pair[1];
-  });
-  if (header.school && typeof onSchoolInput === 'function') onSchoolInput();
-
-  // Each module owns its own storage key, so ask each to write itself, then
-  // push the audit half to Supabase. Without this the restore lived only in
-  // memory and was lost on the next reload.
-  //
-  // saveSchoolStructure() is deliberately not in this list: it reads the period
-  // inputs from the DOM rather than the variable, so calling it here replaced
-  // the restored values with the defaults of whatever was on screen. Write that
-  // key directly instead.
-  ['saveOrgData','saveDocsData','saveTimetableData','savePdData',
-   'saveRecordsData','saveAttendanceData','saveCurrData','saveStaffData','saveStudentsData',
-   'saveAssessmentData','saveRubricScores'].forEach(function(fn) {
-    if (typeof window[fn] === 'function') { try { window[fn](); } catch (e) {} }
-  });
-
-  if (m.schoolStructure) {
-    try {
-      const sk = 'hol_ss_' + schoolKey((document.getElementById('inp-school') || {}).value || 'default');
-      localStorage.setItem(sk, JSON.stringify(schoolStructure));
-    } catch (e) {}
-    // Keep the visible inputs in step so the next save does not undo this.
-    [['ss-period-duration', schoolStructure.periodDuration],
-     ['ss-periods-day', schoolStructure.periodsPerDay],
-     ['ss-school-days', schoolStructure.schoolDays]].forEach(function(pair) {
-      const el = document.getElementById(pair[0]);
-      if (el && pair[1] != null) el.value = pair[1];
-    });
-  }
-
-  saveAuditState();
-}
-
-function saveSession(){
-  const backup = _buildSessionBackup();
-  const school = backup.audit.school || 'school';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
-  a.download = 'holistify-' + school.replace(/\s+/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
-  toast('Backup saved for ' + school + '.', 'success');
-}
-
-function loadSession(){
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.json';
-  inp.onchange = function(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const r = new FileReader();
-    r.onload = function(evt) {
-      let d;
-      try { d = JSON.parse(evt.target.result); }
-      catch (err) { toast('That file is not valid JSON.', 'error'); return; }
-      if (!d || typeof d !== 'object' || (!d.audit && !d.scores)) {
-        toast('That does not look like a Holistify backup file.', 'error'); return;
-      }
-
-      // Restoring replaces everything on screen, so say so before doing it.
-      const from = (d.audit || d).school || 'another school';
-      const when = d.exportedAt ? new Date(d.exportedAt).toLocaleString() : 'an unknown date';
-      const current = (document.getElementById('inp-school') || {}).value || 'the current school';
-      if (!confirm('Restore the backup of "' + from + '" saved ' + when + '?\n\n' +
-                   'This replaces everything currently loaded for ' + current +
-                   ' — scores, notes, staff, students, assessments, attendance, timetable and records.\n\n' +
-                   'This cannot be undone.')) return;
-
-      try { _applySessionBackup(d); }
-      catch (err) { toast('Could not restore that backup: ' + err.message, 'error'); return; }
-
-      updateTopbar();
-      renderOverview();
-      if (typeof updateSidebarBadges === 'function') updateSidebarBadges();
-      toast('Backup restored and saved.', 'success');
-    };
-    r.onerror = function() { toast('Could not read that file.', 'error'); };
-    r.readAsText(file);
-  };
-  inp.click();
-}
 function printReport(){renderReport();window.print();}
 
 
@@ -7302,13 +7163,6 @@ function saveSipEdit() {
     renderSipPhases(sipData.phases);
   }
 }
-
-// saveSession/loadSession used to be re-defined here to pick up the SIP edit
-// fields. They are not any more: the single implementation above builds its
-// payload from _buildAuditSnapshot(), which already carries sipOverrides,
-// sipCustomActions and journeyRecords along with everything else the app
-// persists. Two definitions meant the first was dead code, and reading it gave
-// the wrong picture of what Save and Load actually did.
 
 // ═══════════════════════════════════════════
 // REPORT PAGE — TABS (Score + Stakeholders)
@@ -9966,6 +9820,7 @@ function loadOrgData() {
 }
 function saveOrgData() {
   try { localStorage.setItem('hol_org_data', JSON.stringify(orgData)); } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 function getOrgNodes(skey) {
   if (!orgData[skey]) orgData[skey] = JSON.parse(JSON.stringify(DEFAULT_ORG));
@@ -10218,6 +10073,7 @@ function loadDocsData() {
 }
 function saveDocsData() {
   try { localStorage.setItem('hol_docs_data', JSON.stringify(docsData)); } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 function getSchoolDocs(skey) {
   if (!docsData[skey]) docsData[skey] = { folders:[], files:{} };
@@ -12760,6 +12616,7 @@ function saveTimetableData() {
   try { localStorage.setItem(ttKey('wl'), JSON.stringify(workloadData)); } catch(e) {}
   try { localStorage.setItem(ttKey('pb'), JSON.stringify(periodBifurcation)); } catch(e) {}
   try { localStorage.setItem(ttKey('mt'), JSON.stringify(meetingsData)); } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 // ── Page render ────────────────────────────────────────────────────────────
@@ -13546,6 +13403,7 @@ function saveSchoolStructure() {
     localStorage.setItem(k, JSON.stringify(schoolStructure));
   } catch(e) {}
   calcPbFromStructure();
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function calcPbFromStructure() {
@@ -14029,6 +13887,7 @@ function savePdData() {
     const k = 'hol_pd_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     localStorage.setItem(k, JSON.stringify({ initiatives: pdData, attendance: pdAttendance }));
   } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderPdPage() {
@@ -14443,6 +14302,7 @@ function saveRecordsData() {
     const k = 'hol_rec_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
     localStorage.setItem(k, JSON.stringify(recordsOverrides));
   } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderRecordsPage() {
@@ -14611,6 +14471,7 @@ function loadAttendanceData() {
 }
 function saveAttendanceData() {
   try { localStorage.setItem(allAttKey(), JSON.stringify(attendanceRecords)); } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderAttendancePage() {
@@ -14897,6 +14758,7 @@ function loadCurrData() {
 function saveCurrData() {
   try { localStorage.setItem(currKey('lp'),JSON.stringify(lessonPlans)); } catch(e){}
   try { localStorage.setItem(currKey('cp'),JSON.stringify(curriculumPlans)); } catch(e){}
+  if (typeof queueSave === 'function') queueSave();
 }
 
 function renderCurriculumPage() {
@@ -16126,7 +15988,21 @@ function _auditStateKey(){
 // The audit half of this school's state, in one place, so the Supabase sync
 // and the Save/Load backup file always carry exactly the same thing.
 function _buildAuditSnapshot(){
+  var _sk = schoolKey((document.getElementById('inp-school')||{}).value||'default');
   return {scores:scores,notes:notes,planDone:planDone,clChecked:clChecked,clLinks:clLinks,
+    // Modules that used to persist to this browser only. School Records,
+    // attendance, the timetable, PD, lesson and curriculum plans existed
+    // nowhere but localStorage: clearing site data or moving device lost them,
+    // and no backup held them. They ride along with the rest now.
+    recordsOverrides:recordsOverrides,attendanceRecords:attendanceRecords,
+    pdData:pdData,pdAttendance:pdAttendance,
+    workloadData:workloadData,periodBifurcation:periodBifurcation,
+    meetingsData:meetingsData,schoolStructure:schoolStructure,
+    lessonPlans:lessonPlans,curriculumPlans:curriculumPlans,
+    // orgData and docsData hold every school keyed by schoolKey, so only this
+    // school's slice goes into this school's row — storing the whole object
+    // would let one school's load overwrite another's.
+    orgNodes:(orgData||{})[_sk]||null, docsEntry:(docsData||{})[_sk]||null,
     customChecklists:customChecklists,sipProgress:sipProgress,sipOverrides:sipOverrides,
     sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
     lpScores:lpScores,journeyRecords:journeyRecords,
@@ -16153,6 +16029,36 @@ function _applyAuditSnapshot(d){
   if(d.assessScores){scoreEntries=d.assessScores;}
   if(d.assessRubrics){rubrics=d.assessRubrics;}
   if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
+
+  // Restore the per-module state, then write it to each module's own
+  // localStorage key. The load*Data() helpers run again whenever their page is
+  // opened and read from those keys, so without this write-through a stale
+  // local copy would overwrite what just came from the cloud.
+  var _sk = schoolKey((document.getElementById('inp-school')||{}).value||'default');
+  if(d.recordsOverrides){recordsOverrides=d.recordsOverrides;
+    try{localStorage.setItem('hol_rec_'+_sk,JSON.stringify(recordsOverrides));}catch(e){}}
+  if(d.attendanceRecords){attendanceRecords=d.attendanceRecords;
+    try{localStorage.setItem('hol_att_'+_sk,JSON.stringify(attendanceRecords));}catch(e){}}
+  if(d.pdData||d.pdAttendance){
+    if(d.pdData)pdData=d.pdData;
+    if(d.pdAttendance)pdAttendance=d.pdAttendance;
+    try{localStorage.setItem('hol_pd_'+_sk,JSON.stringify({initiatives:pdData,attendance:pdAttendance}));}catch(e){}}
+  if(d.workloadData){workloadData=d.workloadData;
+    try{localStorage.setItem('hol_tt_wl_'+_sk,JSON.stringify(workloadData));}catch(e){}}
+  if(d.periodBifurcation){periodBifurcation=d.periodBifurcation;
+    try{localStorage.setItem('hol_tt_pb_'+_sk,JSON.stringify(periodBifurcation));}catch(e){}}
+  if(d.meetingsData){meetingsData=d.meetingsData;
+    try{localStorage.setItem('hol_tt_mt_'+_sk,JSON.stringify(meetingsData));}catch(e){}}
+  if(d.schoolStructure){schoolStructure=Object.assign({},schoolStructure,d.schoolStructure);
+    try{localStorage.setItem('hol_ss_'+_sk,JSON.stringify(schoolStructure));}catch(e){}}
+  if(d.lessonPlans){lessonPlans=d.lessonPlans;
+    try{localStorage.setItem('hol_curr_lp_'+_sk,JSON.stringify(lessonPlans));}catch(e){}}
+  if(d.curriculumPlans){curriculumPlans=d.curriculumPlans;
+    try{localStorage.setItem('hol_curr_cp_'+_sk,JSON.stringify(curriculumPlans));}catch(e){}}
+  if(d.orgNodes){ if(!orgData)orgData={}; orgData[_sk]=d.orgNodes;
+    try{localStorage.setItem('hol_org_data',JSON.stringify(orgData));}catch(e){}}
+  if(d.docsEntry){ if(!docsData)docsData={}; docsData[_sk]=d.docsEntry;
+    try{localStorage.setItem('hol_docs_data',JSON.stringify(docsData));}catch(e){}}
 }
 
 function saveAuditState(){
