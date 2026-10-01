@@ -2506,11 +2506,12 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <!-- Step 1: URL -->
     <div id="gfi-step1">
       <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
-        <strong>How to get the URL:</strong><br>
-        1. Open your Google Sheet (Form responses tab)<br>
-        2. File → Share → <strong>Publish to web</strong><br>
-        3. Choose the sheet → set format to <strong>CSV</strong> → click Publish<br>
-        4. Copy the URL and paste it below
+        <strong>Two ways to do this.</strong><br>
+        <strong>A — upload a file (always works):</strong> in Google Sheets, File → Download →
+        <strong>Comma-separated values (.csv)</strong>, then use Upload CSV file below.<br>
+        <strong>B — from a link:</strong> File → Share → <strong>Publish to web</strong> → pick the responses
+        tab → format <strong>CSV</strong> → Publish, then paste that link.
+        A sheet that is only <em>shared</em> by link cannot be read from here; it has to be published.
       </div>
       <div class="sip-field">
         <label>Published Google Sheet CSV URL</label>
@@ -2523,8 +2524,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         </select>
       </div>
       <div id="gfi-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-p" onclick="gfiFetch()">Fetch &amp; Preview →</button>
+        <button class="btn btn-s" onclick="document.getElementById('gfi-file').click()">⬆ Upload CSV file</button>
+        <input type="file" id="gfi-file" accept=".csv,text/csv,text/plain" style="display:none" onchange="gfiUploadFile(this)">
         <button class="btn btn-s" onclick="document.getElementById('gform-import-modal').classList.remove('open')">Cancel</button>
       </div>
     </div>
@@ -12044,6 +12047,52 @@ function downloadAssessmentBreakdownXlsx() {
 // An embedded quote is doubled, per RFC 4180. The hand-built exports this
 // replaced either broke the row on a quote or swapped it for an apostrophe,
 // which silently altered what people had typed.
+// Parse CSV into {headers, rows}. Handles CRLF, a BOM, quoted fields holding
+// commas or newlines, and doubled quotes.
+//
+// The Google Form import used to do text.split('\n') then line.split(','),
+// which silently mangled exactly the answers people write in a form: any
+// comment containing a comma shifted every column after it, and any multi-line
+// answer broke the row in half.
+function _csvParse(text) {
+  const src = String(text == null ? '' : text).replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = [], field = '', inQuotes = false, started = false;
+  const endField = () => { row.push(field); field = ''; started = true; };
+  const endRow = () => { endField(); rows.push(row); row = []; started = false; };
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += ch;
+      started = true;
+    } else if (ch === '"') { inQuotes = true; started = true; }
+    else if (ch === ',') endField();
+    else if (ch === '\n') endRow();
+    else if (ch === '\r') { if (src[i + 1] === '\n') i++; endRow(); }
+    else { field += ch; started = true; }
+  }
+  if (started || field || row.length) endRow();
+
+  const used = rows.filter(r => r.some(c => String(c).trim() !== ''));
+  if (!used.length) return { headers: [], rows: [] };
+
+  // Google Forms happily repeats a question title. Column mapping is by header
+  // name, so make them unique rather than letting one shadow another.
+  const seen = {}, headers = used[0].map((h, i) => {
+    let name = String(h).trim() || ('Column ' + (i + 1));
+    if (seen[name]) { seen[name]++; name = name + ' (' + seen[name] + ')'; } else seen[name] = 1;
+    return name;
+  });
+  const out = used.slice(1).map(cells => {
+    const o = {};
+    headers.forEach((h, i) => { o[h] = cells[i] == null ? '' : String(cells[i]).trim(); });
+    return o;
+  });
+  return { headers: headers, rows: out };
+}
+
 function _csvCell(v) {
   const str = (v === null || v === undefined) ? '' : String(v);
   return /[",\n\r]|^\s|\s$/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
@@ -12539,30 +12588,88 @@ function openGFormImport() {
   document.getElementById('gform-import-modal').classList.add('open');
 }
 
+// Take whatever link the person has. The panel asks for a published CSV URL,
+// but the ordinary share link is the one open in their address bar, and that
+// returns an HTML page rather than CSV.
+function _gfiCsvUrl(raw) {
+  const u = String(raw || '').trim();
+  if (!u || /output=csv|tqx=out:csv/.test(u)) return u;
+  const m = u.match(/\/spreadsheets\/d\/(?:e\/)?([A-Za-z0-9-_]+)/);
+  if (!m) return u;
+  const gid = (u.match(/[#&?]gid=(\d+)/) || [])[1];
+  if (u.indexOf('/d/e/') >= 0) {           // already a publish-to-web link
+    return u.split(/[?#]/)[0].replace(/\/(pubhtml|pub|edit)$/, '') +
+           '/pub?output=csv' + (gid ? '&single=true&gid=' + gid : '');
+  }
+  return 'https://docs.google.com/spreadsheets/d/' + m[1] +
+         '/gviz/tq?tqx=out:csv' + (gid ? '&gid=' + gid : '');
+}
+
+function _gfiError(msg) {
+  const errEl = document.getElementById('gfi-err');
+  if (!errEl) return;
+  errEl.innerHTML = msg;
+  errEl.style.display = '';
+}
+
+function _gfiAccept(text, rubricId, whatItWas) {
+  if (/^\s*</.test(text) || /<html|<!doctype/i.test(text.slice(0, 500))) {
+    _gfiError('That link returned a web page, not CSV. The sheet is probably not published: in Google Sheets use ' +
+              '<strong>File → Share → Publish to web</strong>, pick the responses tab, choose <strong>CSV</strong>, ' +
+              'and copy that link — or use <strong>Upload CSV file</strong>, which always works.');
+    return false;
+  }
+  const parsed = _csvParse(text);
+  if (!parsed.headers.length || !parsed.rows.length) {
+    _gfiError('No rows found in ' + whatItWas + '. Check it is the responses sheet and that it has data.');
+    return false;
+  }
+  _gfiHeaders = parsed.headers;
+  _gfiRows = parsed.rows;
+  _buildGfiMapper(rubricId);
+  return true;
+}
+
 async function gfiFetch() {
-  const url = (document.getElementById('gfi-url').value || '').trim();
+  const raw = (document.getElementById('gfi-url').value || '').trim();
   const rubricId = document.getElementById('gfi-rubric').value;
   const errEl = document.getElementById('gfi-err');
-  if (!url) { errEl.textContent = 'Please enter a URL.'; errEl.style.display = ''; return; }
-  if (!rubricId) { errEl.textContent = 'Please select a rubric.'; errEl.style.display = ''; return; }
+  if (!raw) { _gfiError('Please enter a URL.'); return; }
+  if (!rubricId) { _gfiError('Please select a rubric.'); return; }
   errEl.style.display = 'none';
+  const url = _gfiCsvUrl(raw);
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    const lines = text.replace(/^﻿/,'').split('\n').filter(l=>l.trim());
-    _gfiHeaders = lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
-    _gfiRows = lines.slice(1).map(line => {
-      const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,))/g) || line.split(',');
-      const row = {};
-      _gfiHeaders.forEach((h,i) => { row[h] = (cols[i]||'').replace(/^"|"$/g,'').trim(); });
-      return row;
-    }).filter(r => Object.values(r).some(v=>v));
-    _buildGfiMapper(rubricId);
-  } catch(e) {
-    errEl.textContent = 'Could not fetch the sheet. Make sure it is published as CSV and the URL is correct. Error: ' + e.message;
-    errEl.style.display = '';
+    if (!res.ok) {
+      _gfiError('The sheet returned HTTP ' + res.status + (res.status === 404 ? ' (not found)' : '') +
+                '. Check the link, or use <strong>Upload CSV file</strong> below.');
+      return;
+    }
+    _gfiAccept(await res.text(), rubricId, 'that sheet');
+  } catch (e) {
+    // fetch() rejects with a TypeError for a network or CORS failure, and the
+    // browser deliberately hides which. A sheet that is merely shared by link
+    // cannot be read from another site at all.
+    _gfiError(e instanceof TypeError
+      ? 'The browser could not read that URL. A sheet that is only <em>shared</em> by link cannot be fetched from ' +
+        'another site — it has to be <strong>published to the web as CSV</strong>. ' +
+        'If that is already done, use <strong>Upload CSV file</strong> below: download the responses from Google ' +
+        'Sheets (File → Download → Comma-separated values) and upload the file. That path needs no network access.'
+      : 'Could not read the sheet: ' + e.message);
   }
+}
+
+// Download → upload. Immune to publishing, sharing and CORS.
+function gfiUploadFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const rubricId = document.getElementById('gfi-rubric').value;
+  if (!rubricId) { _gfiError('Please select a rubric first.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => _gfiAccept(String(e.target.result || ''), rubricId, file.name);
+  reader.onerror = () => _gfiError('Could not read that file.');
+  reader.readAsText(file);
 }
 
 function _fuzzyMatch(a, b) {
@@ -12574,14 +12681,15 @@ function _fuzzyMatch(a, b) {
 function _buildGfiMapper(rubricId) {
   const rubric = rubrics.find(r=>r.id===rubricId);
   if (!rubric) return;
-  const headerOpts = '<option value="">— skip —</option>' + _gfiHeaders.map(h=>`<option value="${h}">${h}</option>`).join('');
+  const headerOpts = '<option value="">— skip —</option>' +
+    _gfiHeaders.map(h=>`<option value="${_escHtml(h)}">${_escHtml(h)}</option>`).join('');
 
   // Auto-match criterion columns
   const mapBody = document.getElementById('gfi-map-tbody');
   mapBody.innerHTML = rubric.criteria.map((c,ci) => {
     const match = _gfiHeaders.find(h => _fuzzyMatch(h, c.name)) || '';
     return `<tr>
-      <td style="font-weight:500">${c.name}</td>
+      <td style="font-weight:500">${_escHtml(c.name)}</td>
       <td><select id="gfi-cmap-${ci}" style="width:100%;padding:5px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">${headerOpts}</select></td>
     </tr>`;
   }).join('');
@@ -12605,9 +12713,9 @@ function _buildGfiMapper(rubricId) {
 
   // Preview
   const previewCols = [nameGuess||_gfiHeaders[0], ..._gfiHeaders.slice(0,5)].filter((v,i,a)=>a.indexOf(v)===i).slice(0,6);
-  document.getElementById('gfi-preview-head').innerHTML = '<tr>' + previewCols.map(h=>`<th>${h}</th>`).join('') + '</tr>';
+  document.getElementById('gfi-preview-head').innerHTML = '<tr>' + previewCols.map(h=>`<th>${_escHtml(h)}</th>`).join('') + '</tr>';
   document.getElementById('gfi-preview-body').innerHTML = _gfiRows.slice(0,5).map(row =>
-    '<tr>' + previewCols.map(h=>`<td>${row[h]||''}</td>`).join('') + '</tr>'
+    '<tr>' + previewCols.map(h=>`<td>${_escHtml(row[h]||'')}</td>`).join('') + '</tr>'
   ).join('');
   document.getElementById('gfi-row-count').textContent = '(' + _gfiRows.length + ' rows)';
   document.getElementById('gfi-import-count').textContent = _gfiRows.length;

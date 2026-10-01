@@ -315,6 +315,31 @@ the thing to be careful with:
 `rubricScores` from localStorage — so anything mutating it in memory must call
 `saveRubricScores()` before a repaint, or the change is discarded.
 
+### Google Form import
+
+Rubric responses come in through `openGFormImport()`. Two paths, both ending in
+`_gfiAccept()` → `_csvParse()` → `_buildGfiMapper()`:
+
+- **Upload a .csv file.** The reliable one, and what the panel recommends. No
+  network, so publishing, sharing and CORS are all irrelevant.
+- **Fetch a URL.** `_gfiCsvUrl()` turns an ordinary `/edit#gid=` share link into
+  a `gviz/tq?tqx=out:csv` export and a `pubhtml` link into `pub?output=csv`,
+  because the share link is the one people have open and it returns HTML. It
+  still only works for a sheet **published to the web** — a sheet that is merely
+  shared by link cannot be read cross-origin, and `fetch()` rejects with a bare
+  `TypeError` that hides whether it was CORS or the network. The error text says
+  so and points at the upload instead of repeating "check the URL".
+
+`_csvParse()` is a real parser: CRLF, BOM, quoted fields containing commas or
+newlines, doubled quotes, and duplicate headers made unique. The import used to
+`split('\n')` then `split(',')`, which mangled exactly what a form collects —
+any answer with a comma shifted every column after it, and any multi-line answer
+broke the row in half. Use it for any new CSV reading; `handleClUpload()` still
+hand-rolls its own and should move over.
+
+Column headers and cell values are form content going into `innerHTML`, so they
+go through `_escHtml()`.
+
 ### CSV helpers
 
 Every CSV export in the file goes through these — do not hand-roll another:
