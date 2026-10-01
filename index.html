@@ -2492,6 +2492,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-p" onclick="saveRubric()">Save rubric</button>
       <button class="btn btn-s" onclick="document.getElementById('rubric-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-s" id="rb-delete-btn" onclick="deleteRubric(rubricEditIdx)" style="display:none;color:var(--red)">Delete rubric</button>
     </div>
   </div>
 </div>
@@ -12397,6 +12398,8 @@ function syncAllRubricGrades() {
 
 function openCreateRubric() {
   rubricEditIdx = null;
+  const del = document.getElementById('rb-delete-btn');
+  if (del) del.style.display = 'none';
   rubricCriteria = [{ name: '', descriptors: ['','','',''] }];
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
   ['rb-name','rb-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -12442,13 +12445,40 @@ function saveRubric() {
   if (!name) { toast('Rubric name is required.'); return; }
   const criteria = rubricCriteria.filter(c=>c.name.trim()||c.descriptors.some(d=>d.trim()));
   if (!criteria.length) { toast('Add at least one criterion.'); return; }
-  const rubric = { id:'rb_'+Date.now(), name, subject: document.getElementById('rb-subject').value.trim(),
+  const existing = rubricEditIdx !== null ? rubrics[rubricEditIdx] : null;
+  // Keep the id when editing: rubricScores is keyed by it, so a new id on every
+  // save orphaned every student response the rubric had — the rubric came back
+  // empty and the scores sat in rubricScores unreachable.
+  const rubric = { id: existing ? existing.id : 'rb_'+Date.now(), name,
+    subject: document.getElementById('rb-subject').value.trim(),
     grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4, criteria };
-  if (rubricEditIdx!==null) rubrics[rubricEditIdx]=rubric;
+  if (existing) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
   saveAssessmentData();
   document.getElementById('rubric-modal').classList.remove('open');
   renderRubricsList();
+  renderRubricResponses();
+}
+
+// Delete a rubric and the student responses recorded against it. Leaving the
+// responses behind would strand them: every list and export iterates `rubrics`,
+// so nothing would ever show or remove them again.
+function deleteRubric(idx) {
+  const r = rubrics[idx];
+  if (!r) return;
+  const n = (rubricScores[r.id] || []).length;
+  if (!confirm('Delete the rubric "' + r.name + '"?' +
+      (n ? '\n\n' + n + ' student response' + (n===1?'':'s') + ' recorded against it will be deleted too.' : ''))) return;
+  rubrics.splice(idx, 1);
+  if (rubricScores[r.id]) { delete rubricScores[r.id]; saveRubricScores(); }
+  saveAssessmentData();
+  rubricEditIdx = null;
+  const modal = document.getElementById('rubric-modal');
+  if (modal) modal.classList.remove('open');
+  renderRubricsList();
+  renderRubricResponses();
+  if (typeof renderAssessmentPage === 'function') renderAssessmentPage();
+  toast('Rubric deleted.', 'success');
 }
 
 function renderRubricsList() {
@@ -12465,7 +12495,8 @@ function renderRubricsList() {
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
           <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
         <button onclick="openRubricScoreModal('${r.id}')" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer;margin-right:4px">✏ Score students</button>
-        <button onclick="rubricEditIdx=${ri};openEditRubric(${ri})" class="tbl-edit-btn">✏</button>
+        <button onclick="openEditRubric(${ri})" class="tbl-edit-btn" title="Edit this rubric">✏</button>
+        <button onclick="deleteRubric(${ri})" title="Delete this rubric" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer;margin-left:4px">✕</button>
       </div>
       <div style="overflow-x:auto">
         <table class="data-table" style="font-size:11px">
@@ -12815,6 +12846,9 @@ function clearRubricResponses(rubricId) {
 function openEditRubric(idx) {
   rubricEditIdx = idx;
   const r = rubrics[idx];
+  if (!r) return;
+  const del = document.getElementById('rb-delete-btn');
+  if (del) del.style.display = 'inline-flex';
   rubricCriteria = JSON.parse(JSON.stringify(r.criteria));
   document.getElementById('rubric-modal-title').textContent = 'Edit Rubric';
   document.getElementById('rb-name').value = r.name;

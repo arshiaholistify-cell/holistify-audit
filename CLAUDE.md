@@ -296,6 +296,25 @@ SheetJS is loaded from a CDN for reading uploads and is now used for writing
 too. `downloadAssessmentBreakdownXlsx()` checks `typeof XLSX` first and points
 at the CSV if the script did not load, rather than failing silently.
 
+### Rubrics
+
+`rubrics` holds the definitions; `rubricScores` holds the student responses,
+**keyed by rubric id** (`{ rubricId: [{name, grade, scores, …}] }`). That key is
+the thing to be careful with:
+
+- `saveRubric()` keeps the existing id when editing. It used to mint a fresh
+  `'rb_'+Date.now()` on every save, so editing a rubric orphaned every response
+  recorded against it — the rubric came back empty and the old scores stayed in
+  `rubricScores` forever, unreachable, because every list and export iterates
+  `rubrics`.
+- `deleteRubric()` removes the responses along with the rubric, for the same
+  reason, and says how many are going in the confirm. `clearRubricResponses()`
+  is the separate action that keeps the rubric and drops only its responses.
+
+`renderRubricResponses()` calls `loadRubricScores()`, which re-reads
+`rubricScores` from localStorage — so anything mutating it in memory must call
+`saveRubricScores()` before a repaint, or the change is discarded.
+
 ### CSV helpers
 
 Every CSV export in the file goes through these — do not hand-roll another:
