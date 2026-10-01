@@ -137,6 +137,22 @@ table, which is the hole this work exists to close.
 Run the lockdown only once every account appears in `profiles` and has signed
 in through Auth at least once.
 
+## Teachers imported with numbers for names
+
+An early staff import took a serial-number column as the name, so teachers were
+created called "2", "3", "4". `handleStaffUpload()` and `syncStaffToTeachers()`
+now guard with `_isInvalidName()`, but records created before that fix are still
+stored, and the real names are in `staffData`, which imported correctly.
+
+`repairTeacherNames()` (banner + button on Teacher Performance, shown only when
+`teacherNameIssues()` finds any) renames in place wherever `_uniqueStaffMatch()`
+finds exactly one teaching-staff member with that qualification, so the teacher
+keeps its id and any scores. It deliberately **never guesses**: where two staff
+share a qualification it removes the record only if it has no scores and lets
+the staff sync re-add it correctly. A record that cannot be matched but *does*
+have scores is left alone for a human to rename — putting the wrong name on
+someone's appraisal is worse than leaving a number.
+
 ## Assessment exports
 
 The Analytics tab offers two downloads, both built from `_assessAggregates()`

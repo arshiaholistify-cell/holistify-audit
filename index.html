@@ -1726,6 +1726,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div style="font-size:13px;font-weight:500;color:var(--ink)">Add teacher</div>
       <button class="btn btn-s" onclick="syncStaffToTeachers()" style="font-size:12px;padding:5px 12px" title="Import teaching staff from the uploaded Staff list">⬆ Import from Staff</button>
     </div>
+    <div id="tp-name-warning" style="display:none"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
       <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Name *</div><input id="tp-name" placeholder="e.g. Sunita Rao" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
       <div><div style="font-size:11px;color:var(--ink-f);margin-bottom:3px">Subject(s)</div><input id="tp-sub" placeholder="e.g. Mathematics" class="ev-area" style="min-height:0;resize:none;height:34px;padding:6px 10px"></div>
@@ -5534,6 +5535,106 @@ function removeTeacher(id) {
 }
 
 // Populate Teacher Performance list from staff data (teaching category)
+// ── Repairing teachers imported with a number for a name ─────────────────────
+// An early version of the staff import took a serial-number column as the
+// name, so teachers were created called "2", "3", "4". The import now guards
+// against that, but records created before the fix are still stored.
+//
+// The real names are in staffData, which imported correctly. Rename in place
+// wherever a teaching-staff member matches unambiguously, so the teacher keeps
+// its id and any scores recorded against it. Never guess: where two staff share
+// the same designation and qualification there is no way to tell them apart,
+// and putting the wrong name on someone's appraisal is worse than leaving it.
+
+function _teachingStaff() {
+  loadStaffData();
+  return staffData.filter(function(s) {
+    return s.category === 'teaching' || (s.designation || '').toLowerCase().includes('teacher');
+  });
+}
+
+function _teacherHasScores(id) {
+  const tp = teacherScores[id] || {}, lp = lpScores[id] || {};
+  return Object.keys(tp).length > 0 || Object.keys(lp).length > 0;
+}
+
+// Exactly one teaching-staff member with this qualification (and designation,
+// when the teacher's recorded one matches), whose name is not already taken.
+function _uniqueStaffMatch(teacher, taken) {
+  const norm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const tQual = norm(teacher.qual);
+  if (!tQual || tQual === '—') return null;
+  let candidates = _teachingStaff().filter(function(st) {
+    return norm(st.qualification) === tQual && !taken[norm(st.name)] && !_isInvalidName(st.name);
+  });
+  if (candidates.length > 1) {
+    const byDesignation = candidates.filter(function(st) {
+      return norm(st.designation) === norm(teacher.subject);
+    });
+    if (byDesignation.length === 1) candidates = byDesignation;
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function teacherNameIssues() {
+  return teachers.filter(function(t) { return _isInvalidName(t.name); });
+}
+
+function repairTeacherNames() {
+  const broken = teacherNameIssues();
+  if (!broken.length) { toast('All teachers already have proper names.', 'success'); return; }
+  if (!_teachingStaff().length) {
+    toast('Upload the Staff list first — the real names come from there.', 'error');
+    return;
+  }
+
+  const taken = {};
+  teachers.forEach(function(t) {
+    if (!_isInvalidName(t.name)) taken[String(t.name).trim().toLowerCase()] = true;
+  });
+
+  const renamed = [], removable = [], keptWithScores = [];
+  broken.forEach(function(t) {
+    const match = _uniqueStaffMatch(t, taken);
+    if (match) {
+      taken[String(match.name).trim().toLowerCase()] = true;
+      renamed.push({ teacher: t, name: match.name });
+    } else if (_teacherHasScores(t.id)) {
+      keptWithScores.push(t);               // has appraisal data — never discard
+    } else {
+      removable.push(t);
+    }
+  });
+
+  let msg = broken.length + ' teacher(s) have a number instead of a name.\n\n';
+  if (renamed.length)  msg += '• ' + renamed.length + ' can be matched to the Staff list and renamed\n';
+  if (removable.length) msg += '• ' + removable.length + ' cannot be matched and have no scores — these will be removed and re-imported from Staff\n';
+  if (keptWithScores.length) msg += '• ' + keptWithScores.length + ' cannot be matched but have scores — these will be left alone for you to rename by hand\n';
+  msg += '\nProceed?';
+  if (!confirm(msg)) return;
+
+  renamed.forEach(function(r) { r.teacher.name = r.name; });
+
+  if (removable.length) {
+    const drop = {};
+    removable.forEach(function(t) { drop[t.id] = true; delete teacherScores[t.id]; delete lpScores[t.id]; });
+    teachers = teachers.filter(function(t) { return !drop[t.id]; });
+    if (activeTeacher && drop[activeTeacher]) activeTeacher = teachers.length ? teachers[0].id : null;
+    if (activeLpTeacher && drop[activeLpTeacher]) activeLpTeacher = teachers.length ? teachers[0].id : null;
+  }
+
+  queueSave();
+  // Pull in any teaching staff now missing from the list; it skips names
+  // already present, so the renamed ones are not duplicated.
+  syncStaffToTeachers();
+  renderTeachers();
+
+  let done = renamed.length + ' renamed';
+  if (removable.length) done += ', ' + removable.length + ' replaced from Staff';
+  if (keptWithScores.length) done += ', ' + keptWithScores.length + ' left for manual rename';
+  toast(done + '.', 'success');
+}
+
 function syncStaffToTeachers() {
   loadStaffData();
   const teachingStaff = staffData.filter(function(s) {
@@ -5655,6 +5756,23 @@ function renderTpSummary() {
   const bars=document.getElementById('tp-bars');
   if(bars) bars.innerHTML=TP_DOMAINS.map(d=>{const a=tpSchoolAvgDomain(d.id);const p=a?Math.round(a/4*100):0;return`<div class="bar-row"><div class="bar-lbl" style="color:${d.color}">${d.label}</div><div class="bar-bg"><div class="bar-f" style="width:${p}%;background:${d.color}"></div></div><div class="bar-val">${a?a.toFixed(1):'—'}</div><span style="font-size:11px;color:${tpColor(a)};margin-left:6px;white-space:nowrap">${tpLabel(a)}</span></div>`;}).join('');
 }
+function renderTeacherNameWarning() {
+  const el = document.getElementById('tp-name-warning');
+  if (!el) return;
+  const broken = teacherNameIssues();
+  if (!broken.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML =
+    '<div style="margin-top:10px;padding:10px 12px;border-radius:var(--r-md);background:var(--gold-p);' +
+    'display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+    '<div style="font-size:12px;color:var(--gold);flex:1;min-width:220px">' +
+    '<strong>' + broken.length + ' teacher(s) show a number instead of a name.</strong> ' +
+    'An early version of the staff import used the wrong column. The real names are in your Staff list.' +
+    '</div>' +
+    '<button class="btn btn-p" style="font-size:12px;padding:5px 12px" onclick="repairTeacherNames()">Fix names from Staff</button>' +
+    '</div>';
+}
+
 function renderTeachers() {
   // Auto-populate from staff when teachers list is empty
   if (!teachers.length) {
@@ -5665,6 +5783,7 @@ function renderTeachers() {
     if (teachingStaff.length) { syncStaffToTeachers(); return; } // syncStaffToTeachers calls renderTeachers again
   }
   renderTpSummary();
+  renderTeacherNameWarning();
   // Tabs
   const tabs=document.getElementById('tp-tabs');
   if(tabs){
