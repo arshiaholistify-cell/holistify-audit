@@ -153,6 +153,32 @@ the staff sync re-add it correctly. A record that cannot be matched but *does*
 have scores is left alone for a human to rename — putting the wrong name on
 someone's appraisal is worse than leaving a number.
 
+## Session backup (the sidebar Save / Load)
+
+Separate from the automatic Supabase sync; this is for taking a copy off the
+machine or moving a school's work between accounts.
+
+The file is `{_format, _version, exportedAt, audit, modules}`. The `audit` half
+comes from `_buildAuditSnapshot()` — the same object the Supabase sync sends,
+so the file cannot drift from what the app stores. `modules` lists the state
+that persists under its own localStorage key and therefore has to be enumerated:
+org, docs, timetable, school structure, PD, records, attendance, lesson and
+curriculum plans.
+
+`_applySessionBackup()` restores, then asks each module to write itself and
+calls `saveAuditState()`, so a restore survives a reload. **`saveSchoolStructure()`
+is deliberately excluded from that loop**: it reads the period inputs from the
+DOM rather than the variable, so calling it there replaced the restored values
+with whatever defaults were on screen. That key is written directly instead.
+
+Version 1 files were a flat audit object with no `modules`; `_applySessionBackup()`
+still reads them. Load confirms before overwriting and rejects a file that is
+not a backup.
+
+There used to be two definitions of `saveSession`/`loadSession` — the originals
+and an override added for the SIP fields — so the first pair was dead code and
+reading it gave the wrong picture of what the buttons did. There is now one.
+
 ## Assessment exports
 
 The Analytics tab offers two downloads, both built from `_assessAggregates()`

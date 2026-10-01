@@ -6269,39 +6269,139 @@ function _buildSaInlineEvidence(standardText, subText) {
 // ═══════════════════════════════════════════
 // SESSION
 // ═══════════════════════════════════════════
-function saveSession(){
-  const data={scores,notes,planDone,clChecked,clLinks,customChecklists,sipProgress,teachers,teacherScores,lpScores,
-    school:(document.getElementById('inp-school')||{}).value,
-    date:(document.getElementById('inp-date')||{}).value,
-    board:(document.getElementById('inp-board')||{}).value,
-    auditor:(document.getElementById('inp-auditor')||{}).value
+// ── Session backup file ──────────────────────────────────────────────────────
+// Save writes a JSON backup of this school's work; Load reads one back. The
+// day-to-day sync to Supabase is separate and automatic — this is for taking a
+// copy off the machine, or moving a school's work between accounts.
+//
+// The audit half comes from _buildAuditSnapshot(), the same object the Supabase
+// sync sends, so the file cannot quietly fall behind what the app stores. The
+// modules below each persist under their own localStorage key and so have to be
+// listed; previously none of them were in the file at all, which made "Save"
+// look like a backup while leaving out staff, students, assessments,
+// attendance, timetable, PD, school records and more.
+const SESSION_FILE_VERSION = 2;
+
+function _buildSessionBackup() {
+  return {
+    _format: 'holistify-session',
+    _version: SESSION_FILE_VERSION,
+    exportedAt: new Date().toISOString(),
+    audit: _buildAuditSnapshot(),
+    modules: {
+      orgData: orgData, docsData: docsData,
+      workloadData: workloadData, periodBifurcation: periodBifurcation,
+      meetingsData: meetingsData, schoolStructure: schoolStructure,
+      pdData: pdData, pdAttendance: pdAttendance,
+      recordsOverrides: recordsOverrides, attendanceRecords: attendanceRecords,
+      lessonPlans: lessonPlans, curriculumPlans: curriculumPlans
+    }
   };
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
-  const school=data.school||'school';
-  a.download=`holistify-${school.replace(/\s+/g,'-')}-${Date.now()}.json`;
-  a.click();
 }
+
+function _applySessionBackup(d) {
+  // Version 1 files were a flat audit object with no modules; still readable.
+  _applyAuditSnapshot(d.audit || d);
+
+  const m = d.modules || {};
+  if (m.orgData) orgData = m.orgData;
+  if (m.docsData) docsData = m.docsData;
+  if (m.workloadData) workloadData = m.workloadData;
+  if (m.periodBifurcation) periodBifurcation = m.periodBifurcation;
+  if (m.meetingsData) meetingsData = m.meetingsData;
+  if (m.schoolStructure) schoolStructure = m.schoolStructure;
+  if (m.pdData) pdData = m.pdData;
+  if (m.pdAttendance) pdAttendance = m.pdAttendance;
+  if (m.recordsOverrides) recordsOverrides = m.recordsOverrides;
+  if (m.attendanceRecords) attendanceRecords = m.attendanceRecords;
+  if (m.lessonPlans) lessonPlans = m.lessonPlans;
+  if (m.curriculumPlans) curriculumPlans = m.curriculumPlans;
+
+  const header = d.audit || d;
+  [['inp-school', header.school], ['inp-date', header.date],
+   ['inp-board', header.board], ['inp-auditor', header.auditor]].forEach(function(pair) {
+    if (!pair[1]) return;
+    const el = document.getElementById(pair[0]);
+    if (el) el.value = pair[1];
+  });
+  if (header.school && typeof onSchoolInput === 'function') onSchoolInput();
+
+  // Each module owns its own storage key, so ask each to write itself, then
+  // push the audit half to Supabase. Without this the restore lived only in
+  // memory and was lost on the next reload.
+  //
+  // saveSchoolStructure() is deliberately not in this list: it reads the period
+  // inputs from the DOM rather than the variable, so calling it here replaced
+  // the restored values with the defaults of whatever was on screen. Write that
+  // key directly instead.
+  ['saveOrgData','saveDocsData','saveTimetableData','savePdData',
+   'saveRecordsData','saveAttendanceData','saveCurrData','saveStaffData','saveStudentsData',
+   'saveAssessmentData','saveRubricScores'].forEach(function(fn) {
+    if (typeof window[fn] === 'function') { try { window[fn](); } catch (e) {} }
+  });
+
+  if (m.schoolStructure) {
+    try {
+      const sk = 'hol_ss_' + schoolKey((document.getElementById('inp-school') || {}).value || 'default');
+      localStorage.setItem(sk, JSON.stringify(schoolStructure));
+    } catch (e) {}
+    // Keep the visible inputs in step so the next save does not undo this.
+    [['ss-period-duration', schoolStructure.periodDuration],
+     ['ss-periods-day', schoolStructure.periodsPerDay],
+     ['ss-school-days', schoolStructure.schoolDays]].forEach(function(pair) {
+      const el = document.getElementById(pair[0]);
+      if (el && pair[1] != null) el.value = pair[1];
+    });
+  }
+
+  saveAuditState();
+}
+
+function saveSession(){
+  const backup = _buildSessionBackup();
+  const school = backup.audit.school || 'school';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+  a.download = 'holistify-' + school.replace(/\s+/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast('Backup saved for ' + school + '.', 'success');
+}
+
 function loadSession(){
-  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
-  inp.onchange=e=>{
-    const file=e.target.files[0];if(!file)return;
-    const r=new FileReader();
-    r.onload=evt=>{
-      try{
-        const d=JSON.parse(evt.target.result);
-        scores=d.scores||{};notes=d.notes||{};planDone=d.planDone||{};
-        clChecked=d.clChecked||{};clLinks=d.clLinks||{};
-        teachers=d.teachers||[];teacherScores=d.teacherScores||{};lpScores=d.lpScores||{};
-        if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
-        if(d.school){const el=document.getElementById('inp-school');if(el){el.value=d.school;onSchoolInput();}}
-        if(d.date){const el=document.getElementById('inp-date');if(el)el.value=d.date;}
-        if(d.board){const el=document.getElementById('inp-board');if(el)el.value=d.board;}
-        if(d.auditor){const el=document.getElementById('inp-auditor');if(el)el.value=d.auditor;}
-        updateTopbar();renderOverview();
-        toast('Session loaded successfully!');
-      }catch(err){toast('Error loading session: '+err.message);}
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json';
+  inp.onchange = function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = function(evt) {
+      let d;
+      try { d = JSON.parse(evt.target.result); }
+      catch (err) { toast('That file is not valid JSON.', 'error'); return; }
+      if (!d || typeof d !== 'object' || (!d.audit && !d.scores)) {
+        toast('That does not look like a Holistify backup file.', 'error'); return;
+      }
+
+      // Restoring replaces everything on screen, so say so before doing it.
+      const from = (d.audit || d).school || 'another school';
+      const when = d.exportedAt ? new Date(d.exportedAt).toLocaleString() : 'an unknown date';
+      const current = (document.getElementById('inp-school') || {}).value || 'the current school';
+      if (!confirm('Restore the backup of "' + from + '" saved ' + when + '?\n\n' +
+                   'This replaces everything currently loaded for ' + current +
+                   ' — scores, notes, staff, students, assessments, attendance, timetable and records.\n\n' +
+                   'This cannot be undone.')) return;
+
+      try { _applySessionBackup(d); }
+      catch (err) { toast('Could not restore that backup: ' + err.message, 'error'); return; }
+
+      updateTopbar();
+      renderOverview();
+      if (typeof updateSidebarBadges === 'function') updateSidebarBadges();
+      toast('Backup restored and saved.', 'success');
     };
+    r.onerror = function() { toast('Could not read that file.', 'error'); };
     r.readAsText(file);
   };
   inp.click();
@@ -7203,60 +7303,12 @@ function saveSipEdit() {
   }
 }
 
-// ── Update saveSession/loadSession for SIP edits ──────────────────────────────
-const _origSaveSession = saveSession;
-saveSession = function() {
-  const data = JSON.parse(JSON.stringify({
-    scores, notes, planDone, clChecked, clLinks, customChecklists,
-    sipProgress, sipOverrides, sipCustomActions, journeyRecords,
-    teachers, teacherScores, lpScores,
-    school: (document.getElementById('inp-school') || {}).value,
-    date: (document.getElementById('inp-date') || {}).value,
-    board: (document.getElementById('inp-board') || {}).value,
-    auditor: (document.getElementById('inp-auditor') || {}).value,
-  }));
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  const school = data.school || 'school';
-  a.download = `holistify-${school.replace(/\s+/g, '-')}-${Date.now()}.json`;
-  a.click();
-};
-
-const _origLoadSession = loadSession;
-loadSession = function() {
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.json';
-  inp.onchange = e => {
-    const file = e.target.files[0]; if (!file) return;
-    const r = new FileReader();
-    r.onload = evt => {
-      try {
-        const d = JSON.parse(evt.target.result);
-        scores = d.scores || {}; notes = d.notes || {};
-        planDone = d.planDone || {}; clChecked = d.clChecked || {};
-        clLinks = d.clLinks || {}; customChecklists = d.customChecklists || {};
-        sipProgress = d.sipProgress || {};
-        sipOverrides = d.sipOverrides || {};
-        sipCustomActions = d.sipCustomActions || [];
-        journeyRecords = d.journeyRecords || d.journeyEntries || [];
-        teachers = d.teachers || []; teacherScores = d.teacherScores || {};
-        lpScores = d.lpScores || {};
-        if (teachers.length) { activeTeacher = teachers[0].id; activeLpTeacher = teachers[0].id; }
-        if (d.school) { const el = document.getElementById('inp-school'); if (el) { el.value = d.school; onSchoolInput(); } }
-        if (d.date) { const el = document.getElementById('inp-date'); if (el) el.value = d.date; }
-        if (d.board) { const el = document.getElementById('inp-board'); if (el) el.value = d.board; }
-        if (d.auditor) { const el = document.getElementById('inp-auditor'); if (el) el.value = d.auditor; }
-        updateTopbar(); renderOverview();
-        toast('Session loaded!');
-      } catch (err) { toast('Error: ' + err.message); }
-    };
-    r.readAsText(file);
-  };
-  inp.click();
-};
-
-
-
+// saveSession/loadSession used to be re-defined here to pick up the SIP edit
+// fields. They are not any more: the single implementation above builds its
+// payload from _buildAuditSnapshot(), which already carries sipOverrides,
+// sipCustomActions and journeyRecords along with everything else the app
+// persists. Two definitions meant the first was dead code, and reading it gave
+// the wrong picture of what Save and Load actually did.
 
 // ═══════════════════════════════════════════
 // REPORT PAGE — TABS (Score + Stakeholders)
@@ -16071,19 +16123,42 @@ function _auditStateKey(){
   var sn=(document.getElementById('inp-school')||{}).value||'';
   return 'hol_audit_state_'+schoolKey(sn||'default');
 }
+// The audit half of this school's state, in one place, so the Supabase sync
+// and the Save/Load backup file always carry exactly the same thing.
+function _buildAuditSnapshot(){
+  return {scores:scores,notes:notes,planDone:planDone,clChecked:clChecked,clLinks:clLinks,
+    customChecklists:customChecklists,sipProgress:sipProgress,sipOverrides:sipOverrides,
+    sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
+    lpScores:lpScores,journeyRecords:journeyRecords,
+    staffData:staffData,studentsData:studentsData,rubricScores:rubricScores,
+    assessData:assessments,assessScores:scoreEntries,assessRubrics:rubrics,
+    school:(document.getElementById('inp-school')||{}).value||'',
+    date:(document.getElementById('inp-date')||{}).value||'',
+    board:(document.getElementById('inp-board')||{}).value||'',
+    auditor:(document.getElementById('inp-auditor')||{}).value||''};
+}
+
+function _applyAuditSnapshot(d){
+  scores=d.scores||{};notes=d.notes||{};planDone=d.planDone||{};
+  clChecked=d.clChecked||{};clLinks=d.clLinks||{};customChecklists=d.customChecklists||{};
+  sipProgress=d.sipProgress||{};
+  if(d.sipOverrides)sipOverrides=d.sipOverrides;
+  if(d.sipCustomActions)sipCustomActions=d.sipCustomActions;
+  teachers=d.teachers||[];teacherScores=d.teacherScores||{};lpScores=d.lpScores||{};
+  if(d.journeyRecords)journeyRecords=d.journeyRecords;
+  if(d.staffData&&d.staffData.length){staffData=d.staffData;}
+  if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
+  if(d.rubricScores){rubricScores=d.rubricScores;}
+  if(d.assessData){assessments=d.assessData; _assessCloudLoaded=true;}
+  if(d.assessScores){scoreEntries=d.assessScores;}
+  if(d.assessRubrics){rubrics=d.assessRubrics;}
+  if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
+}
+
 function saveAuditState(){
   try{
     var key=_auditStateKey();
-    var data={scores:scores,notes:notes,planDone:planDone,clChecked:clChecked,clLinks:clLinks,
-      customChecklists:customChecklists,sipProgress:sipProgress,sipOverrides:sipOverrides,
-      sipCustomActions:sipCustomActions,teachers:teachers,teacherScores:teacherScores,
-      lpScores:lpScores,journeyRecords:journeyRecords,
-      staffData:staffData,studentsData:studentsData,rubricScores:rubricScores,
-      assessData:assessments,assessScores:scoreEntries,assessRubrics:rubrics,
-      school:(document.getElementById('inp-school')||{}).value||'',
-      date:(document.getElementById('inp-date')||{}).value||'',
-      board:(document.getElementById('inp-board')||{}).value||'',
-      auditor:(document.getElementById('inp-auditor')||{}).value||''};
+    var data=_buildAuditSnapshot();
     localStorage.setItem(key,JSON.stringify(data));
     localStorage.setItem('hol_last_school_key',key);
     var _sbn=(document.getElementById('inp-school')||{}).value||''; syncAuditStateToCloud(_sbn, data);
@@ -16094,21 +16169,7 @@ async function loadAuditStateForSchool(schoolName){ var _fc = await loadAuditSta
     var key='hol_audit_state_'+schoolKey(schoolName||'default');
     var raw=localStorage.getItem(key);
     if(!raw)return false;
-    var d=JSON.parse(raw);
-    scores=d.scores||{};notes=d.notes||{};planDone=d.planDone||{};
-    clChecked=d.clChecked||{};clLinks=d.clLinks||{};customChecklists=d.customChecklists||{};
-    sipProgress=d.sipProgress||{};
-    if(d.sipOverrides)sipOverrides=d.sipOverrides;
-    if(d.sipCustomActions)sipCustomActions=d.sipCustomActions;
-    teachers=d.teachers||[];teacherScores=d.teacherScores||{};lpScores=d.lpScores||{};
-    if(d.journeyRecords)journeyRecords=d.journeyRecords;
-    if(d.staffData&&d.staffData.length){staffData=d.staffData;}
-    if(d.studentsData&&d.studentsData.length){studentsData=d.studentsData;}
-    if(d.rubricScores){rubricScores=d.rubricScores;}
-    if(d.assessData){assessments=d.assessData; _assessCloudLoaded=true;}
-    if(d.assessScores){scoreEntries=d.assessScores;}
-    if(d.assessRubrics){rubrics=d.assessRubrics;}
-    if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
+    _applyAuditSnapshot(JSON.parse(raw));
     return true;
   }catch(e){return false;}
 }
