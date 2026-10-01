@@ -154,9 +154,22 @@ SheetJS is loaded from a CDN for reading uploads and is now used for writing
 too. `downloadAssessmentBreakdownXlsx()` checks `typeof XLSX` first and points
 at the CSV if the script did not load, rather than failing silently.
 
-Use `_csvRows()` for any new CSV: it quotes every cell and doubles embedded
-quotes. The older exports in this file build CSV by hand and would mangle a
-value containing a comma or a quote.
+### CSV helpers
+
+Every CSV export in the file goes through these — do not hand-roll another:
+
+- `_csvCell(v)` quotes only when the value needs it (comma, quote, newline,
+  edge whitespace) and doubles embedded quotes, so numeric columns stay
+  numeric in Excel.
+- `_csvFrom(headers, rows)` takes arrays; `_csvRows(rows)` takes objects and
+  derives the columns from the first.
+- `_downloadCsv(filename, csv)` builds the link, clicks it and releases the
+  object URL.
+
+The thirteen exports previously built CSV by concatenation and split into two
+failure modes: some broke the row outright on an embedded quote, and others
+replaced `"` with `'`, silently altering what had been typed. Both are fixed;
+a name like `Smith, John "JJ"` now round-trips exactly.
 
 ## Database
 

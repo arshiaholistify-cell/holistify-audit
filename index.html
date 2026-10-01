@@ -5757,9 +5757,14 @@ function renderTpConsolidated(){
 }
 function exportTP(){
   if(!teachers.length){toast('No teachers to export.');return;}
-  let csv='Teacher,Subject,Qual,Exp,'+TP_DOMAINS.map(d=>d.label).join(',')+',Overall,Rating\n';
-  teachers.forEach(t=>{const a=tpTeacherAvg(t.id);csv+=`"${t.name}","${t.subject}","${t.qual}","${t.exp}",`+TP_DOMAINS.map(d=>{const da=tpDomAvg(t.id,d.id);return da?da.toFixed(2):'0';}).join(',')+','+(a?a.toFixed(2):'0')+','+tpLabel(a)+'\n';});
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='teacher-performance.csv';a.click();
+  const headers = ['Teacher','Subject','Qual','Exp'].concat(TP_DOMAINS.map(d=>d.label), ['Overall','Rating']);
+  const rows = teachers.map(t => {
+    const avg = tpTeacherAvg(t.id);
+    return [t.name, t.subject, t.qual, t.exp]
+      .concat(TP_DOMAINS.map(d => { const da = tpDomAvg(t.id, d.id); return da ? da.toFixed(2) : '0'; }),
+              [avg ? avg.toFixed(2) : '0', tpLabel(avg)]);
+  });
+  _downloadCsv('teacher-performance.csv', _csvFrom(headers, rows));
 }
 
 // TP merge panel for CPA page
@@ -5940,9 +5945,14 @@ function renderLpConsolidated(){
 }
 function exportLP(){
   if(!teachers.length){toast('No teachers to export.');return;}
-  let csv='Teacher,Subject,'+LP_DOMAINS.map(d=>d.label).join(',')+',Overall,Rating\n';
-  teachers.forEach(t=>{const a=lpTeacherAvg(t.id);csv+=`"${t.name}","${t.subject}",`+LP_DOMAINS.map(d=>{const da=lpDomAvg(t.id,d.id);return da?da.toFixed(2):'0';}).join(',')+','+(a?a.toFixed(2):'0')+','+tpLabel(a)+'\n';});
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='lesson-plan-report.csv';a.click();
+  const headers = ['Teacher','Subject'].concat(LP_DOMAINS.map(d=>d.label), ['Overall','Rating']);
+  const rows = teachers.map(t => {
+    const avg = lpTeacherAvg(t.id);
+    return [t.name, t.subject]
+      .concat(LP_DOMAINS.map(d => { const da = lpDomAvg(t.id, d.id); return da ? da.toFixed(2) : '0'; }),
+              [avg ? avg.toFixed(2) : '0', tpLabel(avg)]);
+  });
+  _downloadCsv('lesson-plan-report.csv', _csvFrom(headers, rows));
 }
 
 // LP merge panel for CPA
@@ -6642,20 +6652,20 @@ function toggleSipAction(key) {
 function exportSIP() {
   if (!sipData) { toast('Generate the SIP first.'); return; }
   const school = (document.getElementById('inp-school') || {}).value || 'School';
-  let csv = 'School,Phase,Period,Year,Domain,Sub-domain,Priority,Current Score,Target Score,Action,Stakeholders,KPI\n';
+  const headers = ['School','Phase','Period','Year','Domain','Sub-domain','Priority','Current Score','Target Score','Action','Stakeholders','KPI'];
+  const rows = [];
   sipData.phases.forEach(ph => {
     Object.values(ph.domainGroups || {}).forEach(dg => {
       dg.items.forEach(item => {
         item.phaseActions.forEach(act => {
-          csv += `"${school}","${ph.label}","${ph.period}","${ph.yearLabel}","${item.domainLabel}","${item.sub}","${priorityLabel(item.priority)}",${item.currentScore},${item.targetScore},"${act}","${item.stakeholders}","${item.phaseKPI}"\n`;
+          rows.push([school, ph.label, ph.period, ph.yearLabel, item.domainLabel, item.sub,
+                     priorityLabel(item.priority), item.currentScore, item.targetScore,
+                     act, item.stakeholders, item.phaseKPI]);
         });
       });
     });
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = school.replace(/\s+/g, '-') + '-3Year-SIP.csv';
-  a.click();
+  _downloadCsv(school.replace(/\s+/g, '-') + '-3Year-SIP.csv', _csvFrom(headers, rows));
 }
 
 function printSIP() {
@@ -7688,10 +7698,10 @@ function deleteJourneyRecord() {
 // ── Export ────────────────────────────────────────────────────────────────────
 function exportJourney() {
   const school = (document.getElementById('inp-school') || {}).value || 'School';
-  let csv = 'Reference Code,Type,Date,School,Mode,Duration,Participants,Agenda Topics,SIP Targets,Summary,Observations,Follow-up Actions,Next Date,Status\n';
-  journeyRecords.forEach(r => {
+  const headers = ['Reference Code','Type','Date','School','Mode','Duration','Participants','Agenda Topics','SIP Targets','Summary','Observations','Follow-up Actions','Next Date','Status'];
+  const rows = journeyRecords.map(r => {
     const rt = RECORD_TYPES[r.type] || RECORD_TYPES.mom;
-    csv += [
+    return [
       r.refCode,
       rt.label,
       r.date,
@@ -7705,13 +7715,10 @@ function exportJourney() {
       r.observations,
       (r.followups || []).map(f => f.action + (f.owner ? ' [' + f.owner + ']' : '') + (f.dueDate ? ' by ' + f.dueDate : '')).join('; '),
       r.nextDate,
-      (RECORD_STATUSES[r.status] || {}).label || r.status,
-    ].map(v => '"' + (v || '').replace(/"/g, "'") + '"').join(',') + '\n';
+      (RECORD_STATUSES[r.status] || {}).label || r.status
+    ];
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = school.replace(/\s+/g, '-') + '-Transformation-Journey.csv';
-  a.click();
+  _downloadCsv(school.replace(/\s+/g, '-') + '-Transformation-Journey.csv', _csvFrom(headers, rows));
 }
 
 function printJourney() { window.print(); }
@@ -10819,14 +10826,10 @@ function handleStaffUpload(input) {
 }
 
 function exportStaffCSV() {
-  let csv = 'Name,Category,Designation,Subject/Dept,Qualification,Experience,Phone,Email,Date of Joining,Type\n';
-  staffData.forEach(s => {
-    csv += [s.name,s.category,s.designation,s.subject,s.qualification,s.experience,s.phone,s.email,s.doj,s.emptype]
-      .map(v=>`"${(v||'').replace(/"/g,"'")}"`).join(',') + '\n';
-  });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = 'staff_details.csv'; a.click();
+  const headers = ['Name','Category','Designation','Subject/Dept','Qualification','Experience','Phone','Email','Date of Joining','Type'];
+  const rows = staffData.map(s =>
+    [s.name,s.category,s.designation,s.subject,s.qualification,s.experience,s.phone,s.email,s.doj,s.emptype]);
+  _downloadCsv('staff_details.csv', _csvFrom(headers, rows));
 }
 
 // ═══════════════════════════════════════════════════════
@@ -11071,14 +11074,9 @@ function handleStudentUpload(input) {
 }
 
 function exportStudentsCSV() {
-  let csv = 'Roll No,Name,Grade,Section,Gender,DOB,Parent/Guardian,Phone\n';
-  studentsData.forEach(s => {
-    csv += [s.roll,s.name,s.grade,s.section,s.gender,s.dob,s.parent,s.phone]
-      .map(v=>`"${(v||'').replace(/"/g,"'")}"`).join(',') + '\n';
-  });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = 'students_data.csv'; a.click();
+  const headers = ['Roll No','Name','Grade','Section','Gender','DOB','Parent/Guardian','Phone'];
+  const rows = studentsData.map(s => [s.roll,s.name,s.grade,s.section,s.gender,s.dob,s.parent,s.phone]);
+  _downloadCsv('students_data.csv', _csvFrom(headers, rows));
 }
 
 // ═══════════════════════════════════════════════════════
@@ -11760,26 +11758,46 @@ function downloadAssessmentBreakdownXlsx() {
   toast('Assessment breakdown downloaded.', 'success');
 }
 
-// Quote every cell and double any embedded quote: student name lists are
-// semicolon-joined but free text can still contain commas and quotes.
+// ── CSV helpers ──────────────────────────────────────────────────────────────
+// Quote only where the value needs it — a comma, quote, newline or edge
+// whitespace — so numeric columns stay numeric when the file opens in Excel.
+// An embedded quote is doubled, per RFC 4180. The hand-built exports this
+// replaced either broke the row on a quote or swapped it for an apostrophe,
+// which silently altered what people had typed.
+function _csvCell(v) {
+  const str = (v === null || v === undefined) ? '' : String(v);
+  return /[",\n\r]|^\s|\s$/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+}
+
+// headers: array of column names. rows: array of arrays, in the same order.
+function _csvFrom(headers, rows) {
+  return headers.map(_csvCell).join(',') + '\n' +
+         rows.map(r => r.map(_csvCell).join(',')).join('\n') + '\n';
+}
+
+// Same, from an array of objects, taking the columns from the first row.
 function _csvRows(rows) {
   if (!rows.length) return '';
   const cols = Object.keys(rows[0]);
-  const cell = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
-  return cols.map(cell).join(',') + '\n' +
-         rows.map(r => cols.map(c => cell(r[c])).join(',')).join('\n') + '\n';
+  return _csvFrom(cols, rows.map(r => cols.map(c => r[c])));
+}
+
+// One place that builds the link, clicks it and releases the object URL; the
+// older exports leaked theirs.
+function _downloadCsv(filename, csv) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 
 function downloadAssessmentBreakdownCsv() {
   const rows = _assessBreakdownRows();
   if (!rows.length) { toast('No assessment scores to export yet.', 'warn'); return; }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([_csvRows(rows)], { type: 'text/csv' }));
-  a.download = _assessFilePrefix() + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
+  _downloadCsv(_assessFilePrefix() + '.csv', _csvRows(rows));
   toast('Assessment breakdown downloaded.', 'success');
 }
 
@@ -13192,19 +13210,18 @@ function deletePeriodBifurcation() {
 }
 
 function exportPeriodBifurcation() {
-  let csv = 'Grade,Subject,Periods/Week,% of Total,Duration (min),Hours/Week\n';
+  const headers = ['Grade','Subject','Periods/Week','% of Total','Duration (min)','Hours/Week'];
+  const rows = [];
   periodBifurcation.forEach(p => {
     const total = parseInt(p.total)||0;
     (p.subjects||[]).forEach(s => {
       const pds = parseInt(s.periods)||0;
       const pct = total ? Math.round(pds/total*100) : 0;
       const hrs = (pds*(parseInt(p.duration)||45)/60).toFixed(1);
-      csv += `"${p.grade}","${s.name}",${pds},${pct}%,${p.duration||45},${hrs}\n`;
+      rows.push([p.grade, s.name, pds, pct + '%', p.duration||45, hrs]);
     });
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = 'period_bifurcation.csv'; a.click();
+  _downloadCsv('period_bifurcation.csv', _csvFrom(headers, rows));
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -13322,13 +13339,14 @@ function deleteMeeting() {
 }
 
 function exportTimetableData() {
-  let csv = 'TYPE,TEACHER/GRADE,SUBJECT/MEETING,PERIODS/WEEK,NOTES\n';
-  workloadData.forEach(w => csv += `"Workload","${w.teacherName}","${w.subjects}","${w.teaching} teaching + ${w.free} free + ${w.admin} admin","${w.notes}"\n`);
-  periodBifurcation.forEach(p => (p.subjects||[]).forEach(s => csv += `"Period Bifurcation","${p.grade}","${s.name}","${s.periods}","${p.duration}min periods"\n`));
-  meetingsData.forEach(m => csv += `"Meeting","${m.participants}","${m.name} (${m.type})","${m.freq}","${m.agenda}"\n`);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = 'timetable_data.csv'; a.click();
+  const headers = ['TYPE','TEACHER/GRADE','SUBJECT/MEETING','PERIODS/WEEK','NOTES'];
+  const rows = [];
+  workloadData.forEach(w => rows.push(['Workload', w.teacherName, w.subjects,
+    w.teaching + ' teaching + ' + w.free + ' free + ' + w.admin + ' admin', w.notes]));
+  periodBifurcation.forEach(p => (p.subjects||[]).forEach(s =>
+    rows.push(['Period Bifurcation', p.grade, s.name, s.periods, p.duration + 'min periods'])));
+  meetingsData.forEach(m => rows.push(['Meeting', m.participants, m.name + ' (' + m.type + ')', m.freq, m.agenda]));
+  _downloadCsv('timetable_data.csv', _csvFrom(headers, rows));
 }
 
 
@@ -13719,20 +13737,17 @@ function exportTimetableGrid() {
   const days = Object.keys(grid);
   const ppd  = schoolStructure.periodsPerDay || 8;
 
-  let csv = 'Period,' + days.join(',') + '\n';
+  const headers = ['Period'].concat(days);
+  const rows = [];
   for (let p = 0; p < ppd; p++) {
     const row = ['Period ' + (p+1)];
     days.forEach(day => {
       const slot = (grid[day]||[])[p];
       row.push(slot && slot.subject !== '—' ? (slot.subject + (slot.teacher ? ' (' + slot.teacher + ')' : '')) : '');
     });
-    csv += row.map(v => '"' + v + '"').join(',') + '\n';
+    rows.push(row);
   }
-
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-  a.download = grade.replace(/\s+/g,'-') + '-timetable.csv';
-  a.click();
+  _downloadCsv(grade.replace(/\s+/g,'-') + '-timetable.csv', _csvFrom(headers, rows));
 }
 
 // ── Update renderTimetablePage to init school structure ───────────────────────
@@ -14144,14 +14159,10 @@ function savePdAttendance() {
 }
 
 function exportPdCSV() {
-  let csv = 'Initiative,Type,Domain,Facilitator,Start,End,Hours,Mode,Status,Participants,Objectives,Impact\n';
-  pdData.forEach(p => {
-    csv += [p.name,p.type,p.domain,p.facilitator,p.start,p.end,p.hours,p.mode,p.status,p.target,p.objectives,p.impact]
-      .map(v=>`"${(v||'').replace(/"/g,"'")}"`).join(',') + '\n';
-  });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = 'professional_development.csv'; a.click();
+  const headers = ['Initiative','Type','Domain','Facilitator','Start','End','Hours','Mode','Status','Participants','Objectives','Impact'];
+  const rows = pdData.map(p =>
+    [p.name,p.type,p.domain,p.facilitator,p.start,p.end,p.hours,p.mode,p.status,p.target,p.objectives,p.impact]);
+  _downloadCsv('professional_development.csv', _csvFrom(headers, rows));
 }
 
 // ═══════════════════════════════════════════════════════
@@ -14392,17 +14403,14 @@ function setRecordComment(id, comment) {
 
 function exportRecordsCSV() {
   const school = (document.getElementById('inp-school')||{}).value||'School';
-  let csv = 'No.,Record Name,Maintained By,Status,Comments,Last Verified,Audit Domain\n';
-  SCHOOL_RECORDS_MASTER.forEach(r => {
+  const headers = ['No.','Record Name','Maintained By','Status','Comments','Last Verified','Audit Domain'];
+  const rows = SCHOOL_RECORDS_MASTER.map(r => {
     const ov = recordsOverrides[r.id]||{};
     const stk = RECORD_STAKEHOLDERS[r.by]||{label:r.by};
     const sc = RECORD_STATUS_CFG[ov.status||'unchecked']||{label:'Not Checked'};
-    csv += [r.id, r.name, stk.label, sc.label, ov.comment||'', ov.verifiedDate||'', r.auditDomain]
-      .map(v=>`"${(String(v)).replace(/"/g,"'")}"`).join(',') + '\n';
+    return [r.id, r.name, stk.label, sc.label, ov.comment||'', ov.verifiedDate||'', r.auditDomain];
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = school.replace(/\s+/g,'-') + '-school-records.csv'; a.click();
+  _downloadCsv(school.replace(/\s+/g,'-') + '-school-records.csv', _csvFrom(headers, rows));
 }
 
 function printRecords() { window.print(); }
@@ -14668,14 +14676,13 @@ function exportAttendanceCSV(){
   const date=(document.getElementById('att-date-picker')||{}).value||new Date().toISOString().split('T')[0];
   const sKey=getCurrentAttKey('students');
   const sRec=attendanceRecords[sKey]||{};
-  let csv='Type,Name,Grade/Category,Status,Remark\n';
-  (studentsData||[]).forEach(s=>{const r=sRec[s.name]||{status:'not marked'};csv+=`"Student","${s.name}","${s.grade}","${r.status}","${r.remark||''}"\n`;});
+  const headers=['Type','Name','Grade/Category','Status','Remark'];
+  const rows=[];
+  (studentsData||[]).forEach(s=>{const r=sRec[s.name]||{status:'not marked'};rows.push(['Student',s.name,s.grade,r.status,r.remark||'']);});
   const stfKey=getCurrentAttKey('staff');
   const stfRec=attendanceRecords[stfKey]||{};
-  (staffData||[]).forEach(s=>{const r=stfRec[s.name]||{status:'not marked'};csv+=`"Staff","${s.name}","${s.category}","${r.status}","${r.remark||''}"\n`;});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=`attendance_${date}.csv`;a.click();
+  (staffData||[]).forEach(s=>{const r=stfRec[s.name]||{status:'not marked'};rows.push(['Staff',s.name,s.category,r.status,r.remark||'']);});
+  _downloadCsv('attendance_' + date + '.csv', _csvFrom(headers, rows));
 }
 
 // ═══════════════════════════════════════════════════════════════════
