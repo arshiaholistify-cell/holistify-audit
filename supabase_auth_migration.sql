@@ -5,8 +5,9 @@
 -- Supabase Auth and role/scope data into public.profiles.
 --
 -- Login IDs are not email addresses, so each one maps to a synthetic address:
---   <login_id>@audit.holistify.local
--- The app derives it; nothing is ever sent to that domain.
+--   <login_id>@audit.holistify.ai
+-- The app derives it; nothing is ever sent to that domain. It is not a .local
+-- address: Supabase rejects that domain outright at sign-up.
 --
 -- DELIBERATELY ADDITIVE. The existing anon policies are left in place so the
 -- app keeps working for anyone not yet migrated. Revoking anon access is a
