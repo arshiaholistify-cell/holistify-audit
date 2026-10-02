@@ -340,6 +340,16 @@ hand-rolls its own and should move over.
 Column headers and cell values are form content going into `innerHTML`, so they
 go through `_escHtml()`.
 
+The preview step offers **Replace** (the default) or **Add**. Replace exists
+because the import is a pull, not a live link: responses keep arriving in Google
+and the sheet has to be imported again, and a plain append turned the second
+import of a 20-row sheet into 40 rows, silently skewing every average and
+export. Replace drops rows with `source === 'google_form'` and keeps everything
+else, so students scored in the app through `saveRubricScoresManual()`
+(`source: 'manual'`) survive — they are not in the sheet, so treating the sheet
+as the whole truth would delete that work without saying so. The radio's note
+counts both before you choose.
+
 ### CSV helpers
 
 Every CSV export in the file goes through these — do not hand-roll another:

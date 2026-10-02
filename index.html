@@ -2550,6 +2550,20 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div style="overflow-x:auto;max-height:200px;overflow-y:auto;border:0.5px solid var(--bdr);border-radius:var(--r-md);margin-bottom:16px">
         <table class="data-table" style="font-size:11px"><thead id="gfi-preview-head"></thead><tbody id="gfi-preview-body"></tbody></table>
       </div>
+      <div style="background:var(--sur);border-radius:var(--r-md);padding:10px 12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">If this rubric already has responses</div>
+        <label style="display:flex;gap:7px;align-items:flex-start;font-size:12px;color:var(--ink-l);cursor:pointer;margin-bottom:5px">
+          <input type="radio" name="gfi-mode" value="replace" checked style="margin-top:2px">
+          <span><strong>Replace them</strong> — treat this sheet as the full picture. Drops what was imported
+          before, so re-importing the same sheet never doubles anything.
+          <span id="gfi-mode-note" style="color:var(--ink-f)"></span></span>
+        </label>
+        <label style="display:flex;gap:7px;align-items:flex-start;font-size:12px;color:var(--ink-l);cursor:pointer">
+          <input type="radio" name="gfi-mode" value="append" style="margin-top:2px">
+          <span><strong>Add to them</strong> — append every row below. Use for a second, separate batch;
+          re-importing the same sheet will duplicate it.</span>
+        </label>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-p" onclick="gfiImport()">Import <span id="gfi-import-count"></span> responses</button>
         <button class="btn btn-s" onclick="gfiBack()">← Back</button>
@@ -12720,6 +12734,20 @@ function _buildGfiMapper(rubricId) {
   document.getElementById('gfi-row-count').textContent = '(' + _gfiRows.length + ' rows)';
   document.getElementById('gfi-import-count').textContent = _gfiRows.length;
 
+  // Spell out what Replace costs for this particular rubric. Manually scored
+  // students are kept either way — they are not in the sheet, so treating the
+  // sheet as the whole truth would silently delete work done inside the app.
+  const held = rubricScores[rubricId] || [];
+  const imported = held.filter(e => e.source === 'google_form').length;
+  const manual = held.length - imported;
+  const noteEl = document.getElementById('gfi-mode-note');
+  if (noteEl) {
+    noteEl.textContent = held.length
+      ? (imported ? imported + ' imported response' + (imported===1?'':'s') + ' will be replaced. ' : 'Nothing imported yet. ') +
+        (manual ? manual + ' student' + (manual===1?'':'s') + ' scored in the app will be kept.' : '')
+      : 'This rubric has no responses yet, so both options do the same thing.';
+  }
+
   document.getElementById('gfi-step1').style.display = 'none';
   document.getElementById('gfi-step2').style.display = '';
 }
@@ -12752,14 +12780,24 @@ function gfiImport() {
     };
   }).filter(e => e.name && Object.keys(e.scores).length);
 
-  if (!rubricScores[rubricId]) rubricScores[rubricId] = [];
-  rubricScores[rubricId] = rubricScores[rubricId].concat(entries);
+  const modeEl = document.querySelector('input[name="gfi-mode"]:checked');
+  const replace = !modeEl || modeEl.value === 'replace';
+  const held = rubricScores[rubricId] || [];
+  // Replace drops what a previous import put here and keeps anything scored
+  // inside the app: those students are not in the sheet, so taking the sheet as
+  // the whole truth would delete that work without saying so.
+  const kept = replace ? held.filter(e => e.source !== 'google_form') : held;
+  const dropped = held.length - kept.length;
+  rubricScores[rubricId] = kept.concat(entries);
+
   saveRubricScores();
   document.getElementById('gform-import-modal').classList.remove('open');
   renderRubricResponses();
   // Switch to rubric tab so user sees the results
   setAssessTab('rubric', document.querySelector('#assess-tabs .tab[onclick*="rubric"]'));
-  toast(entries.length + ' rubric responses imported.');
+  toast(entries.length + ' response' + (entries.length===1?'':'s') + ' imported' +
+        (dropped ? ', ' + dropped + ' earlier import' + (dropped===1?'':'s') + ' replaced' : '') +
+        (replace && kept.length ? ', ' + kept.length + ' kept from the app' : '') + '.', 'success');
 }
 
 // ── Manual rubric scoring ─────────────────────────────────────────────────────
