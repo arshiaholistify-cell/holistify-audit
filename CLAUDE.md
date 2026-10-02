@@ -378,6 +378,28 @@ else, so students scored in the app through `saveRubricScoresManual()`
 as the whole truth would delete that work without saying so. The radio's note
 counts both before you choose.
 
+### Subject Performance
+
+Cards are grouped by the rubric's or assessment's `subject` **string**, matched
+exactly. Two things used to go wrong silently, and `_assessAggregates()` now
+reports both rather than hiding them:
+
+- **No subject set.** Such a rubric was skipped entirely — not shown, not
+  counted, no hint anything was missing. Two of one school's Kannada rubrics
+  were unlabelled, so 160 responses vanished from the panel and the subject read
+  3 points higher than the truth. `_subjectKey()` buckets them as
+  **"Unassigned"** (an amber, dashed card) and `agg.unassigned` names them
+  underneath. They were always in the overall average and Grade Averages; it was
+  only this panel that dropped them.
+- **The same subject typed two ways.** `"English- Reading"` and
+  `"English-Reading"` are different strings, so they became two cards.
+  `_subjectNorm()` collapses case, whitespace and `-_/` and `agg.subjectDupes`
+  flags any group sharing a normalised name, with what they would combine to.
+
+It **flags, never merges**. Deciding that two differently-named subjects are the
+same is the author's call, not the chart's — and silently combining them would
+be the same class of bug as silently dropping them.
+
 ### CSV helpers
 
 Every CSV export in the file goes through these — do not hand-roll another:

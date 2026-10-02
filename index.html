@@ -12148,11 +12148,36 @@ function downloadAssessmentBreakdownCsv() {
 // Used by both the on-screen analytics and the downloads, so the numbers in an
 // exported file always match what the page shows. The banding thresholds
 // (80 / 60 / 35) live here only.
+// A rubric or assessment with no subject used to be dropped from Subject
+// Performance silently — not shown, not counted, no hint that anything was
+// missing. Two of one school's Kannada rubrics were unlabelled, so 160
+// responses vanished from the panel and the subject's average read 3 points
+// higher than the truth. They are bucketed here instead.
+const _SUBJECT_UNASSIGNED = 'Unassigned';
+function _subjectKey(sub) {
+  const t = String(sub == null ? '' : sub).trim();
+  return t || _SUBJECT_UNASSIGNED;
+}
+// Grouping is an exact string match, so "English- Reading" and
+// "English-Reading" became two subjects. This spots that: separators and
+// spacing collapse, case is ignored. It only ever flags — merging them
+// automatically would quietly decide that two differently-named subjects are
+// the same, which is the author's call, not the chart's.
+function _subjectNorm(sub) {
+  return String(sub == null ? '' : sub).toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
+}
+
 function _assessAggregates() {
   const gradeAvgMap = {}; // grade -> [pct]
   const subjectAvgMap = {}; // subject -> [pct]
   const standardMap = {}; // standard -> {exc,meet,app,bel,total}
+  const unassigned = [];  // names of the rubrics/assessments with no subject
   let totalPct = 0, totalCount = 0;
+  const pushSubject = (sub, pct) => {
+    const k = _subjectKey(sub);
+    if (!subjectAvgMap[k]) subjectAvgMap[k] = [];
+    subjectAvgMap[k].push(pct);
+  };
 
   assessments.forEach(a => {
     (scoreEntries[a.id]||[]).forEach(sc => {
@@ -12161,7 +12186,7 @@ function _assessAggregates() {
       if (pct === null) return;
       if (!gradeAvgMap[g]) gradeAvgMap[g] = [];
       gradeAvgMap[g].push(pct);
-      if (a.subject) { if(!subjectAvgMap[a.subject]) subjectAvgMap[a.subject]=[]; subjectAvgMap[a.subject].push(pct); }
+      pushSubject(a.subject, pct);
       if (a.standard) {
         if (!standardMap[a.standard]) standardMap[a.standard] = {exc:0,meet:0,app:0,bel:0,total:0};
         standardMap[a.standard].total++;
@@ -12180,13 +12205,35 @@ function _assessAggregates() {
       if (avg === null) return;   // unscored responses are not 0% results
       const pct = Math.round(avg/(r.scale||4)*100);
       if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
-      if (r.subject) { if(!subjectAvgMap[r.subject]) subjectAvgMap[r.subject]=[]; subjectAvgMap[r.subject].push(pct); }
+      pushSubject(r.subject, pct);
       totalPct += pct; totalCount++;
     });
   });
 
+  assessments.forEach(a => {
+    if (!String(a.subject||'').trim() && (scoreEntries[a.id]||[]).length) unassigned.push(a.name || 'Untitled assessment');
+  });
+  rubrics.forEach(r => {
+    if (!String(r.subject||'').trim() && (rubricScores[r.id]||[]).length) unassigned.push(r.name || 'Untitled rubric');
+  });
+
+  // Subjects whose names differ only by spacing, separators or case.
+  const byNorm = {};
+  Object.keys(subjectAvgMap).forEach(sub => {
+    if (sub === _SUBJECT_UNASSIGNED) return;
+    const n = _subjectNorm(sub);
+    (byNorm[n] = byNorm[n] || []).push(sub);
+  });
+  const subjectDupes = Object.keys(byNorm).filter(n => byNorm[n].length > 1).map(n => {
+    const names = byNorm[n].slice().sort();
+    const all = names.reduce((acc, sub) => acc.concat(subjectAvgMap[sub]), []);
+    return { names: names, records: all.length,
+             pct: Math.round(all.reduce((a, b) => a + b, 0) / all.length) };
+  });
+
   return { gradeAvgMap: gradeAvgMap, subjectAvgMap: subjectAvgMap,
-           standardMap: standardMap, totalPct: totalPct, totalCount: totalCount };
+           standardMap: standardMap, totalPct: totalPct, totalCount: totalCount,
+           unassigned: unassigned, subjectDupes: subjectDupes };
 }
 
 function renderAssessAnalytics() {
@@ -12256,13 +12303,27 @@ function renderAssessAnalytics() {
       const arr = subjectAvgMap[s];
       const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
       const att = _attainmentLabel(avg);
-      html += `<div style="padding:12px;border-radius:var(--r-md);${att.css};border:0.5px solid transparent">
-        <div style="font-size:13px;font-weight:500">${s}</div>
+      const isUn = s === _SUBJECT_UNASSIGNED;
+      html += `<div style="padding:12px;border-radius:var(--r-md);${isUn ? 'background:var(--amb-p);color:var(--amb)' : att.css};border:0.5px ${isUn ? 'dashed var(--amb)' : 'solid transparent'}">
+        <div style="font-size:13px;font-weight:500">${_escHtml(s)}</div>
         <div style="font-size:22px;font-weight:700;margin:4px 0">${avg}%</div>
-        <div style="font-size:10px">${arr.length} records · ${att.label}</div>
+        <div style="font-size:10px">${arr.length} records · ${isUn ? 'no subject set' : att.label}</div>
       </div>`;
     });
-    html += '</div></div>';
+    html += '</div>';
+    if (agg.unassigned && agg.unassigned.length) {
+      html += `<div style="font-size:11px;color:var(--amb);margin-top:10px;line-height:1.5">
+        ⚠ ${agg.unassigned.length} ${agg.unassigned.length===1?'has':'have'} no Subject set, so ${agg.unassigned.length===1?'it is':'they are'} grouped as "Unassigned" rather than counted under a subject:
+        <strong>${agg.unassigned.map(n=>_escHtml(n)).join('</strong>, <strong>')}</strong>.
+        Set the Subject field on each to fold ${agg.unassigned.length===1?'it':'them'} into the right card.</div>`;
+    }
+    (agg.subjectDupes || []).forEach(d => {
+      html += `<div style="font-size:11px;color:var(--amb);margin-top:8px;line-height:1.5">
+        ⚠ ${d.names.map(n=>'"<strong>'+_escHtml(n)+'</strong>"').join(' and ')} look like the same subject typed differently,
+        so they are counted as separate cards. Together they are ${d.records} records at ${d.pct}%.
+        Make the Subject field identical on each to merge them.</div>`;
+    });
+    html += '</div>';
   }
 
   // Standards attainment table
