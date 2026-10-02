@@ -2387,8 +2387,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <button onclick="document.getElementById('assess-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
     <div class="sip-modal-title" id="assess-modal-title">New Assessment</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div class="sip-field" style="margin:0"><label>Assessment name *</label><input id="am-name" placeholder="e.g. Unit Test 1 – Maths"></div>
-      <div class="sip-field" style="margin:0"><label>Subject *</label><input id="am-subject" placeholder="e.g. Mathematics"></div>
+      <div class="sip-field" style="margin:0"><label>Assessment name *</label><input id="am-name" placeholder="e.g. Unit Test 1 – Maths" oninput="_updateStdPickerHint('am')"></div>
+      <div class="sip-field" style="margin:0"><label>Subject *</label><input id="am-subject" placeholder="e.g. Mathematics" oninput="_updateStdPickerHint('am')"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="sip-field" style="margin:0"><label>Grade</label>
@@ -2415,11 +2415,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         </select>
       </div>
     </div>
-    <div class="sip-field" style="margin:0 0 12px"><label>Link to Student Attainment Standard</label>
-      <select id="am-standard" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
-        <option value="">— none / custom standard —</option>
-      </select>
-      <input id="am-standard-custom" placeholder="Or enter a custom standard / learning objective" style="margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+    <div class="sip-field" style="margin:0 0 12px"><label>Reports against which audit standard</label>
+      <select id="am-dom" onchange="_onStdPickerDom('am')" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+      <select id="am-std" onchange="_updateStdPickerHint('am')" style="display:none;margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+      <div id="am-hint" style="font-size:11px;color:var(--ink-f);margin-top:5px;line-height:1.5"></div>
+      <input id="am-standard-custom" placeholder="Optional: a learning objective of your own, shown alongside" style="margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-p" onclick="saveAssessment()">Create assessment</button>
@@ -2463,6 +2463,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <datalist id="rb-skill-options"></datalist>
       </div>
       <div id="rb-skill-hint" class="hint" style="font-size:11px;color:var(--ink-f);margin-top:4px"></div>
+    </div>
+    <div class="sip-field" style="margin-bottom:12px"><label>Reports against which audit standard</label>
+      <select id="rb-dom" onchange="_onStdPickerDom('rb')" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+      <select id="rb-std" onchange="_updateStdPickerHint('rb')" style="display:none;margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+      <div id="rb-hint" style="font-size:11px;color:var(--ink-f);margin-top:5px;line-height:1.5"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="sip-field" style="margin:0;grid-column:1/-1"><label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">Grade(s) <span id="rb-grade-all-wrap"><label style="font-size:11px;font-weight:400;color:var(--sage);cursor:pointer"><input type="checkbox" id="rb-grade-all" onchange="toggleAllRubricGrades(this.checked)" style="accent-color:var(--sage);margin-right:3px">All Grades</label></span></label>
@@ -4667,7 +4672,7 @@ function renderAudit(domainId) {
           </div>
           <div style="font-size:11px;color:var(--ink-l);margin-bottom:4px">Evidence / observations</div>
           <textarea class="ev-area" id="ev-${k}" placeholder="Record evidence, quotes, specific observations..." onchange="notes['${k}']=this.value">${notes[k]||''}</textarea>
-          ${domainId === 'sa' ? _buildSaInlineEvidence(s.s, s.sub) : ''}
+          ${_buildStdInlineEvidence(domainId, i)}
         </div>
       </div>`;
     });
@@ -6524,27 +6529,51 @@ function buildSaAssessmentPanel() {
     html += '</div>';
   }
 
-  // Standards-linked assessments table
-  const linked = assessments.filter(a => a.standard);
-  if (linked.length) {
-    html += `<div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">Assessments Linked to SA Standards</div>
+  // What is linked to a standard, and what is not. Rubrics belong in this table
+  // as much as score-based assessments do: both carry student attainment, and
+  // listing only one of them made a school's rubric work look like missing
+  // evidence.
+  const _pctCol = v => v >= 80 ? 'var(--grn)' : v >= 60 ? '#3b82f6' : v >= 35 ? 'var(--gold)' : 'var(--red)';
+  const rows = [];
+  assessments.forEach(a => {
+    const scs = scoreEntries[a.id] || [];
+    if (!scs.length) return;
+    const pcts = scs.map(sc => a.maxMarks ? Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100) : null)
+                    .filter(x => x !== null);
+    rows.push({ item: a, kind: '', records: scs.length,
+                pct: pcts.length ? Math.round(pcts.reduce((x, y) => x + y, 0) / pcts.length) : null,
+                grade: a.grade === 'all' ? 'All' : a.grade, term: a.term || '' });
+  });
+  rubrics.forEach(r => {
+    const resp = rubricScores[r.id] || [];
+    if (!resp.length) return;
+    const vals = resp.map(x => _rubricRespAvg(x, r)).filter(v => v !== null);
+    rows.push({ item: r, kind: '📋 ', records: resp.length,
+                pct: vals.length ? Math.round(vals.reduce((x, y) => x + y, 0) / vals.length / (r.scale || 4) * 100) : null,
+                grade: Array.isArray(r.grade) ? (r.grade.length > 2 ? r.grade.length + ' grades' : r.grade.join(', ')) : (r.grade === 'all' ? 'All' : (r.grade || '—')),
+                term: '' });
+  });
+  if (rows.length) {
+    const unlinked = rows.filter(x => !_assessStdLink(x.item)).length;
+    html += `<div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">Linked to an Audit Standard` +
+      (unlinked ? ` <span style="font-weight:400;color:var(--amb)">— ${unlinked} of ${rows.length} not linked</span>` : '') + `</div>
     <div style="overflow-x:auto;margin-bottom:12px"><table class="data-table" style="font-size:11px">
-      <thead><tr><th>Assessment</th><th>Subject</th><th>Grade</th><th>Term</th><th>Students</th><th>Avg%</th><th>Attainment</th><th>Standard</th></tr></thead>
+      <thead><tr><th>Assessment / Rubric</th><th>Subject</th><th>Grade</th><th>Records</th><th>Avg%</th><th>Attainment</th><th>Standard</th></tr></thead>
       <tbody>`;
-    linked.forEach(a => {
-      const scs = scoreEntries[a.id]||[];
-      const pcts = scs.map(sc=>a.maxMarks?Math.round((parseFloat(sc.score)||0)/a.maxMarks*100):null).filter(p=>p!==null);
-      const avg2 = pcts.length?Math.round(pcts.reduce((x,y)=>x+y,0)/pcts.length):null;
-      const att2 = _attainmentLabel(avg2);
+    rows.forEach(x => {
+      const link = _assessStdLink(x.item);
+      const att2 = _attainmentLabel(x.pct);
       html += `<tr>
-        <td style="font-weight:500">${a.name}</td>
-        <td>${a.subject||'—'}</td>
-        <td>${a.grade==='all'?'All':a.grade}</td>
-        <td>${a.term}</td>
-        <td>${scs.length}</td>
-        <td style="font-weight:500;${avg2!==null?'color:'+((avg2>=80?'var(--grn)':avg2>=60?'#3b82f6':avg2>=35?'var(--gold)':'var(--red)')):''}">${avg2!==null?avg2+'%':'—'}</td>
+        <td style="font-weight:500">${x.kind}${_escHtml(x.item.name || 'Untitled')}</td>
+        <td>${_escHtml(x.item.subject || '—')}</td>
+        <td>${_escHtml(x.grade)}</td>
+        <td>${x.records}</td>
+        <td style="font-weight:500;${x.pct !== null ? 'color:' + _pctCol(x.pct) : ''}">${x.pct !== null ? x.pct + '%' : '—'}</td>
         <td><span style="font-size:10px;padding:1px 6px;border-radius:20px;${att2.css}">${att2.label}</span></td>
-        <td style="color:var(--blue);font-size:10px;max-width:200px">${a.standard}</td>
+        <td style="font-size:10px;max-width:230px">${link
+          ? '<span style="color:var(--blue)">' + _escHtml(_assessStdText(link)) + '</span>' +
+            (link.derived ? ' <span style="color:var(--ink-f)">(auto)</span>' : '')
+          : '<span style="color:var(--amb)">not linked — open it and pick a standard</span>'}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
@@ -6558,15 +6587,48 @@ function buildSaAssessmentPanel() {
   return html;
 }
 
-function _buildSaInlineEvidence(standardText, subText) {
-  // Show assessments directly linked to this standard
-  const linked = assessments.filter(a => a.standard && (a.standard === standardText || a.standard.toLowerCase().includes(subText.toLowerCase())));
-  const linkedRubrics = rubrics.filter(r => rubricScores[r.id] && rubricScores[r.id].length &&
-    (r.name.toLowerCase().includes(subText.toLowerCase()) || r.subject.toLowerCase().includes(subText.toLowerCase())));
+// The assessment evidence shown inside a standard's rubric panel.
+//
+// This used to find its evidence by substring: any assessment whose standard
+// text contained the sub-domain's label, and any rubric whose name or subject
+// did. That matched a "Listening & Writing" rubric under Listening and again
+// under Writing, counted it in both, and missed "Number Sense" under Maths
+// entirely — and it read r.subject without a guard, so one rubric saved
+// without a subject threw on this page. It now asks which standard each item
+// actually reports against, which is the same answer Standards Attainment and
+// the exports get.
+function _buildStdInlineEvidence(domainId, stdIdx) {
+  const found = _assessItemsForStd(domainId, stdIdx);
+  const linked = found.assessments, linkedRubrics = found.rubrics;
   if (!linked.length && !linkedRubrics.length) return '';
 
+  const pcts = [];
+  linked.forEach(a => (scoreEntries[a.id] || []).forEach(sc => {
+    if (a.maxMarks) pcts.push(Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100));
+  }));
+  linkedRubrics.forEach(r => (rubricScores[r.id] || []).forEach(resp => {
+    const avg = _rubricRespAvg(resp, r);
+    if (avg !== null) pcts.push(Math.round(avg / (r.scale || 4) * 100));
+  }));
+  const all = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const allAtt = _attainmentLabel(all);
+  // These standards are written as bands of a cohort, so the share of students
+  // in each band is the evidence — not just the mean.
+  const band = { exc: 0, meet: 0, app: 0, bel: 0 };
+  pcts.forEach(x => { if (x >= 80) band.exc++; else if (x >= 60) band.meet++; else if (x >= 35) band.app++; else band.bel++; });
+  const share = n => pcts.length ? Math.round(n / pcts.length * 100) : 0;
+
   let html = `<div style="margin-top:10px;padding:10px;background:var(--sage-p);border-radius:var(--r-md);border:0.5px solid #9FDDBE">
-    <div style="font-size:11px;font-weight:600;color:#1B5C30;margin-bottom:8px">📊 Connected Assessment Evidence</div>`;
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:11px;font-weight:600;color:#1B5C30">📊 Connected Assessment Evidence</span>
+      ${all !== null ? `<span style="font-size:10px;padding:1px 6px;border-radius:20px;${allAtt.css}">${pcts.length} records · ${all}% — ${allAtt.label}</span>` : ''}
+    </div>
+    ${pcts.length ? `<div style="font-size:10px;color:var(--ink-l);margin-bottom:8px;line-height:1.5">
+      <span style="color:var(--grn)">■ ${share(band.exc)}% exceeding</span> ·
+      <span style="color:#3b82f6">■ ${share(band.meet)}% meeting</span> ·
+      <span style="color:var(--gold)">■ ${share(band.app)}% approaching</span> ·
+      <span style="color:var(--red)">■ ${share(band.bel)}% below</span>
+    </div>` : ''}`;
 
   linked.forEach(a => {
     const scs = scoreEntries[a.id]||[];
@@ -6587,8 +6649,8 @@ function _buildSaInlineEvidence(standardText, subText) {
     const avg2 = vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):0;
     const att2 = _rubricAttainmentLabel(avg2, r.scale||4);
     html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:500;color:var(--ink)">📋 ${r.name}</span>
-      <span style="font-size:10px;color:var(--ink-l)">${r.subject||''} · ${responses.length} responses</span>
+      <span style="font-size:11px;font-weight:500;color:var(--ink)">📋 ${_escHtml(r.name||'Untitled')}</span>
+      <span style="font-size:10px;color:var(--ink-l)">${_escHtml(r.subject||'')} · ${responses.length} responses</span>
       <span style="font-size:10px;padding:1px 6px;border-radius:20px;${att2.css}">${avg2.toFixed(1)}/${r.scale||4} — ${att2.label}</span>
     </div>`;
   });
@@ -11585,7 +11647,7 @@ function renderAssessmentTable() {
             ${a.subject} · Max: ${a.maxMarks||100} · ${a.date||''} · ${scores.length} students scored
             ${avg!==null?` · Avg: <strong style="color:var(--sage)">${avg}/${a.maxMarks||100}</strong>`:''}
             ${highest!==null?` · High: ${highest} · Low: ${lowest}`:''}
-            ${a.standard?`<br><span style="color:var(--blue);font-size:11px">📌 ${a.standard}</span>`:''}
+            <br>${_assessStdChip(a)}${a.standard?` <span style="color:var(--blue);font-size:11px">📌 ${_escHtml(a.standard)}</span>`:''}
           </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
@@ -11613,20 +11675,76 @@ function renderAssessmentTable() {
   }).join('');
 }
 
-function _populateSaStandardPicker() {
-  const sel = document.getElementById('am-standard');
-  if (!sel || sel.options.length > 1) return; // already populated
-  const saDomain = DOMAINS.find(d => d.id === 'sa');
-  if (!saDomain) return;
-  const bySub = {};
-  saDomain.standards.forEach(s => { if (!bySub[s.sub]) bySub[s.sub] = []; bySub[s.sub].push(s); });
-  let html = '<option value="">— none / custom standard —</option>';
-  Object.entries(bySub).forEach(([sub, stds]) => {
-    html += `<optgroup label="${sub}">`;
-    stds.forEach(s => { html += `<option value="${s.s.replace(/"/g,"'")}">${s.s}</option>`; });
-    html += '</optgroup>';
-  });
-  sel.innerHTML = html;
+// ── The audit-standard picker, shared by the assessment modal and the rubric
+// editor ───────────────────────────────────────────────────────────────────
+// It replaces a field that offered the Student Attainment standards alone, as
+// the standard's own sentence pasted into a free-text box. Any domain can be
+// picked now, rubrics get the same field assessments have, and leaving it alone
+// derives the link from the skill rather than leaving the item unlinked.
+var _amSkill = '';
+
+function _stdPickerItem(prefix) {
+  const v = id => (document.getElementById(id) || { value: '' }).value.trim();
+  if (prefix === 'rb') return { name: v('rb-name'), subject: v('rb-subject'), skill: v('rb-skill') };
+  return { name: v('am-name'), subject: v('am-subject'), skill: _amSkill };
+}
+
+function _renderStdPicker(prefix, link) {
+  const domSel = document.getElementById(prefix + '-dom');
+  if (!domSel) return;
+  const chosen = (link && link.domain) || '';
+  domSel.innerHTML = '<option value="">— work it out from the skill —</option>' +
+    '<option value="' + _STD_UNLINKED + '"' + (chosen === _STD_UNLINKED ? ' selected' : '') +
+    '>— report against no standard —</option>' +
+    DOMAINS.map(d => '<option value="' + d.id + '"' + (d.id === chosen ? ' selected' : '') + '>' +
+      d.emoji + ' ' + _escHtml(d.label) + '</option>').join('');
+  _renderStdPickerStds(prefix, link);
+}
+
+function _renderStdPickerStds(prefix, link) {
+  const sel = document.getElementById(prefix + '-std');
+  if (!sel) return;
+  const domId = (document.getElementById(prefix + '-dom') || { value: '' }).value;
+  const d = _stdDomain(domId);
+  if (!d) { sel.style.display = 'none'; sel.innerHTML = ''; _updateStdPickerHint(prefix); return; }
+  sel.style.display = '';
+  const want = (link && link.domain === domId && link.stdIdx !== null && link.stdIdx !== undefined)
+    ? String(link.stdIdx) : '';
+  sel.innerHTML = '<option value="">— the whole domain —</option>' +
+    d.standards.map((st, i) => '<option value="' + i + '"' + (String(i) === want ? ' selected' : '') + '>' +
+      (i + 1) + '. [' + _escHtml(st.sub) + '] ' + _escHtml(st.s.slice(0, 80)) +
+      (st.s.length > 80 ? '…' : '') + '</option>').join('');
+  _updateStdPickerHint(prefix);
+}
+
+function _onStdPickerDom(prefix) { _renderStdPickerStds(prefix, null); }
+
+function _stdPickerValue(prefix) {
+  const domId = (document.getElementById(prefix + '-dom') || { value: '' }).value;
+  if (!domId) return null;                    // derive from the skill
+  if (domId === _STD_UNLINKED) return { domain: _STD_UNLINKED, stdIdx: null };
+  const v = (document.getElementById(prefix + '-std') || { value: '' }).value;
+  return { domain: domId, stdIdx: v === '' ? null : parseInt(v, 10) };
+}
+
+// Say which standard this will report against before it is saved, so a link
+// left to derive itself is visible rather than discovered in the analytics.
+function _updateStdPickerHint(prefix) {
+  const el = document.getElementById(prefix + '-hint');
+  if (!el) return;
+  const chosen = _stdPickerValue(prefix);
+  if (chosen && chosen.domain === _STD_UNLINKED) {
+    el.innerHTML = 'Left out of Standards Attainment and of every audit standard.';
+    return;
+  }
+  if (chosen) { el.innerHTML = _escHtml(_assessStdText(chosen)); return; }
+  const item = _stdPickerItem(prefix);
+  item.link = null; item.standard = '';
+  const link = _assessStdLink(item);
+  el.innerHTML = link
+    ? 'Will report against <strong>' + _escHtml(_assessStdText(link)) + '</strong>, worked out from the skill.'
+    : '<span style="color:var(--amb)">Nothing to work it out from yet — pick a standard, or fill in the ' +
+      'name, subject or skill.</span>';
 }
 
 function _pickAssessmentToScore() {
@@ -11652,7 +11770,8 @@ function openAddAssessment() {
   assessEditIdx = null;
   document.getElementById('assess-modal-title').textContent = 'New Assessment';
   ['am-name','am-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  const stdSel = document.getElementById('am-standard'); if (stdSel) { _populateSaStandardPicker(); stdSel.value = ''; }
+  _amSkill = '';
+  _renderStdPicker('am', null);
   const stdCust = document.getElementById('am-standard-custom'); if (stdCust) stdCust.value = '';
   document.getElementById('am-grade').value = 'all';
   document.getElementById('am-term').value = 'Term 1';
@@ -11673,11 +11792,18 @@ function openEditAssessment(idx) {
   document.getElementById('am-max').value = a.maxMarks||100;
   document.getElementById('am-date').value = a.date||'';
   document.getElementById('am-type').value = a.type||'Unit Test';
-  _populateSaStandardPicker();
-  const saDomain = DOMAINS.find(d=>d.id==='sa');
-  const isSaStd = a.standard && saDomain && saDomain.standards.some(s=>s.s===a.standard);
-  const stdSel = document.getElementById('am-standard'); if (stdSel) stdSel.value = isSaStd ? a.standard : '';
-  const stdCust = document.getElementById('am-standard-custom'); if (stdCust) stdCust.value = (!isSaStd && a.standard) ? a.standard : '';
+  _amSkill = a.skill || '';
+  // A derived link is left to derive itself rather than frozen into the record:
+  // renaming the assessment should move it to the right standard, not strand it
+  // on the one its old name happened to suggest.
+  const link = _assessStdLink(a);
+  _renderStdPicker('am', (link && !link.derived) ? link : (a.link && a.link.domain === _STD_UNLINKED ? a.link : null));
+  // Free text only stays free text: a `standard` naming a real standard has
+  // just been resolved into the picker above, so repeating it here would make
+  // one link look like two.
+  const legacyIsReal = !!(a.standard && DOMAINS.some(d => d.standards.some(st => st.s === a.standard)));
+  const stdCust = document.getElementById('am-standard-custom');
+  if (stdCust) stdCust.value = (!legacyIsReal && a.standard) ? a.standard : '';
   document.getElementById('am-del-btn').style.display = 'inline-flex';
   document.getElementById('assess-modal').classList.add('open');
 }
@@ -11692,8 +11818,9 @@ function saveAssessment() {
     maxMarks: parseInt(document.getElementById('am-max').value)||100,
     date: document.getElementById('am-date').value,
     type: document.getElementById('am-type').value,
-    standard: (document.getElementById('am-standard')||{value:''}).value.trim() ||
-              (document.getElementById('am-standard-custom')||{value:''}).value.trim() };
+    skill: _amSkill,
+    link: _stdPickerValue('am'),
+    standard: (document.getElementById('am-standard-custom')||{value:''}).value.trim() };
   if (assessEditIdx!==null) assessments[assessEditIdx]=rec;
   else assessments.push(rec);
   saveAssessmentData();
@@ -11889,47 +12016,8 @@ function _wideScan(grid, sheetName) {
     }
   });
 
-  // 4. Every remaining heading is a skill column.
-  const cols = [];
-  for (let c = 0; c < width; c++) {
-    if (c === nameCol || c === rollCol || c === gradeCol) continue;
-    const raw = cell(headerRow, c);
-    if (!raw || _wideIsNameHdr(raw) || _wideIsSerialHdr(raw) || _wideIsRollHdr(raw) ||
-        _wideIsGradeHdr(raw)) continue;
-    const m = _wideMax(raw);
-    cols.push({ idx: c, label: m.label, headerMax: m.max, max: m.max, band: '', use: true });
-  }
-  if (cols.length < 2) return null;   // one marks column is the ordinary case
-
-  // 5. Band names on the row above, carried rightwards across the columns they
-  //    were merged over. Only within the skill columns: the title on row 1 sits
-  //    in the first column and must not be spread across the whole sheet.
-  const bandRow = headerRow - 1;
-  if (bandRow >= 0) {
-    const seen = cols.map(col => cell(bandRow, col.idx)).filter(Boolean);
-    // A row of numbers is data, not bands — which is what the row above the
-    // headings is on a sheet whose headings are on row 1.
-    if (seen.length && !seen.some(v => /^\d+(\.\d+)?$/.test(v))) {
-      cols.forEach(col => {
-        for (let c = col.idx; c >= cols[0].idx; c--) {
-          const v = cell(bandRow, c);
-          if (v) { col.band = v; break; }
-        }
-      });
-    }
-  }
-
-  // 6. The title rows above everything, and the level they name.
-  const titleBits = [];
-  for (let r = 0; r < Math.min(nameRow, headerRow); r++) {
-    const vs = [];
-    for (let c = 0; c < width; c++) { const v = cell(r, c); if (v) vs.push(v); }
-    if (vs.length) titleBits.push(vs.join(' '));
-  }
-  const title = titleBits.join(' — ');
-  const lv = title.match(/\blevel\s*[-–—:]?\s*([A-Za-z0-9]{1,3})\b/i);
-
-  // 7. The students.
+  // 4. The students, needed before the columns: whether a column holds marks is
+  //    decided from its values, not from its heading.
   const rows = [];
   for (let r = headerRow + 1; r < grid.length; r++) {
     const nm = cell(r, nameCol);
@@ -11939,6 +12027,67 @@ function _wideScan(grid, sheetName) {
       grade: gradeCol >= 0 ? cell(r, gradeCol) : '' });
   }
   if (!rows.length) return null;
+
+  // 5. The skill columns. A heading alone does not make one: an ordinary marks
+  //    file has "Marks" and "Remarks" beside each other, and reading "Remarks"
+  //    as a second skill turned a perfectly normal file into a wide one. A
+  //    skill column is one that actually holds numbers — most of its filled
+  //    cells parse, and at least one does.
+  const cols = [];
+  for (let c = 0; c < width; c++) {
+    if (c === nameCol || c === rollCol || c === gradeCol) continue;
+    const raw = cell(headerRow, c);
+    if (!raw || _wideIsNameHdr(raw) || _wideIsSerialHdr(raw) || _wideIsRollHdr(raw) ||
+        _wideIsGradeHdr(raw)) continue;
+    let filled = 0, numeric = 0;
+    rows.forEach(row => {
+      const v = cell(row.r, c);
+      if (v === '') return;
+      filled++;
+      if (/^\d+(\.\d+)?$/.test(v)) numeric++;
+    });
+    if (!numeric || numeric * 2 < filled) continue;
+    const m = _wideMax(raw);
+    cols.push({ idx: c, label: m.label, headerMax: m.max, max: m.max, band: '', use: true });
+  }
+  if (cols.length < 2) return null;   // one marks column is the ordinary case
+
+  // 6. Band names on the row above, carried rightwards across the columns they
+  //    were merged over. Only within the skill columns: the title on row 1 sits
+  //    in the first column and must not be spread across the whole sheet.
+  const bandRow = headerRow - 1;
+  let banded = false;
+  if (bandRow >= 0) {
+    const seen = cols.map(col => cell(bandRow, col.idx)).filter(Boolean);
+    // A row of numbers is data, not bands — which is what the row above the
+    // headings is on a sheet whose headings are on row 1.
+    if (seen.length && !seen.some(v => /^\d+(\.\d+)?$/.test(v))) {
+      banded = true;
+      cols.forEach(col => {
+        for (let c = col.idx; c >= cols[0].idx; c--) {
+          const v = cell(bandRow, c);
+          if (v) { col.band = v; break; }
+        }
+      });
+    }
+  }
+
+  // 7. Two numeric columns are not enough on their own — "Marks Obtained" next
+  //    to "Total" is two. What distinguishes these sheets is that each skill
+  //    column carries its own maximum, or that the columns are grouped under
+  //    merged band headings. Without either, hand the file to the ordinary
+  //    mapper, which is the right place for it.
+  if (cols.filter(c => c.headerMax !== null).length < 2 && !banded) return null;
+
+  // 8. The title rows above everything, and the level they name.
+  const titleBits = [];
+  for (let r = 0; r < Math.min(nameRow, headerRow); r++) {
+    const vs = [];
+    for (let c = 0; c < width; c++) { const v = cell(r, c); if (v) vs.push(v); }
+    if (vs.length) titleBits.push(vs.join(' '));
+  }
+  const title = titleBits.join(' — ');
+  const lv = title.match(/\blevel\s*[-–—:]?\s*([A-Za-z0-9]{1,3})\b/i);
 
   return { headerRow: headerRow, nameRow: nameRow, nameCol: nameCol, rollCol: rollCol,
            gradeCol: gradeCol, cols: cols, rows: rows, title: title,
@@ -12897,8 +13046,10 @@ function downloadAssessmentBreakdownXlsx() {
 
   add('Standards Attainment', Object.keys(agg.standardMap).map(st => {
     const d = agg.standardMap[st];
+    const dom = _stdDomain(d.domain);
     return {
-      'Standard / Learning Objective': st, Records: d.total,
+      Domain: dom ? dom.label : '', 'Sub-domain': d.sub,
+      'Standard / Learning Objective': d.text, Records: d.total,
       Exceeding: d.exc, 'Exceeding %': Math.round(d.exc / d.total * 100),
       Meeting: d.meet, 'Meeting %': Math.round(d.meet / d.total * 100),
       Approaching: d.app, 'Approaching %': Math.round(d.app / d.total * 100),
@@ -13041,6 +13192,125 @@ const _SKILLS = [
 // with a skill not listed here simply types it.
 const _SKILL_SUGGESTIONS = _SKILLS.map(s => s.name);
 
+// ── Linking an assessment to an audit standard ─────────────────────────────
+// Student Attainment & Progress is where assessment evidence belongs: its
+// standards are written as bands of a whole cohort — "51-75% students
+// understand most information, follow instructions with minimal support" —
+// which is exactly what a set of marks produces. Before this, only score-based
+// assessments could be linked, by picking the standard's sentence into a
+// free-text field, and rubrics could not be linked at all: every rubric
+// response was invisible to Standards Attainment, and the audit page guessed
+// its way from a standard's label to a rubric by substring, which matched a
+// "Listening & Writing" rubric under both Listening and Writing and counted it
+// twice.
+//
+// A link is {domain, stdIdx}, the same shape a checklist item uses. Left
+// unset it is derived from the skill, so everything the Assessment page holds
+// is linked without anyone clicking through ninety standards — and, like the
+// checklist mappings, an explicit choice always wins over the derived one.
+//
+// The default is keyed on the **skill**, not the subject, because these
+// standards are language-neutral: "Students demonstrate strong reading and
+// comprehension skills" is the same standard whether the assessment is English
+// Reading or Kannada Reading, and both should report against it.
+const _ASSESS_STD_DEFAULT = {
+  'Listening':     'Listening',
+  'Speaking':      'Speaking',
+  'Reading':       'Reading',
+  'Comprehension': 'Reading',
+  'Writing':       'Writing',
+  'Number Sense':  'Maths',
+  'Computation':   'Maths',
+  'Geometry':      'Maths',
+};
+// Nothing is linked to a whole domain by default; '__none__' is how an author
+// says "this one reports against no standard" and means it, rather than
+// falling back to the derived link.
+const _STD_UNLINKED = '__none__';
+
+function _stdDomain(id) { return DOMAINS.filter(d => d.id === id)[0] || null; }
+
+function _stdAt(link) {
+  const d = link && _stdDomain(link.domain);
+  if (!d || link.stdIdx === null || link.stdIdx === undefined) return null;
+  return d.standards[link.stdIdx] || null;
+}
+
+function _stdIdxBySub(domainId, sub) {
+  const d = _stdDomain(domainId);
+  if (!d || !sub) return -1;
+  const want = String(sub).replace(/\s+/g, ' ').trim().toLowerCase();
+  for (let i = 0; i < d.standards.length; i++)
+    if (String(d.standards[i].sub || '').replace(/\s+/g, ' ').trim().toLowerCase() === want) return i;
+  return -1;
+}
+
+// The standard an assessment or rubric reports against: an explicit link, else
+// the legacy free-text `standard` where it names a real standard, else derived
+// from the skill. `derived` is carried through so the UI can show a derived
+// link as a suggestion rather than as something the author decided.
+function _assessStdLink(item) {
+  if (!item) return null;
+  const ex = item.link;
+  if (ex && ex.domain === _STD_UNLINKED) return null;
+  if (ex && ex.domain && _stdDomain(ex.domain))
+    return { domain: ex.domain, derived: false,
+             stdIdx: (ex.stdIdx === null || ex.stdIdx === undefined) ? null : ex.stdIdx };
+  const legacy = String(item.standard || '').trim();
+  if (legacy) {
+    for (let i = 0; i < DOMAINS.length; i++) {
+      const d = DOMAINS[i];
+      for (let j = 0; j < d.standards.length; j++)
+        if (d.standards[j].s === legacy) return { domain: d.id, stdIdx: j, derived: false };
+    }
+  }
+  const skill = _deriveSkill(item);
+  const idx = skill ? _stdIdxBySub('sa', _ASSESS_STD_DEFAULT[skill]) : -1;
+  if (idx >= 0) return { domain: 'sa', stdIdx: idx, derived: true };
+  return null;
+}
+
+function _assessStdKey(link) {
+  return link ? link.domain + '-' + (link.stdIdx === null ? 'all' : link.stdIdx) : '';
+}
+function _assessStdText(link) {
+  const st = _stdAt(link);
+  if (st) return st.s;
+  const d = link && _stdDomain(link.domain);
+  return d ? d.label + ' — whole domain' : '';
+}
+function _assessStdSub(link) {
+  const st = _stdAt(link);
+  if (st) return st.sub;
+  const d = link && _stdDomain(link.domain);
+  return d ? d.label : '';
+}
+
+// The chip shown on an assessment or rubric card. A derived link is drawn
+// hollow and marked "auto", so it reads as what it is: the standard this will
+// report against unless someone says otherwise.
+function _assessStdChip(item) {
+  const link = _assessStdLink(item);
+  if (!link) return '<span style="font-size:10px;color:var(--ink-f)">not linked</span>';
+  const d = _stdDomain(link.domain);
+  const title = _assessStdText(link);
+  return '<span title="' + _escHtml(title) + '" style="display:inline-flex;align-items:center;gap:3px;' +
+    'padding:1px 7px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap;' +
+    'background:' + (link.derived ? 'transparent' : d.bg) + ';color:' + d.ic +
+    ';border:0.5px ' + (link.derived ? 'dashed' : 'solid') + ' ' + d.ic + '55">' +
+    d.emoji + ' ' + _escHtml(_assessStdSub(link)) + (link.derived ? ' · auto' : '') + '</span>';
+}
+
+// Everything on the Assessment page that reports against one standard.
+function _assessItemsForStd(domainId, stdIdx) {
+  const key = _assessStdKey({ domain: domainId, stdIdx: stdIdx });
+  const hit = item => _assessStdKey(_assessStdLink(item)) === key;
+  return {
+    assessments: assessments.filter(a => hit(a) && (scoreEntries[a.id] || []).length),
+    rubrics: rubrics.filter(r => hit(r) && (rubricScores[r.id] || []).length),
+  };
+}
+
 // An explicit skill always wins. Otherwise it is inferred from the subject and
 // the rubric's own name, so the eight rubrics that predate this field land in
 // the right card without anyone editing them. Nothing recognisable → null,
@@ -13089,6 +13359,8 @@ function _fillSkillOptions() {
 }
 
 function _updateSkillHint() {
+  // The derived standard follows the skill, so refresh it alongside.
+  if (document.getElementById('rb-hint')) _updateStdPickerHint('rb');
   const el = document.getElementById('rb-skill-hint');
   if (!el) return;
   const item = {
@@ -13127,7 +13399,21 @@ function _subjectNorm(sub) {
 function _assessAggregates() {
   const gradeAvgMap = {}; // grade -> [pct]
   const subjectAvgMap = {}; // subject -> [pct]
-  const standardMap = {}; // standard -> {exc,meet,app,bel,total}
+  // Keyed by the standard the item resolves to, not by a free-text sentence,
+  // so an assessment and a rubric reporting against the same standard land in
+  // one row — and a rubric lands in one at all, which it never used to.
+  const standardMap = {}; // "<domain>-<idx>" -> {domain,stdIdx,text,sub,exc,meet,app,bel,total}
+  const pushStandard = (item, pct) => {
+    const link = _assessStdLink(item);
+    if (!link) return;
+    const k = _assessStdKey(link);
+    if (!standardMap[k]) standardMap[k] = { domain: link.domain, stdIdx: link.stdIdx,
+      text: _assessStdText(link), sub: _assessStdSub(link),
+      exc: 0, meet: 0, app: 0, bel: 0, total: 0 };
+    const d = standardMap[k];
+    d.total++;
+    if (pct >= 80) d.exc++; else if (pct >= 60) d.meet++; else if (pct >= 35) d.app++; else d.bel++;
+  };
   const unassigned = [];  // names of the rubrics/assessments with no subject
   let totalPct = 0, totalCount = 0;
   // Percentages drive the existing banding; the raw levels are kept beside them
@@ -13157,14 +13443,7 @@ function _assessAggregates() {
       if (!gradeAvgMap[g]) gradeAvgMap[g] = [];
       gradeAvgMap[g].push(pct);
       pushSubject(a, pct);
-      if (a.standard) {
-        if (!standardMap[a.standard]) standardMap[a.standard] = {exc:0,meet:0,app:0,bel:0,total:0};
-        standardMap[a.standard].total++;
-        if (pct>=80) standardMap[a.standard].exc++;
-        else if (pct>=60) standardMap[a.standard].meet++;
-        else if (pct>=35) standardMap[a.standard].app++;
-        else standardMap[a.standard].bel++;
-      }
+      pushStandard(a, pct);
       totalPct += pct; totalCount++;
     });
   });
@@ -13180,6 +13459,7 @@ function _assessAggregates() {
       const pct = Math.round(avg/scale*100);
       if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
       pushSubject(r, pct);
+      pushStandard(r, pct);
       totalPct += pct; totalCount++;
     });
   });
@@ -13326,12 +13606,14 @@ function renderAssessAnalytics() {
       <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Standards Attainment</div>
       <div style="overflow-x:auto">
       <table class="data-table" style="font-size:12px">
-        <thead><tr><th>Standard / Learning Objective</th><th>Records</th><th style="color:var(--grn)">Exceeding</th><th style="color:#3b82f6">Meeting</th><th style="color:var(--gold)">Approaching</th><th style="color:var(--red)">Below</th></tr></thead>
+        <thead><tr><th>Domain</th><th>Standard</th><th>Records</th><th style="color:var(--grn)">Exceeding</th><th style="color:#3b82f6">Meeting</th><th style="color:var(--gold)">Approaching</th><th style="color:var(--red)">Below</th></tr></thead>
         <tbody>`;
     standardKeys.forEach(st => {
       const d = standardMap[st];
+      const dom = _stdDomain(d.domain);
       html += `<tr>
-        <td style="font-weight:500;color:var(--blue)">${st}</td>
+        <td style="white-space:nowrap">${dom ? dom.emoji + ' ' + _escHtml(d.sub) : ''}</td>
+        <td style="font-weight:500;color:var(--blue)">${_escHtml(d.text)}</td>
         <td>${d.total}</td>
         <td style="color:var(--grn);font-weight:500">${d.exc} (${Math.round(d.exc/d.total*100)}%)</td>
         <td style="color:#3b82f6;font-weight:500">${d.meet} (${Math.round(d.meet/d.total*100)}%)</td>
@@ -13518,6 +13800,7 @@ function openCreateRubric() {
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
   ['rb-name','rb-subject','rb-skill'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   _fillSkillOptions(); _updateSkillHint();
+  _renderStdPicker('rb', null);
   _setRubricGrades('all');
   document.getElementById('rb-scale').value = '4';
   renderRubricCriteriaEditor();
@@ -13567,7 +13850,8 @@ function saveRubric() {
   const rubric = { id: existing ? existing.id : 'rb_'+Date.now(), name,
     subject: document.getElementById('rb-subject').value.trim(),
     skill: (document.getElementById('rb-skill')||{value:''}).value.trim(),
-    grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4, criteria };
+    grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4,
+    link: _stdPickerValue('rb'), criteria };
   if (existing) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
   saveAssessmentData();
@@ -13609,7 +13893,8 @@ function renderRubricsList() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="font-size:24px">📋</div>
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
-          <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
+          <div style="font-size:12px;color:var(--ink-l)">${_escHtml(r.subject||'')} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div>
+          <div style="margin-top:4px">${_assessStdChip(r)}</div></div>
         <button onclick="openRubricScoreModal('${r.id}')" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer;margin-right:4px">✏ Score students</button>
         <button onclick="openGFormImport('${r.id}')" title="Upload an Excel/CSV file, a Google Drive link or a published Sheet" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer;margin-right:4px">⬆ Import scores</button>
         <button onclick="openEditRubric(${ri})" class="tbl-edit-btn" title="Edit this rubric">✏</button>
@@ -14265,7 +14550,11 @@ function openEditRubric(idx) {
   document.getElementById('rb-subject').value = r.subject||'';
   const skEl = document.getElementById('rb-skill');
   if (skEl) skEl.value = r.skill||'';
-  _fillSkillOptions(); _updateSkillHint();
+  _fillSkillOptions();
+  const rlink = _assessStdLink(r);
+  _renderStdPicker('rb', (rlink && !rlink.derived) ? rlink
+    : (r.link && r.link.domain === _STD_UNLINKED ? r.link : null));
+  _updateSkillHint();
   _setRubricGrades(r.grade||'all');
   document.getElementById('rb-scale').value = String(r.scale||4);
   renderRubricCriteriaEditor();

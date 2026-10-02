@@ -448,6 +448,56 @@ else, so students scored in the app through `saveRubricScoresManual()`
 as the whole truth would delete that work without saying so. The radio's note
 counts both before you choose.
 
+### Wide skill-profiling sheets
+
+A sheet with one row per student and one column per skill, each column stating
+its own maximum in the heading (`Listening Skills - 20 Marks`), is detected on
+load by `_wideScan()` and opens **step 3** of the marks importer rather than the
+column mapper, which can only describe one marks column with one maximum. Each
+skill column becomes its own assessment.
+
+Everything about the layout is read, not assumed, because the parts that differ
+between two of these sheets are the parts a guess gets wrong:
+
+- **The heading row may not be the row naming the students.** `Name of the
+  Students` is often merged down two rows, with merged band names beside it
+  above and the skills below. Of the two candidate rows, whichever states more
+  maxima wins.
+- **Band names are carried rightwards** across the columns they were merged
+  over and become the subject, so a column lands in Skill Performance as
+  `Language Proficiency · Listening`.
+- **The grade may exist only in the sheet's name.** `_wideGradeFromName()`
+  reads "Grade 3", "Class V" and "G4"; one workbook is one test and one sheet is
+  one grade. Without it every row imports ungraded.
+- **A `Sl. No` column is a serial number, not an identity.** It renumbers
+  itself whenever a student is added, so taking it for a roll number would
+  write one child's marks onto another on the next import. `_wideIsSerialHdr()`
+  columns are ignored; roll, admission and enrolment numbers are not.
+
+**A heading does not make a skill column.** An ordinary marks file has `Marks`
+and `Remarks` side by side, and reading `Remarks` as a second skill turned a
+normal file into a wide one. A skill column must actually hold numbers — at
+least one value parses and numbers are the majority of the filled cells. Two
+numeric columns are still not enough (`Marks Obtained` beside `Total` is two),
+so the layout is only accepted when **two or more columns state a maximum**, or
+the columns sit under **merged band headings**. Anything else goes to the
+ordinary mapper, which is where it belongs.
+
+**The maximum in a heading is editable, and is the number these sheets get
+wrong.** One real column read `Listening Skills - 20 Marks` where nothing
+scored above 5 — taking the heading would have halved every percentage in it.
+The preview says so against the highest mark actually scored and leaves the
+choice to the author rather than picking a side. Maxima are held by column
+label, not per sheet, so a correction made once applies to every sheet going in.
+Marks above the maximum, values that are not numbers, and blanks are all counted
+before importing; blanks stay unscored rather than becoming zeros.
+
+Where every sheet in the workbook has the same columns, all of them import at
+once, each taking its grade from its own name — 6 skills × 3 grades in one
+pass. Re-importing matches on name and grade, so a sheet imported again after a
+maximum was corrected **updates** rather than silently doubling every average
+built from it; the preview says how many rows that affects.
+
 ### Skill Performance
 
 Cards are grouped by the **skill being assessed**, labelled `Subject · Skill`
@@ -508,6 +558,62 @@ count per level.
 If two rubrics of **different scales** land under one skill the distribution
 would be meaningless, so `scale` is set to `null` and the card falls back to the
 percentage only.
+
+### Linking assessments to audit standards
+
+Student Attainment & Progress (`sa`) is where assessment evidence belongs: its
+standards are written as bands of a whole cohort — "51–75% students understand
+most information, follow instructions with minimal support" — which is exactly
+what a set of marks produces.
+
+`_assessStdLink(item)` is the single resolver, and the only thing that should
+ever answer "which standard does this report against":
+
+1. an explicit `item.link` of `{domain, stdIdx}` — the same shape a checklist
+   item uses. `domain: '__none__'` means *deliberately unlinked* and stops the
+   fallbacks;
+2. the legacy free-text `item.standard`, where it names a real standard;
+3. **derived from the skill**, via `_ASSESS_STD_DEFAULT`.
+
+The derived default is keyed on the **skill, not the subject**, because these
+standards are language-neutral: "Students demonstrate strong reading and
+comprehension skills" is the same standard whether the assessment is English
+Reading or Kannada Reading, and both must report against it. Deriving rather
+than requiring the field is what makes everything linked without anyone
+clicking through ninety standards; `derived: true` is carried through so the UI
+draws it hollow and marked "auto" — a suggestion, not a decision. An explicit
+link always wins, and a derived link is deliberately **not** frozen into the
+record on edit, so renaming an assessment moves it to the right standard
+instead of stranding it on the one its old name suggested.
+
+`_assessStdChip()` is the chip on an assessment or rubric card;
+`_assessItemsForStd(domainId, stdIdx)` is everything reporting against one
+standard; `_buildStdInlineEvidence()` is the evidence block inside a standard's
+rubric panel, and it now runs for **every** domain, not just `sa`.
+
+What this replaced is worth knowing, because all three faults are easy to
+reintroduce:
+
+- Only score-based assessments could be linked, by picking the standard's own
+  sentence into a free-text field. **Rubrics could not be linked at all**, so
+  every rubric response was invisible to Standards Attainment.
+- The audit page found its evidence by substring, matching any rubric whose
+  name or subject contained a sub-domain's label. A "Listening & Writing"
+  rubric matched under Listening *and* under Writing and was counted twice,
+  while "Number Sense" never matched "Maths" at all.
+- That same code read `r.subject.toLowerCase()` unguarded, so one rubric saved
+  without a subject threw on the whole page.
+
+`standardMap` in `_assessAggregates()` is keyed by `"<domain>-<stdIdx>"` rather
+than by a sentence, so an assessment and a rubric reporting against the same
+standard land in one row, and the Standards Attainment table and the xlsx sheet
+both carry Domain and Sub-domain columns.
+
+The picker (`_renderStdPicker`, `_stdPickerValue`, `_updateStdPickerHint`) is
+shared by the assessment modal (`am-` prefix) and the rubric editor (`rb-`).
+Its hint names the standard the item will report against *before* it is saved,
+including when the link is left to derive itself — a wrong guess should be
+visible in the editor, not discovered later in the analytics.
 
 ### CSV helpers
 
