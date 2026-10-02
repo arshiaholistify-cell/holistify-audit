@@ -134,17 +134,23 @@ The `principal` and `staff` demo accounts were deleted from Supabase and
 `consultant` was given a fresh generated password; only `admin`, `consultant`
 and the seven auditors remain in `profiles`.
 
-### Migration state
+### Migration state — complete
 
-`supabase_auth_migration.sql` is applied and is deliberately additive: the old
-`anon` policies still sit alongside the new `authenticated` ones, so unmigrated
-users keep working. **The migration is not finished until
-`supabase_auth_lockdown.sql` is run**, which drops those anon policies. Until
-then the anon key in the served HTML still grants full read/write to every
-table, which is the hole this work exists to close.
+Both `supabase_auth_migration.sql` and `supabase_auth_lockdown.sql` are applied.
+`schools`, `audit_states` and `journey_records` now carry **only** the
+`authenticated` policies; the three `anon_all_*` policies are dropped.
 
-Run the lockdown only once every account appears in `profiles` and has signed
-in through Auth at least once.
+Verified after the lockdown: an anonymous request carrying the key from the
+served page returns `[]` on all three tables and is refused (401, RLS) on write,
+while `admin` and a plain non-admin account both still read everything.
+
+**The anon key in `index.html` is now inert**, which is what the whole exercise
+was for — but that also means anything new must be reachable by a signed-in
+user, not by the anon role. A new table needs its own `authenticated` policy or
+the app simply sees nothing, with no error to explain why.
+
+To undo in an emergency, re-create the three policies
+`for all to anon using (true) with check (true)`.
 
 User Management shows where each account stands: the **Account** column reads
 "Supabase Auth", "This browser only", or "Not checked", and the Supabase Auth
