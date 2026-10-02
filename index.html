@@ -2452,8 +2452,15 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <button onclick="document.getElementById('rubric-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
     <div class="sip-modal-title" id="rubric-modal-title">Create Rubric</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div class="sip-field" style="margin:0"><label>Rubric name *</label><input id="rb-name" placeholder="e.g. Science Project Rubric"></div>
-      <div class="sip-field" style="margin:0"><label>Subject / Area</label><input id="rb-subject" placeholder="e.g. Science"></div>
+      <div class="sip-field" style="margin:0"><label>Rubric name *</label><input id="rb-name" placeholder="e.g. Science Project Rubric" oninput="_updateSkillHint()"></div>
+      <div class="sip-field" style="margin:0"><label>Subject / Area</label><input id="rb-subject" placeholder="e.g. English, Kannada, Maths" oninput="_updateSkillHint()"></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div class="sip-field" style="margin:0"><label>Skill</label>
+        <input id="rb-skill" list="rb-skill-options" oninput="_updateSkillHint()" placeholder="Left blank, it is worked out from the name and subject">
+        <datalist id="rb-skill-options"></datalist>
+      </div>
+      <div id="rb-skill-hint" class="hint" style="font-size:11px;color:var(--ink-f);margin-top:4px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="sip-field" style="margin:0;grid-column:1/-1"><label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">Grade(s) <span id="rb-grade-all-wrap"><label style="font-size:11px;font-weight:400;color:var(--sage);cursor:pointer"><input type="checkbox" id="rb-grade-all" onchange="toggleAllRubricGrades(this.checked)" style="accent-color:var(--sage);margin-right:3px">All Grades</label></span></label>
@@ -11817,7 +11824,7 @@ function renderGradeWiseView() {
   const subjKeys = Object.keys(subjMap).filter(s=>subjMap[s].length);
   if (subjKeys.length > 1) {
     html += `<div style="margin-bottom:16px">
-      <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px">Subject Performance</div>
+      <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:8px">Skill Performance</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">`;
     subjKeys.forEach(s => {
       const arr = subjMap[s];
@@ -12030,10 +12037,10 @@ function downloadAssessmentBreakdownXlsx() {
     return { Grade: g, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
   }));
 
-  add('Subject Performance', Object.keys(agg.subjectAvgMap).map(sub => {
+  add('Skill Performance', Object.keys(agg.subjectAvgMap).map(sub => {
     const arr = agg.subjectAvgMap[sub];
     const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-    return { Subject: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+    return { Skill: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
   }));
 
   add('Standards Attainment', Object.keys(agg.standardMap).map(st => {
@@ -12154,6 +12161,90 @@ function downloadAssessmentBreakdownCsv() {
 // responses vanished from the panel and the subject's average read 3 points
 // higher than the truth. They are bucketed here instead.
 const _SUBJECT_UNASSIGNED = 'Unassigned';
+
+// Performance is grouped by the SKILL being assessed, not the subject heading
+// someone happened to type. A screening assessment measures reading, or number
+// sense — "English- Reading" and "Kannada Reading" are the same skill in two
+// languages, and reading them as two unrelated subjects hid that.
+//
+// Order matters: the first pattern that matches wins, so the more specific
+// skills are listed before the general ones ("reading comprehension" is
+// Comprehension, not Reading).
+const _SKILLS = [
+  { name: 'Number Sense', re: /number\s*sense|numeracy|counting|place\s*value/i },
+  { name: 'Computation',  re: /computation|arithmetic|calculat|addition|subtraction|multiplic|division/i },
+  { name: 'Comprehension',re: /comprehension/i },
+  { name: 'Listening',    re: /listening|aural/i },
+  { name: 'Speaking',     re: /speaking|spoken|oral|speech|conversation/i },
+  { name: 'Writing',      re: /writing|written|handwriting|composition/i },
+  { name: 'Reading',      re: /reading|decoding|phonics|fluency|recognition/i },
+];
+// The suggestions offered in the editor. Free text is still allowed — a school
+// with a skill not listed here simply types it.
+const _SKILL_SUGGESTIONS = _SKILLS.map(s => s.name);
+
+// An explicit skill always wins. Otherwise it is inferred from the subject and
+// the rubric's own name, so the eight rubrics that predate this field land in
+// the right card without anyone editing them. Nothing recognisable → null,
+// which surfaces as "Unassigned" rather than a guess.
+function _deriveSkill(item) {
+  const explicit = String((item && item.skill) || '').trim();
+  if (explicit) return explicit;
+  const hay = String((item && item.subject) || '') + ' ' + String((item && item.name) || '');
+  for (let i = 0; i < _SKILLS.length; i++) if (_SKILLS[i].re.test(hay)) return _SKILLS[i].name;
+  return null;
+}
+
+// What is left of the subject once the skill word is taken out — the language
+// or area. "English- Reading" and "English-Reading" both reduce to "English",
+// which is also what folds those two cards into one.
+function _subjectBase(item, skill) {
+  let sub = String((item && item.subject) || '').trim();
+  if (!sub) return '';
+  if (skill) {
+    const words = skill.split(/\s+/).filter(Boolean)
+      .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    words.forEach(w => { sub = sub.replace(new RegExp(w, 'ig'), ' '); });
+  }
+  sub = sub.replace(/[\s\-_/]+/g, ' ').trim();
+  return sub;
+}
+
+// The card label: "English · Reading", or just the skill when there is no
+// subject left to qualify it.
+function _fillSkillOptions() {
+  const dl = document.getElementById('rb-skill-options');
+  if (!dl) return;
+  // Offer the standard list plus anything this school already uses.
+  const used = {};
+  rubrics.forEach(r => { const v = String(r.skill||'').trim(); if (v) used[v] = 1; });
+  const all = _SKILL_SUGGESTIONS.concat(Object.keys(used).filter(v => _SKILL_SUGGESTIONS.indexOf(v) < 0));
+  dl.innerHTML = all.map(v => `<option value="${_escHtml(v)}"></option>`).join('');
+}
+
+function _updateSkillHint() {
+  const el = document.getElementById('rb-skill-hint');
+  if (!el) return;
+  const item = {
+    name: (document.getElementById('rb-name')||{value:''}).value,
+    subject: (document.getElementById('rb-subject')||{value:''}).value,
+    skill: (document.getElementById('rb-skill')||{value:''}).value
+  };
+  const skill = _deriveSkill(item);
+  if (!skill) {
+    el.innerHTML = '<span style="color:var(--amb)">⚠ No skill recognised yet — this rubric would show under "Unassigned". Pick or type one.</span>';
+    return;
+  }
+  const explicit = String(item.skill||'').trim();
+  el.textContent = 'Will appear as "' + _skillKey(item) + '"' + (explicit ? '' : ' — worked out from the name and subject');
+}
+
+function _skillKey(item) {
+  const skill = _deriveSkill(item);
+  if (!skill) return _SUBJECT_UNASSIGNED;
+  const base = _subjectBase(item, skill);
+  return base ? base + ' · ' + skill : skill;
+}
 function _subjectKey(sub) {
   const t = String(sub == null ? '' : sub).trim();
   return t || _SUBJECT_UNASSIGNED;
@@ -12173,8 +12264,8 @@ function _assessAggregates() {
   const standardMap = {}; // standard -> {exc,meet,app,bel,total}
   const unassigned = [];  // names of the rubrics/assessments with no subject
   let totalPct = 0, totalCount = 0;
-  const pushSubject = (sub, pct) => {
-    const k = _subjectKey(sub);
+  const pushSubject = (item, pct) => {
+    const k = _skillKey(item);
     if (!subjectAvgMap[k]) subjectAvgMap[k] = [];
     subjectAvgMap[k].push(pct);
   };
@@ -12186,7 +12277,7 @@ function _assessAggregates() {
       if (pct === null) return;
       if (!gradeAvgMap[g]) gradeAvgMap[g] = [];
       gradeAvgMap[g].push(pct);
-      pushSubject(a.subject, pct);
+      pushSubject(a, pct);
       if (a.standard) {
         if (!standardMap[a.standard]) standardMap[a.standard] = {exc:0,meet:0,app:0,bel:0,total:0};
         standardMap[a.standard].total++;
@@ -12205,16 +12296,16 @@ function _assessAggregates() {
       if (avg === null) return;   // unscored responses are not 0% results
       const pct = Math.round(avg/(r.scale||4)*100);
       if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
-      pushSubject(r.subject, pct);
+      pushSubject(r, pct);
       totalPct += pct; totalCount++;
     });
   });
 
   assessments.forEach(a => {
-    if (!String(a.subject||'').trim() && (scoreEntries[a.id]||[]).length) unassigned.push(a.name || 'Untitled assessment');
+    if (!_deriveSkill(a) && (scoreEntries[a.id]||[]).length) unassigned.push(a.name || 'Untitled assessment');
   });
   rubrics.forEach(r => {
-    if (!String(r.subject||'').trim() && (rubricScores[r.id]||[]).length) unassigned.push(r.name || 'Untitled rubric');
+    if (!_deriveSkill(r) && (rubricScores[r.id]||[]).length) unassigned.push(r.name || 'Untitled rubric');
   });
 
   // Subjects whose names differ only by spacing, separators or case.
@@ -12297,7 +12388,7 @@ function renderAssessAnalytics() {
   const subjectKeys = Object.keys(subjectAvgMap).filter(s=>subjectAvgMap[s].length);
   if (subjectKeys.length) {
     html += `<div class="card" style="margin-bottom:16px;padding:16px">
-      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Subject Performance</div>
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Skill Performance</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">`;
     subjectKeys.forEach(s => {
       const arr = subjectAvgMap[s];
@@ -12307,21 +12398,21 @@ function renderAssessAnalytics() {
       html += `<div style="padding:12px;border-radius:var(--r-md);${isUn ? 'background:var(--amb-p);color:var(--amb)' : att.css};border:0.5px ${isUn ? 'dashed var(--amb)' : 'solid transparent'}">
         <div style="font-size:13px;font-weight:500">${_escHtml(s)}</div>
         <div style="font-size:22px;font-weight:700;margin:4px 0">${avg}%</div>
-        <div style="font-size:10px">${arr.length} records · ${isUn ? 'no subject set' : att.label}</div>
+        <div style="font-size:10px">${arr.length} records · ${isUn ? 'no skill set' : att.label}</div>
       </div>`;
     });
     html += '</div>';
     if (agg.unassigned && agg.unassigned.length) {
       html += `<div style="font-size:11px;color:var(--amb);margin-top:10px;line-height:1.5">
-        ⚠ ${agg.unassigned.length} ${agg.unassigned.length===1?'has':'have'} no Subject set, so ${agg.unassigned.length===1?'it is':'they are'} grouped as "Unassigned" rather than counted under a subject:
+        ⚠ No skill could be worked out for ${agg.unassigned.length} of these, so ${agg.unassigned.length===1?'it is':'they are'} grouped as "Unassigned":
         <strong>${agg.unassigned.map(n=>_escHtml(n)).join('</strong>, <strong>')}</strong>.
-        Set the Subject field on each to fold ${agg.unassigned.length===1?'it':'them'} into the right card.</div>`;
+        Set the <strong>Skill</strong> field on each — or give ${agg.unassigned.length===1?'it':'them'} a Subject naming the skill — to fold ${agg.unassigned.length===1?'it':'them'} into the right card.</div>`;
     }
     (agg.subjectDupes || []).forEach(d => {
       html += `<div style="font-size:11px;color:var(--amb);margin-top:8px;line-height:1.5">
-        ⚠ ${d.names.map(n=>'"<strong>'+_escHtml(n)+'</strong>"').join(' and ')} look like the same subject typed differently,
+        ⚠ ${d.names.map(n=>'"<strong>'+_escHtml(n)+'</strong>"').join(' and ')} look like the same thing named differently,
         so they are counted as separate cards. Together they are ${d.records} records at ${d.pct}%.
-        Make the Subject field identical on each to merge them.</div>`;
+        Make the Skill and Subject fields identical on each to merge them.</div>`;
     });
     html += '</div>';
   }
@@ -12523,7 +12614,8 @@ function openCreateRubric() {
   if (del) del.style.display = 'none';
   rubricCriteria = [{ name: '', descriptors: ['','','',''] }];
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
-  ['rb-name','rb-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['rb-name','rb-subject','rb-skill'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  _fillSkillOptions(); _updateSkillHint();
   _setRubricGrades('all');
   document.getElementById('rb-scale').value = '4';
   renderRubricCriteriaEditor();
@@ -12572,6 +12664,7 @@ function saveRubric() {
   // empty and the scores sat in rubricScores unreachable.
   const rubric = { id: existing ? existing.id : 'rb_'+Date.now(), name,
     subject: document.getElementById('rb-subject').value.trim(),
+    skill: (document.getElementById('rb-skill')||{value:''}).value.trim(),
     grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4, criteria };
   if (existing) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
@@ -13115,6 +13208,9 @@ function openEditRubric(idx) {
   document.getElementById('rubric-modal-title').textContent = 'Edit Rubric';
   document.getElementById('rb-name').value = r.name;
   document.getElementById('rb-subject').value = r.subject||'';
+  const skEl = document.getElementById('rb-skill');
+  if (skEl) skEl.value = r.skill||'';
+  _fillSkillOptions(); _updateSkillHint();
   _setRubricGrades(r.grade||'all');
   document.getElementById('rb-scale').value = String(r.scale||4);
   renderRubricCriteriaEditor();

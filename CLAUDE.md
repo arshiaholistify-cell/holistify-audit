@@ -378,27 +378,49 @@ else, so students scored in the app through `saveRubricScoresManual()`
 as the whole truth would delete that work without saying so. The radio's note
 counts both before you choose.
 
-### Subject Performance
+### Skill Performance
 
-Cards are grouped by the rubric's or assessment's `subject` **string**, matched
-exactly. Two things used to go wrong silently, and `_assessAggregates()` now
-reports both rather than hiding them:
+Cards are grouped by the **skill being assessed**, labelled `Subject · Skill`
+("English · Reading", "Maths · Number Sense"). A screening assessment measures
+reading or number sense; grouping by whatever subject heading someone typed made
+"English- Reading" and "Kannada Reading" look like unrelated subjects and hid
+that they are the same skill in two languages.
 
-- **No subject set.** Such a rubric was skipped entirely — not shown, not
-  counted, no hint anything was missing. Two of one school's Kannada rubrics
-  were unlabelled, so 160 responses vanished from the panel and the subject read
-  3 points higher than the truth. `_subjectKey()` buckets them as
-  **"Unassigned"** (an amber, dashed card) and `agg.unassigned` names them
-  underneath. They were always in the overall average and Grade Averages; it was
-  only this panel that dropped them.
-- **The same subject typed two ways.** `"English- Reading"` and
-  `"English-Reading"` are different strings, so they became two cards.
-  `_subjectNorm()` collapses case, whitespace and `-_/` and `agg.subjectDupes`
-  flags any group sharing a normalised name, with what they would combine to.
+`_skillKey(item)` builds the label:
 
-It **flags, never merges**. Deciding that two differently-named subjects are the
-same is the author's call, not the chart's — and silently combining them would
-be the same class of bug as silently dropping them.
+- `_deriveSkill()` takes an explicit `item.skill` if set, else matches
+  `_SKILLS` against the subject and the rubric's own name. **Order in `_SKILLS`
+  matters** — specific before general, so "Reading Comprehension" is
+  Comprehension, not Reading. Nothing recognised returns `null`.
+- `_subjectBase()` is what remains of the subject once the skill words are
+  removed — the language or area. This is also what folds `"English- Reading"`
+  and `"English-Reading"` into one card.
+
+Deriving rather than requiring the field means rubrics that predate it land in
+the right card untouched. The editor's Skill box offers `_SKILL_SUGGESTIONS`
+plus whatever this school already uses, accepts free text, and `_updateSkillHint()`
+shows live which card the rubric will land on — so a wrong guess is visible
+before saving rather than discovered in the analytics.
+
+Two things that used to go wrong silently, both still reported:
+
+- **No skill derivable** — the rubric used to be skipped entirely: not shown,
+  not counted, no hint anything was missing. Two of one school's Kannada
+  rubrics were unlabelled, so 160 responses vanished from the panel and the
+  figure read 3 points higher than the truth. They are bucketed as
+  **"Unassigned"** (amber, dashed) and `agg.unassigned` names them underneath.
+  They were always in the overall average and Grade Averages; only this panel
+  dropped them.
+- **The same thing named two ways** — `agg.subjectDupes` flags groups whose
+  labels match once `_subjectNorm()` collapses case, whitespace and `-_/`, with
+  what they would combine to.
+
+It **flags, never merges**. Deciding that two differently-named cards are the
+same is the author's call, not the chart's — silently combining them would be
+the same class of bug as silently dropping them.
+
+`subjectAvgMap` keeps its name for compatibility with the snapshot and exports;
+its keys are skill labels.
 
 ### CSV helpers
 
