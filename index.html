@@ -12246,8 +12246,12 @@ function _wideRender() {
         if (max !== null && top !== null && top > 0 && max >= top * 2)
           warns.push('<strong>' + _escHtml(col.label) + '</strong> is marked out of ' + max +
             ', but the highest mark anyone scored is ' + top +
-            '. If the paper was really out of ' + top + ', change it — otherwise every ' +
-            'percentage in this column will read about half what it should.');
+            '. If the paper was really out of ' + top + ', ' +
+            '<button onclick="_wideSetMax(' + _escHtml(JSON.stringify(key)) + ',' + top + ')" ' +
+            'style="font-size:11px;padding:1px 8px;border-radius:20px;border:0.5px solid var(--amb);' +
+            'background:var(--sur-r);color:var(--amb);cursor:pointer;font-family:inherit">use ' + top +
+            '</button> — otherwise every percentage in this column will read about half what it ' +
+            'should.');
         if (bad) warns.push(bad + ' value' + (bad === 1 ? '' : 's') + ' in <strong>' +
           _escHtml(col.label) + '</strong> ' + (bad === 1 ? 'is' : 'are') + ' not a number and will be skipped.');
       }
