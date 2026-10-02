@@ -287,10 +287,15 @@ disagree with what is on display. The 80 / 60 / 35 banding thresholds live in
 that function and in `_band()`, nowhere else.
 
 - **`.csv`** — the Assessment Breakdown table alone, one row per assessment.
-- **`.xlsx`** — Summary, Grade Averages, Subject Performance, Standards
+- **`.xlsx`** — Summary, Grade Averages, Skill Performance, Standards
   Attainment, Assessment Breakdown, Skill Levels (one row per rubric × grade ×
   skill × level, with the student names) and Student Scores (one row per
   student per assessment, and per rubric criterion).
+
+  Two sheets both say "skill" and mean different things: **Skill Performance**
+  is the `Subject · Skill` card grouping below, one row per card; **Skill
+  Levels** is per rubric *criterion*, which is the finer-grained thing the
+  rubric editor calls a criterion.
 
 SheetJS is loaded from a CDN for reading uploads and is now used for writing
 too. `downloadAssessmentBreakdownXlsx()` checks `typeof XLSX` first and points
