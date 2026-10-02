@@ -354,7 +354,38 @@ the form than in the rubric (`"Recognizes"` vs `"Recognises"`) stays unscored an
 shows as `—`; fuzzy-matching it would put a wrong level on a child's screening
 result. Fix the wording on one side instead.
 
-### Google Form import
+### Importing scores
+
+The Assessment page has two kinds of score and **one importer each**, reached
+from the tab they belong to — the tabs are what say which kind you mean, so
+nothing asks again:
+
+| Tab | Button | Importer |
+|---|---|---|
+| Score-based | ⬆ Upload scores, and ⬆ Upload on each assessment card | `openScoreImport()` — marks out of a maximum |
+| Rubric-based | ⬆ Import scores, and on each rubric card | `openGFormImport()` — levels 1–4 |
+
+Both accept the same three sources and share `_sniffBytes()`,
+`_sheetsWithRows()`, `_fetchImportSource()` and `_csvParse()`. Opened from a
+card, the rubric or assessment is preselected; from the tab header the choice
+stays open unless there is only one.
+
+`openGFormImport()` was once labelled "📥 Google Form" and lived only in the
+page header, so the Excel and Drive routes were unfindable and the rubric tab —
+where anyone would look — had no import at all. The name was also a promise it
+no longer kept.
+
+**Marks import** (`openScoreImport`): the old `handleAssessmentUpload()` read
+every file with `readAsText`, so an `.xlsx` — which its file input accepted —
+parsed as binary rubbish; it split CSV on bare commas, so a name like
+`"Khan, Ayesha"` broke the row; and it always invented a new assessment with
+`maxMarks: 100` regardless of the file. The replacement maps columns with a
+preview, **warns before importing** about marks that are not numbers, are above
+the maximum, or are missing, skips the unusable ones, matches on roll number
+then name so a re-import updates rather than duplicates, and infers a new
+assessment's maximum from the data.
+
+### Rubric score import
 
 Rubric responses come in through `openGFormImport()`. Two paths, both ending in
 `_gfiAccept()` → `_csvParse()` → `_buildGfiMapper()`:

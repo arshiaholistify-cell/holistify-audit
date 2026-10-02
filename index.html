@@ -716,6 +716,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
    (9000), .mgmt-modal-overlay (10000) and #creds-overlay (10500). At the old
    z-index of 1000 this modal opened *behind* the admin hub: the click worked,
    the overlay got its .open class, and nothing appeared. */
+.upload-kind-tile { border:0.5px solid var(--bdr-s); border-radius:var(--r-md); padding:14px; margin-bottom:10px; cursor:pointer; transition:all 0.15s; background:var(--sur-r); }
+.upload-kind-tile:hover { border-color:var(--sage); box-shadow:0 2px 10px rgba(26,48,40,0.08); }
 #users-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10600; align-items:flex-start; justify-content:center; padding:24px 12px; overflow-y:auto; }
 #users-modal-overlay.open { display:flex; }
 .users-modal { background:var(--sur-r); border-radius:var(--r-xl); padding:24px; width:min(680px,96vw); box-shadow:var(--sh-lg); }
@@ -2289,9 +2291,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="pg-hd-actions">
       <button class="btn btn-p" onclick="openAddAssessment()">+ Add assessment</button>
       <button class="btn btn-s" onclick="openAddScore()">+ Add scores</button>
-      <button class="btn btn-s" onclick="document.getElementById('assess-csv-input').click()">⬆ Upload scores</button>
+      <button class="btn btn-s" onclick="openScoreImport()">⬆ Upload scores</button>
       <input type="file" id="assess-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleAssessmentUpload(this)">
-      <button class="btn btn-s" onclick="openGFormImport()" style="color:var(--sage);border-color:var(--sage)">📥 Google Form</button>
     </div>
   </div>
 
@@ -2330,7 +2331,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   <!-- Rubric-based panel (hidden by default) -->
   <div id="assess-panel-rubric" style="display:none">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+      <button class="btn btn-s" onclick="openGFormImport()">⬆ Import scores</button>
       <button class="btn btn-p" onclick="openCreateRubric()">+ Create rubric</button>
     </div>
     <div id="rubrics-list"></div>
@@ -2339,9 +2341,9 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       No rubrics yet. Create a rubric template to assess students.
     </div>
 
-    <!-- Google Form responses -->
+    <!-- Imported rubric scores -->
     <div id="rubric-responses-section" style="display:none;margin-top:28px">
-      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">📊 Student Rubric Responses</div>
+      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">📊 Student Rubric Scores</div>
       <div id="rubric-responses-list"></div>
     </div>
   </div>
@@ -2504,11 +2506,77 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+<!-- Upload marks for a score-based assessment. Mirrors the rubric importer:
+     same three sources, same real CSV parser, same preview before committing. -->
+<div class="sip-modal-overlay" id="score-import-modal">
+  <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('score-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">⬆ Upload scores</div>
+
+    <div id="si-step1">
+      <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
+        <strong>Three ways to do this.</strong> The file needs a column of student names and a column of
+        marks; roll number, grade and remarks are optional.<br>
+        <strong>A — upload a file:</strong> an <strong>.xlsx</strong> from Excel, or a <strong>CSV</strong>.<br>
+        <strong>B — a Google Drive link:</strong> sharing must be <strong>Anyone with the link</strong>.<br>
+        <strong>C — a published Google Sheet:</strong> File → Share → Publish to web → CSV.
+      </div>
+      <div class="sip-field">
+        <label>Add the marks to</label>
+        <select id="si-assessment" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+      </div>
+      <div class="sip-field">
+        <label>Google Drive link, or a published Google Sheet URL</label>
+        <input id="si-url" placeholder="https://drive.google.com/file/d/…/view  —  or leave blank and upload a file" style="font-size:12px">
+      </div>
+      <div id="si-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-p" onclick="siFetch()">Fetch &amp; Preview →</button>
+        <button class="btn btn-s" onclick="document.getElementById('si-file').click()">⬆ Upload Excel or CSV</button>
+        <input type="file" id="si-file" accept=".xlsx,.xlsm,.xls,.ods,.csv,text/csv,text/plain" style="display:none" onchange="siUploadFile(this)">
+        <button class="btn btn-s" onclick="document.getElementById('score-import-modal').classList.remove('open')">Cancel</button>
+      </div>
+    </div>
+
+    <div id="si-step2" style="display:none">
+      <div id="si-sheet-wrap" class="sip-field" style="display:none;margin-bottom:12px"></div>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">Map the columns</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="sip-field" style="margin:0"><label>Student name *</label><select id="si-col-name" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Marks *</label><select id="si-col-score" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Roll no.</label><select id="si-col-roll" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Grade</label><select id="si-col-grade" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+        <div class="sip-field" style="margin:0"><label>Remarks</label><select id="si-col-remarks" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select></div>
+      </div>
+      <div id="si-warn" style="display:none;background:var(--amb-p);color:var(--amb);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:8px">Preview <span id="si-row-count" style="font-size:11px;font-weight:400;color:var(--ink-l)"></span></div>
+      <div style="overflow-x:auto;margin-bottom:14px">
+        <table class="data-table" style="font-size:12px"><thead id="si-preview-head"></thead><tbody id="si-preview-body"></tbody></table>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-p" onclick="siImport()">Import <span id="si-import-count"></span> scores</button>
+        <button class="btn btn-s" onclick="document.getElementById('si-step1').style.display='';document.getElementById('si-step2').style.display='none'">← Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+ to score, when "+ Add scores" is pressed from the
+     page header rather than from one assessment's own card. -->
+<div class="sip-modal-overlay" id="pick-assessment-modal">
+  <div class="sip-modal" style="max-width:520px;max-height:80vh;overflow-y:auto">
+    <button onclick="document.getElementById('pick-assessment-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">+ Add scores</div>
+    <div style="font-size:12px;color:var(--ink-l);margin-bottom:14px">Which assessment are you scoring?</div>
+    <div id="pick-assessment-list"></div>
+  </div>
+</div>
+
 <!-- Google Form / Sheet import modal -->
 <div class="sip-modal-overlay" id="gform-import-modal">
   <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
     <button onclick="document.getElementById('gform-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
-    <div class="sip-modal-title">📥 Import Google Form Responses</div>
+    <div class="sip-modal-title">⬆ Import rubric scores</div>
 
     <!-- Step 1: URL -->
     <div id="gfi-step1">
@@ -11435,6 +11503,9 @@ function setAssessTab(tab, btn) {
   document.getElementById('assess-panel-analytics').style.display = tab==='analytics'?'':'none';
   if (tab==='analytics') renderAssessAnalytics();
   if (tab==='grade') _initGradeViewFilters();
+  // Repaint on the way in, so the tab reflects an import or an edit made
+  // elsewhere rather than whatever was last drawn.
+  if (tab==='rubric') { renderRubricsList(); renderRubricResponses(); }
 }
 
 function populateAssessFilters() {
@@ -11485,6 +11556,7 @@ function renderAssessmentTable() {
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
           <button onclick="openAddScore('${a.id}')" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer">${scores.length?'✏ Edit scores':'+ Add scores'}</button>
+          <button onclick="openScoreImport('${a.id}')" title="Upload an Excel/CSV file, a Google Drive link or a published Sheet" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer;margin-left:4px">⬆ Upload</button>
           <button onclick="openEditAssessment(${origIdx})" class="tbl-edit-btn">✏</button>
         </div>
       </div>
@@ -11521,6 +11593,25 @@ function _populateSaStandardPicker() {
     html += '</optgroup>';
   });
   sel.innerHTML = html;
+}
+
+function _pickAssessmentToScore() {
+  if (!assessments.length) {
+    toast('Create an assessment first — use "+ Add assessment".', 'warn');
+    openAddAssessment();
+    return;
+  }
+  if (assessments.length === 1) { openAddScore(assessments[0].id); return; }
+  const list = document.getElementById('pick-assessment-list');
+  if (!list) return;
+  list.innerHTML = assessments.map(a => {
+    const n = (scoreEntries[a.id] || []).length;
+    return `<div class="upload-kind-tile" onclick="document.getElementById('pick-assessment-modal').classList.remove('open');openAddScore('${a.id}')">
+      <div style="font-size:14px;font-weight:600;color:var(--ink)">${_escHtml(a.name || 'Untitled')}</div>
+      <div style="font-size:12px;color:var(--ink-l);margin-top:3px">${_escHtml(a.subject||'—')} · ${_escHtml(a.grade==='all'?'All Grades':(a.grade||'—'))} · max ${a.maxMarks||100} · ${n} scored</div>
+    </div>`;
+  }).join('');
+  document.getElementById('pick-assessment-modal').classList.add('open');
 }
 
 function openAddAssessment() {
@@ -11589,10 +11680,15 @@ function deleteAssessment() {
 }
 
 // Scores entry
+// Pressed from the page header, openAddScore() used to be called with no
+// assessment at all: `assessments.find(x => x.id === undefined)` found nothing
+// and the function returned silently, so the button appeared dead. Ask which
+// assessment instead — or say plainly that there is none yet.
 function openAddScore(assessId) {
+  if (!assessId) { _pickAssessmentToScore(); return; }
   currentScoreAssessId = assessId;
   const a = assessments.find(x=>x.id===assessId);
-  if (!a) return;
+  if (!a) { toast('That assessment no longer exists.', 'error'); return; }
   document.getElementById('scores-modal-title').textContent = 'Scores: ' + a.name;
   document.getElementById('scores-modal-meta').textContent = a.subject + ' · ' + a.grade + ' · ' + a.term + ' · Max: ' + a.maxMarks;
 
@@ -11629,6 +11725,196 @@ function saveScores() {
   saveAssessmentData();
   document.getElementById('scores-modal').classList.remove('open');
   renderAssessmentTable();
+}
+
+// ── Upload marks for a score-based assessment ───────────────────────────────
+// The old handler read every file with readAsText — so an .xlsx, which the
+// file input happily accepted, was parsed as binary rubbish — split CSV on
+// bare commas, and always invented a brand new assessment with maxMarks 100.
+var _siRows = [], _siHeaders = [], _siWorkbook = null, _siFile = '';
+
+function openScoreImport(assessId) {
+  loadAssessmentData();
+  _siWorkbook = null; _siRows = []; _siHeaders = [];
+  _renderSiSheetPicker([], '');
+  const sel = document.getElementById('si-assessment');
+  sel.innerHTML = assessments.map(a =>
+      `<option value="${a.id}">${_escHtml(a.name || 'Untitled')} — ${_escHtml(a.subject || '—')}, max ${a.maxMarks || 100}</option>`
+    ).join('') + '<option value="__new__">➕ A new assessment, named after the file</option>';
+  if (assessId && assessments.some(a => a.id === assessId)) sel.value = assessId;
+  else if (!assessments.length) sel.value = '__new__';
+  document.getElementById('si-url').value = '';
+  document.getElementById('si-step1').style.display = '';
+  document.getElementById('si-step2').style.display = 'none';
+  document.getElementById('si-err').style.display = 'none';
+  document.getElementById('score-import-modal').classList.add('open');
+}
+
+function _siError(msg) {
+  const el = document.getElementById('si-err');
+  if (!el) return;
+  el.innerHTML = msg; el.style.display = '';
+}
+
+function _renderSiSheetPicker(names, fileName) {
+  const wrap = document.getElementById('si-sheet-wrap');
+  if (!wrap) return;
+  if (!names || names.length < 2) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = '';
+  wrap.innerHTML = '<label style="font-size:12px;color:var(--ink-l)">Sheet</label>' +
+    '<select id="si-sheet" onchange="_siUseSheet(this.value)" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);' +
+    'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif;color:var(--ink);background:var(--sur-r)">' +
+    names.map(n => `<option value="${_escHtml(n)}">${_escHtml(n)}</option>`).join('') + '</select>';
+}
+
+function _siUseSheet(name) {
+  if (!_siWorkbook || !_siWorkbook.Sheets[name]) return;
+  _siAccept(XLSX.utils.sheet_to_csv(_siWorkbook.Sheets[name], { blankrows: false }), '"' + name + '" in ' + _siFile);
+}
+
+function _siAccept(text, label) {
+  if (/^\s*</.test(text) || /<html|<!doctype/i.test(text.slice(0, 500))) {
+    _siError('That link returned a web page, not data. Check the file is shared or the sheet is published, ' +
+             'or upload the file instead.');
+    return;
+  }
+  const parsed = _csvParse(text);
+  if (!parsed.headers.length || !parsed.rows.length) {
+    _siError('No rows found in ' + _escHtml(label) + '.');
+    return;
+  }
+  _siHeaders = parsed.headers; _siRows = parsed.rows;
+  _buildSiMapper();
+}
+
+function _siFromBytes(buf, label) {
+  let src;
+  try { src = _sniffBytes(buf); } catch (e) { _siError(e.message); return; }
+  if (src.kind === 'workbook') {
+    _siWorkbook = src.workbook; _siFile = label;
+    const withRows = _sheetsWithRows(src.workbook);
+    if (!withRows.length) { _siError('No sheet in ' + _escHtml(label) + ' has any rows below its headings.'); return; }
+    _renderSiSheetPicker(withRows, label);
+    _siUseSheet(withRows[0]);
+    return;
+  }
+  _siWorkbook = null;
+  _renderSiSheetPicker([], label);
+  _siAccept(src.text, label);
+}
+
+function siUploadFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  _siFile = file.name;
+  document.getElementById('si-err').style.display = 'none';
+  const r = new FileReader();
+  r.onload = e => _siFromBytes(e.target.result, file.name);
+  r.onerror = () => _siError('Could not read that file.');
+  r.readAsArrayBuffer(file);
+}
+
+async function siFetch() {
+  const raw = (document.getElementById('si-url').value || '').trim();
+  if (!raw) { _siError('Paste a link, or use <strong>Upload Excel or CSV</strong>.'); return; }
+  document.getElementById('si-err').style.display = 'none';
+  _siFile = 'that link';
+  let src;
+  try { src = await _fetchImportSource(raw); } catch (e) { _siError(e.message); return; }
+  if (src.kind === 'workbook') {
+    _siWorkbook = src.workbook;
+    const withRows = _sheetsWithRows(src.workbook);
+    if (!withRows.length) { _siError('No sheet in that file has any rows below its headings.'); return; }
+    _renderSiSheetPicker(withRows, _siFile);
+    _siUseSheet(withRows[0]);
+    return;
+  }
+  _siWorkbook = null;
+  _renderSiSheetPicker([], _siFile);
+  _siAccept(src.text, _siFile);
+}
+
+function _buildSiMapper() {
+  const opts = h => '<option value="">— skip —</option>' +
+    _siHeaders.map(x => `<option value="${_escHtml(x)}"${x === h ? ' selected' : ''}>${_escHtml(x)}</option>`).join('');
+  const guess = (...words) => _siHeaders.find(h => words.some(w => h.toLowerCase().includes(w))) || '';
+  const picks = {
+    'si-col-name':    guess('name', 'student'),
+    'si-col-score':   guess('score', 'mark', 'marks obtained', 'total'),
+    'si-col-roll':    guess('roll', 'admission'),
+    'si-col-grade':   guess('grade', 'class'),
+    'si-col-remarks': guess('remark', 'comment', 'note'),
+  };
+  Object.keys(picks).forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts(picks[id]); });
+
+  _renderSiPreview();
+  ['si-col-name','si-col-score','si-col-roll','si-col-grade','si-col-remarks']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.onchange = _renderSiPreview; });
+  document.getElementById('si-step1').style.display = 'none';
+  document.getElementById('si-step2').style.display = '';
+}
+
+function _siEntries() {
+  const v = id => (document.getElementById(id) || { value: '' }).value;
+  const nameCol = v('si-col-name'), scoreCol = v('si-col-score');
+  return _siRows.map(r => ({
+    name: nameCol ? String(r[nameCol] || '').trim() : '',
+    roll: v('si-col-roll') ? String(r[v('si-col-roll')] || '').trim() : '',
+    grade: v('si-col-grade') ? String(r[v('si-col-grade')] || '').trim() : '',
+    score: scoreCol ? String(r[scoreCol] || '').trim() : '',
+    remarks: v('si-col-remarks') ? String(r[v('si-col-remarks')] || '').trim() : '',
+  })).filter(e => e.name);
+}
+
+function _renderSiPreview() {
+  const rows = _siEntries();
+  const max = parseFloat((assessments.find(a => a.id === document.getElementById('si-assessment').value) || {}).maxMarks) || null;
+  // A mark that is not a number, or is above the assessment's maximum, is far
+  // easier to fix now than after it has skewed an average.
+  const bad = rows.filter(e => e.score !== '' && !/^\d+(\.\d+)?$/.test(e.score)).length;
+  const over = max ? rows.filter(e => parseFloat(e.score) > max).length : 0;
+  const blank = rows.filter(e => e.score === '').length;
+  const warn = document.getElementById('si-warn');
+  const bits = [];
+  if (bad)   bits.push(bad + ' mark' + (bad === 1 ? ' is' : 's are') + ' not a number and will be skipped');
+  if (over)  bits.push(over + ' mark' + (over === 1 ? ' is' : 's are') + ' above the maximum of ' + max);
+  if (blank) bits.push(blank + ' row' + (blank === 1 ? ' has' : 's have') + ' no mark');
+  if (warn) { warn.style.display = bits.length ? '' : 'none'; warn.innerHTML = '⚠ ' + bits.join('; ') + '.'; }
+
+  const cols = ['roll','name','grade','score','remarks'];
+  document.getElementById('si-preview-head').innerHTML =
+    '<tr>' + ['Roll','Student','Grade','Marks','Remarks'].map(h => `<th>${h}</th>`).join('') + '</tr>';
+  document.getElementById('si-preview-body').innerHTML = rows.slice(0, 5).map(e =>
+    '<tr>' + cols.map(c => `<td>${_escHtml(e[c] || '—')}</td>`).join('') + '</tr>').join('');
+  document.getElementById('si-row-count').textContent = '(' + rows.length + ' rows)';
+  document.getElementById('si-import-count').textContent = rows.length;
+}
+
+function siImport() {
+  const rows = _siEntries();
+  if (!rows.length) { _siError('No rows to import — check the Student name column.'); return; }
+  let id = document.getElementById('si-assessment').value;
+  if (id === '__new__' || !assessments.some(a => a.id === id)) {
+    const name = String(_siFile || 'Uploaded scores').replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+    // The maximum is taken from the data rather than assumed to be 100, which
+    // is what the old importer did regardless of what was in the file.
+    const nums = rows.map(e => parseFloat(e.score)).filter(n => !isNaN(n));
+    const top = nums.length ? Math.max.apply(null, nums) : 100;
+    const max = top <= 10 ? 10 : top <= 20 ? 20 : top <= 25 ? 25 : top <= 50 ? 50 : 100;
+    id = 'upload_' + Date.now();
+    assessments.push({ id: id, name: name, subject: '', grade: 'all', term: 'Term 1',
+                       maxMarks: max, date: new Date().toISOString().split('T')[0], type: 'Uploaded' });
+  }
+  const keep = rows.filter(e => e.score !== '' && /^\d+(\.\d+)?$/.test(e.score));
+  scoreEntries[id] = (scoreEntries[id] || []).filter(
+    e => !keep.some(n => (n.roll && n.roll === e.roll) || n.name === e.name)).concat(keep);
+  saveAssessmentData();
+  document.getElementById('score-import-modal').classList.remove('open');
+  renderAssessmentPage();
+  const skipped = rows.length - keep.length;
+  toast(keep.length + ' score' + (keep.length === 1 ? '' : 's') + ' imported' +
+        (skipped ? ', ' + skipped + ' skipped with no usable mark' : '') + '.', 'success');
 }
 
 function handleAssessmentUpload(input) {
@@ -12765,6 +13051,7 @@ function renderRubricsList() {
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
           <div style="font-size:12px;color:var(--ink-l)">${r.subject||''} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div></div>
         <button onclick="openRubricScoreModal('${r.id}')" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer;margin-right:4px">✏ Score students</button>
+        <button onclick="openGFormImport('${r.id}')" title="Upload an Excel/CSV file, a Google Drive link or a published Sheet" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer;margin-right:4px">⬆ Import scores</button>
         <button onclick="openEditRubric(${ri})" class="tbl-edit-btn" title="Edit this rubric">✏</button>
         <button onclick="deleteRubric(${ri})" title="Delete this rubric" style="font-size:11px;padding:4px 10px;border-radius:var(--r-sm);border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer;margin-left:4px">✕</button>
       </div>
@@ -12850,13 +13137,17 @@ function saveRubricScores() {
   if (typeof queueSave === 'function') queueSave();
 }
 
-function openGFormImport() {
+function openGFormImport(preselectRubricId) {
   loadRubricScores();
   _gfiWorkbook = null;
   _renderGfiSheetPicker([], '');
   const sel = document.getElementById('gfi-rubric');
   sel.innerHTML = '<option value="">— choose a rubric —</option>' +
-    rubrics.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+    rubrics.map(r => `<option value="${r.id}">${_escHtml(r.name)}</option>`).join('');
+  // Opened from a rubric's own card, that rubric is already the answer; opened
+  // from the tab header it is not, so the choice stays.
+  if (preselectRubricId && rubrics.some(r => r.id === preselectRubricId)) sel.value = preselectRubricId;
+  else if (rubrics.length === 1) sel.value = rubrics[0].id;
   document.getElementById('gfi-step1').style.display = '';
   document.getElementById('gfi-step2').style.display = 'none';
   document.getElementById('gfi-err').style.display = 'none';
@@ -12902,42 +13193,80 @@ function _gfiDriveUrl(raw) {
   return 'https://drive.usercontent.google.com/download?id=' + m[1] + '&export=download';
 }
 
-// One entry point for file bytes, whoever produced them — an upload or a Drive
-// download. The format is sniffed rather than taken from a filename, because a
-// Drive response has no reliable name and a .csv is sometimes really a
-// workbook.
-function _gfiFromBytes(buf, rubricId, label) {
+// Work out what a pile of bytes actually is. The format is sniffed rather than
+// taken from a filename, because a Drive response has no reliable name and a
+// .csv is sometimes really a workbook. Throws with a readable message.
+function _sniffBytes(buf) {
   const bytes = new Uint8Array(buf);
   const isZip = bytes.length > 1 && bytes[0] === 0x50 && bytes[1] === 0x4B;  // xlsx / ods
   const isOle = bytes.length > 1 && bytes[0] === 0xD0 && bytes[1] === 0xCF;  // legacy .xls
   if (isZip || isOle) {
     if (typeof XLSX === 'undefined') {
-      _gfiError('That is a spreadsheet file, but the spreadsheet reader did not load, so it cannot be opened ' +
-                'right now. Save the sheet as <strong>CSV</strong> and use that instead.');
-      return;
+      throw new Error('That is a spreadsheet file, but the spreadsheet reader did not load, so it cannot be ' +
+                      'opened right now. Save the sheet as <strong>CSV</strong> and use that instead.');
     }
-    let wb;
-    try { wb = XLSX.read(bytes, { type: 'array' }); }
-    catch (err) { _gfiError('That file could not be opened as a spreadsheet: ' + err.message); return; }
-    _gfiOpenWorkbook(wb, rubricId, label);
-    return;
+    try { return { kind: 'workbook', workbook: XLSX.read(bytes, { type: 'array' }) }; }
+    catch (err) { throw new Error('That file could not be opened as a spreadsheet: ' + err.message); }
   }
   let text;
   try { text = new TextDecoder('utf-8').decode(bytes); }
   catch (err) { text = String.fromCharCode.apply(null, bytes); }
+  return { kind: 'text', text: text };
+}
+
+// Sheets with rows below their headings — blank and heading-only sheets are
+// common in a real workbook and are not worth offering.
+function _sheetsWithRows(wb) {
+  return (wb.SheetNames || []).filter(n => {
+    try { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false }).length > 1; }
+    catch (err) { return false; }
+  });
+}
+
+// Resolve a pasted link and fetch it. Returns {kind,text|workbook}. Google
+// Sheets come back as CSV text; a Drive file or any other link is fetched as
+// bytes and sniffed.
+async function _fetchImportSource(raw) {
+  const isSheet = /docs\.google\.com\/spreadsheets/.test(raw);
+  const drive = isSheet ? null : _gfiDriveUrl(raw);
+  if (drive === 'FOLDER') {
+    throw new Error('That is a link to a Drive <strong>folder</strong>, not a file. Open the file inside it and ' +
+                    'share <em>that</em> link, or download it and upload the file instead.');
+  }
+  const url = drive || _gfiCsvUrl(raw);
+  let res;
+  try { res = await fetch(url); }
+  catch (e) {
+    throw new Error(drive
+      ? 'The browser could not read that Drive file. It has to be shared with <strong>Anyone with the link</strong>' +
+        ' — a file restricted to named people cannot be read from another site. If it is already shared, download' +
+        ' it and upload the file instead.'
+      : 'The browser could not read that URL. A sheet that is only <em>shared</em> by link cannot be fetched from' +
+        ' another site — it has to be <strong>published to the web as CSV</strong>. If that is already done,' +
+        ' download it and upload the file instead.');
+  }
+  if (!res.ok) {
+    throw new Error((drive ? 'Drive returned HTTP ' : 'The sheet returned HTTP ') + res.status +
+      (res.status === 404 ? ' (not found)' : res.status === 403 ? ' (no access)' : '') + '. ' +
+      (drive ? 'Set the file\'s sharing to <strong>Anyone with the link</strong>, or download it and upload the file.'
+             : 'Check the link, or upload the file instead.'));
+  }
+  if (drive || !/docs\.google\.com/.test(url)) return _sniffBytes(await res.arrayBuffer());
+  return { kind: 'text', text: await res.text() };
+}
+
+function _gfiFromBytes(buf, rubricId, label) {
+  let src;
+  try { src = _sniffBytes(buf); } catch (e) { _gfiError(e.message); return; }
+  if (src.kind === 'workbook') { _gfiOpenWorkbook(src.workbook, rubricId, label); return; }
   _gfiWorkbook = null;
   _renderGfiSheetPicker([], label);
-  _gfiAccept(text, rubricId, label);
+  _gfiAccept(src.text, rubricId, label);
 }
 
 function _gfiOpenWorkbook(wb, rubricId, label) {
   _gfiWorkbook = wb;
-  // Blank and heading-only sheets are common in a real workbook; offer the
-  // ones that actually carry rows, and start on the first of them.
-  const withRows = (wb.SheetNames || []).filter(n => {
-    try { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false }).length > 1; }
-    catch (err) { return false; }
-  });
+  const withRows = _sheetsWithRows(wb);
   if (!withRows.length) { _gfiError('No sheet in ' + label + ' has any rows below its headings.'); return; }
   _renderGfiSheetPicker(withRows, label);
   _gfiUseSheet(withRows[0], rubricId, label);
