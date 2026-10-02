@@ -2320,7 +2320,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <option value="all">All Terms</option>
         <option>Term 1</option><option>Term 2</option><option>Term 3</option><option>Annual</option>
       </select>
+      <select id="assess-filter-type" onchange="renderAssessmentTable()" style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="all">All Types</option>
+      </select>
     </div>
+    <div id="assess-screening-banner"></div>
     <!-- Assessments list -->
     <div id="assessments-list"></div>
     <div id="assessments-empty" style="display:none;text-align:center;padding:40px;color:var(--ink-f)">
@@ -2331,10 +2335,15 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   <!-- Rubric-based panel (hidden by default) -->
   <div id="assess-panel-rubric" style="display:none">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <select id="rubric-filter-type" onchange="renderRubricsList()" style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="all">All Types</option>
+      </select>
+      <div style="flex:1"></div>
       <button class="btn btn-s" onclick="openGFormImport()">⬆ Import scores</button>
       <button class="btn btn-p" onclick="openCreateRubric()">+ Create rubric</button>
     </div>
+    <div id="rubric-screening-banner"></div>
     <div id="rubrics-list"></div>
     <div id="rubrics-empty" style="display:none;text-align:center;padding:40px;color:var(--ink-f)">
       <div style="font-size:32px;margin-bottom:10px">📋</div>
@@ -2373,7 +2382,13 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   <!-- Analytics panel (hidden by default) -->
   <div id="assess-panel-analytics" style="display:none">
-    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <select id="assess-analytics-scope" onchange="renderAssessAnalytics()" style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <option value="all">Everything</option>
+        <option value="screening">🔬 Holistify screening only</option>
+        <option value="own">The school's own assessments only</option>
+      </select>
+      <div style="flex:1"></div>
       <button class="btn btn-s" onclick="downloadAssessmentBreakdownCsv()">⬇ Breakdown (.csv)</button>
       <button class="btn btn-p" onclick="downloadAssessmentBreakdownXlsx()">⬇ Full report (.xlsx)</button>
     </div>
@@ -2409,10 +2424,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div class="sip-field" style="margin:0"><label>Date</label><input id="am-date" type="date"></div>
       <div class="sip-field" style="margin:0"><label>Type</label>
-        <select id="am-type" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
-          <option>Unit Test</option><option>Monthly Test</option><option>Mid-Term</option><option>Final Exam</option>
-          <option>Project</option><option>Assignment</option><option>Oral</option><option>Practical</option>
-        </select>
+        <select id="am-type" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
       </div>
     </div>
     <div class="sip-field" style="margin:0 0 12px"><label>Reports against which audit standard</label>
@@ -2485,6 +2497,9 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
           <label class="rb-grade-cb"><input type="checkbox" value="Grade 11" onchange="syncAllRubricGrades()"> Grade 11</label>
           <label class="rb-grade-cb"><input type="checkbox" value="Grade 12" onchange="syncAllRubricGrades()"> Grade 12</label>
         </div>
+      </div>
+      <div class="sip-field" style="margin:0"><label>Type</label>
+        <select id="rb-type" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
       </div>
       <div class="sip-field" style="margin:0"><label>Scale</label>
         <select id="rb-scale" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
@@ -11611,6 +11626,23 @@ function populateAssessFilters() {
   const gradeSel = document.getElementById('assess-filter-grade');
   if (subSel) subSel.innerHTML = '<option value="all">All Subjects</option>' + subjects.map(s=>`<option>${s}</option>`).join('');
   if (gradeSel) gradeSel.innerHTML = '<option value="all">All Grades</option>' + GRADES_ORDER.filter(g=>grades.includes(g)).map(g=>`<option>${g}</option>`).join('');
+  // Only the types actually in use, so the filter never offers an empty result.
+  const types = _assessTypesInUse();
+  ['assess-filter-type','rubric-filter-type'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const keep = el.value;
+    el.innerHTML = '<option value="all">All Types</option>' + types.map(t => {
+      const d = _assessTypeDef(t);
+      return `<option value="${_escHtml(t)}">${d ? d.emoji + ' ' : ''}${_escHtml(t)}</option>`;
+    }).join('');
+    if (keep && types.indexOf(keep) >= 0) el.value = keep;
+  });
+  const banner = _screeningBanner();
+  ['assess-screening-banner','rubric-screening-banner'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = banner;
+  });
 }
 
 function renderAssessmentTable() {
@@ -11620,10 +11652,12 @@ function renderAssessmentTable() {
   const sub = (document.getElementById('assess-filter-subject')||{}).value||'all';
   const grade = (document.getElementById('assess-filter-grade')||{}).value||'all';
   const term = (document.getElementById('assess-filter-term')||{}).value||'all';
+  const type = (document.getElementById('assess-filter-type')||{}).value||'all';
   const rows = assessments.filter(a => {
     if (sub!=='all' && a.subject!==sub) return false;
     if (grade!=='all' && a.grade!==grade && a.grade!=='all') return false;
     if (term!=='all' && a.term!==term) return false;
+    if (type!=='all' && _assessType(a)!==type) return false;
     return true;
   });
   if (emptyEl) emptyEl.style.display = rows.length?'none':'block';
@@ -11639,7 +11673,7 @@ function renderAssessmentTable() {
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
             <div style="font-size:15px;font-weight:500;color:var(--ink)">${a.name}</div>
-            <span style="font-size:11px;background:var(--blue-p);color:var(--blue);padding:2px 8px;border-radius:20px">${a.type||'Assessment'}</span>
+            ${_assessTypeChip(a) || '<span style="font-size:11px;background:var(--sur-d);color:var(--ink-l);padding:2px 8px;border-radius:20px">Assessment</span>'}
             <span style="font-size:11px;background:var(--sage-p);color:var(--sage);padding:2px 8px;border-radius:20px">${a.grade==='all'?'All Grades':a.grade}</span>
             <span style="font-size:11px;background:var(--gold-p);color:var(--gold);padding:2px 8px;border-radius:20px">${a.term}</span>
           </div>
@@ -11770,6 +11804,8 @@ function openAddAssessment() {
   assessEditIdx = null;
   document.getElementById('assess-modal-title').textContent = 'New Assessment';
   ['am-name','am-subject'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const amType = document.getElementById('am-type');
+  if (amType) amType.innerHTML = _typeSelectOptions('');
   _amSkill = '';
   _renderStdPicker('am', null);
   const stdCust = document.getElementById('am-standard-custom'); if (stdCust) stdCust.value = '';
@@ -11791,7 +11827,7 @@ function openEditAssessment(idx) {
   document.getElementById('am-term').value = a.term||'Term 1';
   document.getElementById('am-max').value = a.maxMarks||100;
   document.getElementById('am-date').value = a.date||'';
-  document.getElementById('am-type').value = a.type||'Unit Test';
+  document.getElementById('am-type').innerHTML = _typeSelectOptions(a.type || '');
   _amSkill = a.skill || '';
   // A derived link is left to derive itself rather than frozen into the record:
   // renaming the assessment should move it to the right standard, not strand it
@@ -12396,7 +12432,8 @@ function siWideImport() {
         rec = { id: 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                 name: name, subject: col.band || '',
                 skill: _deriveSkill({ name: col.label, subject: col.band }) || col.label,
-                grade: grade, term: term, maxMarks: max, date: today, type: 'Skill Profiling' };
+                grade: grade, term: term, maxMarks: max, date: today,
+                type: _looksLikeScreening({ name: _siWide.title }) ? ASSESS_TYPE_SCREENING : 'Skill Profiling' };
         assessments.push(rec);
         created++;
       }
@@ -12896,9 +12933,11 @@ function _band(pct) {
 }
 
 // Row-per-assessment: the "Assessment Breakdown" cards, as a table.
-function _assessBreakdownRows() {
+function _assessBreakdownRows(scope) {
   const rows = [];
-  assessments.forEach(a => {
+  const inScope = a => !scope || scope === 'all' ||
+    (scope === 'screening' ? _isScreening(a) : !_isScreening(a));
+  assessments.filter(inScope).forEach(a => {
     const entries = (scoreEntries[a.id] || []).filter(s => (parseFloat(s.score) || 0) > 0);
     if (!entries.length) return;
     const scores = entries.map(s => parseFloat(s.score) || 0);
@@ -12908,9 +12947,10 @@ function _assessBreakdownRows() {
     const dist = { Exceeding: 0, Meeting: 0, Approaching: 0, Below: 0 };
     scores.forEach(sc => { dist[_band(sc / max * 100)]++; });
     rows.push({
-      Assessment: a.name || '', Subject: a.subject || '',
+      Assessment: a.name || '', Type: _assessType(a), Subject: a.subject || '',
       Grade: a.grade === 'all' ? 'All Grades' : (a.grade || ''),
-      Term: a.term || '', Standard: a.standard || '',
+      Term: a.term || '',
+      Standard: (function () { const l = _assessStdLink(a); return l ? _assessStdText(l) : ''; })(),
       'Max Marks': max, 'Students Scored': scores.length,
       Average: Math.round(avg * 100) / 100, 'Average %': pct, Attainment: _band(pct),
       Passed: scores.filter(sc => sc >= max * 0.35).length,
@@ -13011,7 +13051,12 @@ function downloadAssessmentBreakdownXlsx() {
   if (typeof XLSX === 'undefined') { toast('The spreadsheet library did not load. Try the CSV instead.', 'error'); return; }
   if (!_assessHasData()) { toast('No assessment scores to export yet.', 'warn'); return; }
 
-  const agg = _assessAggregates();
+  const scope = _assessScope();
+  const agg = _assessAggregates(scope);
+  if (!agg.totalCount) {
+    toast('Nothing scored under "' + (_SCOPE_LABEL[scope] || scope) + '".', 'warn');
+    return;
+  }
   const wb = XLSX.utils.book_new();
   const add = (name, rows) => {
     if (!rows.length) return;
@@ -13022,10 +13067,12 @@ function downloadAssessmentBreakdownXlsx() {
   add('Summary', [
     { Metric: 'School', Value: (document.getElementById('inp-school') || {}).value || '' },
     { Metric: 'Generated', Value: new Date().toLocaleString() },
+    { Metric: 'Covers', Value: _SCOPE_LABEL[scope] || 'Everything' },
     { Metric: 'Overall average %', Value: overall },
     { Metric: 'Overall attainment', Value: _band(overall) },
     { Metric: 'Grades assessed', Value: Object.keys(agg.gradeAvgMap).length },
-    { Metric: 'Total assessments', Value: assessments.length + rubrics.length },
+    { Metric: 'Total assessments', Value: assessments.concat(rubrics).filter(
+        x => scope === 'all' || (scope === 'screening' ? _isScreening(x) : !_isScreening(x))).length },
     { Metric: 'Student records', Value: agg.totalCount }
   ]);
 
@@ -13061,11 +13108,11 @@ function downloadAssessmentBreakdownXlsx() {
     };
   }));
 
-  add('Assessment Breakdown', _assessBreakdownRows());
+  add('Assessment Breakdown', _assessBreakdownRows(scope));
   add('Skill Levels', _assessSkillLevelRows());
   add('Student Scores', _assessStudentRows());
 
-  XLSX.writeFile(wb, _assessFilePrefix() + '.xlsx');
+  XLSX.writeFile(wb, _assessFilePrefix() + (scope === 'all' ? '' : '-' + scope) + '.xlsx');
   toast('Assessment breakdown downloaded.', 'success');
 }
 
@@ -13157,9 +13204,14 @@ function _downloadCsv(filename, csv) {
 }
 
 function downloadAssessmentBreakdownCsv() {
-  const rows = _assessBreakdownRows();
-  if (!rows.length) { toast('No assessment scores to export yet.', 'warn'); return; }
-  _downloadCsv(_assessFilePrefix() + '.csv', _csvRows(rows));
+  const scope = _assessScope();
+  const rows = _assessBreakdownRows(scope);
+  if (!rows.length) {
+    toast(scope === 'all' ? 'No assessment scores to export yet.'
+      : 'Nothing scored under "' + (_SCOPE_LABEL[scope] || scope) + '".', 'warn');
+    return;
+  }
+  _downloadCsv(_assessFilePrefix() + (scope === 'all' ? '' : '-' + scope) + '.csv', _csvRows(rows));
   toast('Assessment breakdown downloaded.', 'success');
 }
 
@@ -13195,6 +13247,116 @@ const _SKILLS = [
 // The suggestions offered in the editor. Free text is still allowed — a school
 // with a skill not listed here simply types it.
 const _SKILL_SUGGESTIONS = _SKILLS.map(s => s.name);
+
+// ── Assessment types ──────────────────────────────────────────────────────
+// A Holistify screening is not the same kind of thing as a school's own unit
+// test. Screening is a standardised instrument, administered the same way
+// across every school, and it reads as a baseline; a unit test measures that
+// school's own curriculum. Averaging the two together is the mistake this type
+// exists to prevent — the Analytics tab can now show either on its own.
+//
+// Rubrics carry a type as well as score-based assessments. They had none, and
+// on a real school's data eight of the nine screening instruments *are*
+// rubrics, so a type that only existed on assessments would have labelled
+// almost nothing.
+const ASSESS_TYPE_SCREENING = 'Holistify Screening';
+const ASSESS_TYPES = [
+  { name: ASSESS_TYPE_SCREENING, emoji: '🔬', bg: 'var(--sage-p)', ic: 'var(--sage)' },
+  { name: 'Skill Profiling',     emoji: '📐', bg: 'var(--blue-p)', ic: 'var(--blue)' },
+  { name: 'Unit Test',           emoji: '📝', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Monthly Test',        emoji: '📅', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Mid-Term',            emoji: '📖', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Final Exam',          emoji: '🎯', bg: 'var(--gold-p)', ic: 'var(--gold)' },
+  { name: 'Project',             emoji: '🛠', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Assignment',          emoji: '📎', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Oral',                emoji: '🗣', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Practical',           emoji: '🧪', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+  { name: 'Uploaded',            emoji: '⬆',      bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
+];
+
+function _assessTypeDef(name) {
+  const want = String(name || '').trim().toLowerCase();
+  return ASSESS_TYPES.filter(t => t.name.toLowerCase() === want)[0] || null;
+}
+
+// A name like "Holistify Screening Assessment/KR/3,4" says what it is, so the
+// type is derived from it when nothing is stored — the eight rubrics on a real
+// school's data had no type at all. A type someone chose is never overwritten,
+// even by a name that looks like a screening: where the two disagree,
+// relabelScreening() offers the change rather than making it.
+function _looksLikeScreening(item) {
+  const n = String((item && item.name) || '');
+  return /holistify/i.test(n) && /screen|profil/i.test(n);
+}
+function _assessType(item) {
+  const t = String((item && item.type) || '').trim();
+  if (t) return t;
+  return _looksLikeScreening(item) ? ASSESS_TYPE_SCREENING : '';
+}
+function _isScreening(item) { return _assessType(item) === ASSESS_TYPE_SCREENING; }
+
+function _assessTypeChip(item) {
+  const name = _assessType(item);
+  if (!name) return '';
+  const d = _assessTypeDef(name);
+  const derived = !String((item && item.type) || '').trim();
+  return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 8px;' +
+    'border-radius:20px;white-space:nowrap;background:' + (d ? d.bg : 'var(--sur-d)') +
+    ';color:' + (d ? d.ic : 'var(--ink-l)') + (derived ? ';border:0.5px dashed ' + (d ? d.ic : 'var(--ink-l)') + '55' : '') +
+    '" title="' + (derived ? 'Worked out from the name' : 'Assessment type') + '">' +
+    (d ? d.emoji + ' ' : '') + _escHtml(name) + '</span>';
+}
+
+// Every type in use, listed for a filter: the defined ones that appear in the
+// data, plus anything a saved row carries that is not on the list.
+function _assessTypesInUse() {
+  const seen = {};
+  assessments.concat(rubrics).forEach(x => { const t = _assessType(x); if (t) seen[t] = 1; });
+  const known = ASSESS_TYPES.map(t => t.name).filter(n => seen[n]);
+  return known.concat(Object.keys(seen).filter(n => !_assessTypeDef(n)).sort());
+}
+
+function _typeSelectOptions(selected) {
+  return '<option value="">\u2014 work it out from the name \u2014</option>' +
+    ASSESS_TYPES.map(t => '<option value="' + _escHtml(t.name) + '"' +
+      (t.name === selected ? ' selected' : '') + '>' + t.emoji + ' ' + _escHtml(t.name) +
+      '</option>').join('');
+}
+
+// Records whose name says Holistify screening but whose type says something
+// else, because they were typed before this type existed. Same shape as
+// repairTeacherNames(): a banner that shows only when there is something to
+// change, and a button that makes the change — never a silent reinterpretation
+// of what someone stored.
+function _screeningMislabelled() {
+  return assessments.concat(rubrics).filter(
+    x => _looksLikeScreening(x) && String(x.type || '').trim() && !_isScreening(x));
+}
+
+function relabelScreening() {
+  const hits = _screeningMislabelled();
+  if (!hits.length) return;
+  if (!confirm('Set the type to "' + ASSESS_TYPE_SCREENING + '" on ' + hits.length +
+               (hits.length === 1 ? ' record' : ' records') + ' whose name says Holistify screening?\n\n' +
+               hits.map(h => '\u2022 ' + (h.name || 'Untitled') + '  (now: ' + h.type + ')').join('\n'))) return;
+  hits.forEach(h => { h.type = ASSESS_TYPE_SCREENING; });
+  saveAssessmentData();
+  renderAssessmentPage();
+  toast(hits.length + (hits.length === 1 ? ' record' : ' records') + ' marked as ' + ASSESS_TYPE_SCREENING + '.', 'success');
+}
+
+function _screeningBanner() {
+  const hits = _screeningMislabelled();
+  if (!hits.length) return '';
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;' +
+    'padding:10px 13px;background:var(--amb-p);border:0.5px solid var(--amb);border-radius:var(--r-md)">' +
+    '<span style="font-size:12px;color:var(--amb);flex:1">' + hits.length +
+    (hits.length === 1 ? ' record is' : ' records are') + ' named as a Holistify screening but typed as something ' +
+    'else (' + _escHtml([...new Set(hits.map(h => h.type))].join(', ')) + '), so ' +
+    (hits.length === 1 ? 'it is' : 'they are') + ' not counted as screening.</span>' +
+    '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="relabelScreening()">' +
+    'Mark as ' + ASSESS_TYPE_SCREENING + '</button></div>';
+}
 
 // ── Linking an assessment to an audit standard ─────────────────────────────
 // Student Attainment & Progress is where assessment evidence belongs: its
@@ -13400,7 +13562,15 @@ function _subjectNorm(sub) {
   return String(sub == null ? '' : sub).toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
 }
 
-function _assessAggregates() {
+// `scope` separates Holistify's screening instruments from the school's own
+// assessments: 'all' (the default, so every existing caller is unchanged),
+// 'screening', or 'own'. Averaging a standardised baseline together with a
+// school's unit tests produces a figure that describes neither.
+function _assessAggregates(scope) {
+  const inScope = item => {
+    if (!scope || scope === 'all') return true;
+    return scope === 'screening' ? _isScreening(item) : !_isScreening(item);
+  };
   const gradeAvgMap = {}; // grade -> [pct]
   const subjectAvgMap = {}; // subject -> [pct]
   // Keyed by the standard the item resolves to, not by a free-text sentence,
@@ -13439,7 +13609,7 @@ function _assessAggregates() {
     levels.forEach(v => subjectLevelMap[k].levels.push(v));
   };
 
-  assessments.forEach(a => {
+  assessments.filter(inScope).forEach(a => {
     (scoreEntries[a.id]||[]).forEach(sc => {
       const g = sc.grade || a.grade;
       const pct = a.maxMarks ? Math.round((parseFloat(sc.score)||0)/a.maxMarks*100) : null;
@@ -13451,7 +13621,7 @@ function _assessAggregates() {
       totalPct += pct; totalCount++;
     });
   });
-  rubrics.forEach(r => {
+  rubrics.filter(inScope).forEach(r => {
     (rubricScores[r.id]||[]).forEach(resp => {
       const g = resp.grade || '';
       const avg = _rubricRespAvg(resp, r);
@@ -13468,10 +13638,10 @@ function _assessAggregates() {
     });
   });
 
-  assessments.forEach(a => {
+  assessments.filter(inScope).forEach(a => {
     if (!_deriveSkill(a) && (scoreEntries[a.id]||[]).length) unassigned.push(a.name || 'Untitled assessment');
   });
-  rubrics.forEach(r => {
+  rubrics.filter(inScope).forEach(r => {
     if (!_deriveSkill(r) && (rubricScores[r.id]||[]).length) unassigned.push(r.name || 'Untitled rubric');
   });
 
@@ -13489,22 +13659,49 @@ function _assessAggregates() {
              pct: Math.round(all.reduce((a, b) => a + b, 0) / all.length) };
   });
 
-  return { gradeAvgMap: gradeAvgMap, subjectAvgMap: subjectAvgMap,
+  return { scope: scope || 'all',
+           gradeAvgMap: gradeAvgMap, subjectAvgMap: subjectAvgMap,
            subjectLevelMap: subjectLevelMap,
            standardMap: standardMap, totalPct: totalPct, totalCount: totalCount,
            unassigned: unassigned, subjectDupes: subjectDupes };
 }
 
+// The exports are built from the same scope the screen is showing, so a
+// downloaded file can never disagree with what is on display.
+function _assessScope() {
+  return (document.getElementById('assess-analytics-scope') || { value: 'all' }).value || 'all';
+}
+const _SCOPE_LABEL = { all: 'Everything', screening: 'Holistify screening only',
+                       own: "The school's own assessments only" };
+
 function renderAssessAnalytics() {
   const el = document.getElementById('assess-analytics-body');
   if (!el) return;
 
-  const agg = _assessAggregates();
+  const scope = _assessScope();
+  const agg = _assessAggregates(scope);
   const gradeAvgMap = agg.gradeAvgMap, subjectAvgMap = agg.subjectAvgMap,
         standardMap = agg.standardMap, totalPct = agg.totalPct, totalCount = agg.totalCount;
 
   const hasData = totalCount > 0;
-  if (!hasData) { el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-f)">Add assessments and scores to see analytics.</div>'; return; }
+  if (!hasData) {
+    // An empty panel under a filter is otherwise indistinguishable from having
+    // no data at all.
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink-f)">' +
+      (scope === 'all'
+        ? 'Add assessments and scores to see analytics.'
+        : 'Nothing scored under <strong>' + _escHtml(_SCOPE_LABEL[scope] || scope) +
+          '</strong>. Switch the filter back to <strong>Everything</strong>, or set the type on the ' +
+          'assessments and rubrics you mean.') + '</div>';
+    return;
+  }
+  // Prepended to the panel below rather than written now: the render ends with
+  // el.innerHTML = html, which would throw anything written here away.
+  const scopeNotice = scope === 'all' ? '' :
+    '<div style="margin-bottom:12px;padding:9px 13px;background:var(--sage-p);' +
+    'border:0.5px solid var(--sage-m);border-radius:var(--r-md);font-size:12px;color:var(--sage)">' +
+    'Showing <strong>' + _escHtml(_SCOPE_LABEL[scope] || scope) + '</strong> \u2014 ' + totalCount +
+    ' student records. Every figure below, and both downloads, cover only these.</div>';
 
   const overallAvg = Math.round(totalPct/totalCount);
   const overallAtt = _attainmentLabel(overallAvg);
@@ -13763,7 +13960,7 @@ function renderAssessAnalytics() {
     });
   }
 
-  el.innerHTML = html;
+  el.innerHTML = scopeNotice + html;
 }
 
 // Rubric builder
@@ -13804,6 +14001,8 @@ function openCreateRubric() {
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
   ['rb-name','rb-subject','rb-skill'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   _fillSkillOptions(); _updateSkillHint();
+  const rbType = document.getElementById('rb-type');
+  if (rbType) rbType.innerHTML = _typeSelectOptions('');
   _renderStdPicker('rb', null);
   _setRubricGrades('all');
   document.getElementById('rb-scale').value = '4';
@@ -13855,6 +14054,7 @@ function saveRubric() {
     subject: document.getElementById('rb-subject').value.trim(),
     skill: (document.getElementById('rb-skill')||{value:''}).value.trim(),
     grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4,
+    type: (document.getElementById('rb-type')||{value:''}).value,
     link: _stdPickerValue('rb'), criteria };
   if (existing) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
@@ -13889,8 +14089,11 @@ function renderRubricsList() {
   const container = document.getElementById('rubrics-list');
   const emptyEl = document.getElementById('rubrics-empty');
   if (!container) return;
-  if (emptyEl) emptyEl.style.display = rubrics.length?'none':'block';
-  container.innerHTML = rubrics.map((r,ri) => {
+  const rtype = (document.getElementById('rubric-filter-type')||{}).value||'all';
+  const shown = rubrics.filter(r => rtype==='all' || _assessType(r)===rtype);
+  if (emptyEl) emptyEl.style.display = shown.length?'none':'block';
+  container.innerHTML = shown.map(r => {
+    const ri = rubrics.indexOf(r);
     const levelNames = r.scale===4?['Beginning','Developing','Achieving','Exceeding']:
                        Array.from({length:r.scale},(_,i)=>'L'+(i+1));
     return `<div class="card" style="margin-bottom:12px">
@@ -13898,7 +14101,7 @@ function renderRubricsList() {
         <div style="font-size:24px">📋</div>
         <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--ink)">${r.name}</div>
           <div style="font-size:12px;color:var(--ink-l)">${_escHtml(r.subject||'')} · ${r.grade==='all'||!r.grade?'All Grades':Array.isArray(r.grade)?r.grade.join(', '):r.grade} · ${r.scale}-point scale · ${r.criteria.length} criteria</div>
-          <div style="margin-top:4px">${_assessStdChip(r)}</div></div>
+          <div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">${_assessTypeChip(r)}${_assessStdChip(r)}</div></div>
         <button onclick="openRubricScoreModal('${r.id}')" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);cursor:pointer;margin-right:4px">✏ Score students</button>
         <button onclick="openGFormImport('${r.id}')" title="Upload an Excel/CSV file, a Google Drive link or a published Sheet" style="font-size:11px;padding:4px 12px;border-radius:var(--r-sm);border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-l);cursor:pointer;margin-right:4px">⬆ Import scores</button>
         <button onclick="openEditRubric(${ri})" class="tbl-edit-btn" title="Edit this rubric">✏</button>
@@ -14555,6 +14758,8 @@ function openEditRubric(idx) {
   const skEl = document.getElementById('rb-skill');
   if (skEl) skEl.value = r.skill||'';
   _fillSkillOptions();
+  const rbTypeEl = document.getElementById('rb-type');
+  if (rbTypeEl) rbTypeEl.innerHTML = _typeSelectOptions(r.type || '');
   const rlink = _assessStdLink(r);
   _renderStdPicker('rb', (rlink && !rlink.derived) ? rlink
     : (r.link && r.link.domain === _STD_UNLINKED ? r.link : null));

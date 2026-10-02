@@ -559,6 +559,66 @@ If two rubrics of **different scales** land under one skill the distribution
 would be meaningless, so `scale` is set to `null` and the card falls back to the
 percentage only.
 
+### Assessment types, and Holistify screening
+
+`ASSESS_TYPES` is the one definition of the type list, and both the assessment
+modal and the rubric editor build their select from it. **Rubrics carry a type
+too** — they had none, and on a real school's data eight of the nine screening
+instruments *are* rubrics, so a type that only existed on score-based
+assessments would have labelled almost nothing.
+
+`ASSESS_TYPE_SCREENING` (`'Holistify Screening'`) is the reason the list exists.
+A Holistify screening is not the same kind of thing as a school's own unit test:
+screening is a standardised instrument administered the same way across every
+school and reads as a baseline, while a unit test measures that school's own
+curriculum. Averaging the two together produces a figure that describes
+neither, which is what the Analytics scope selector prevents.
+
+`_assessType(item)` resolves it, in the usual order:
+
+1. a stored `item.type`;
+2. otherwise **derived from the name** — `_looksLikeScreening()` wants both
+   `/holistify/i` and `/screen|profil/i`, so "Holistify Screening
+   Assessment/KR/3,4" types itself and the eight untyped rubrics needed no
+   edits.
+
+A stored type is **never** overwritten by a name that looks like a screening.
+Where the two disagree — a record typed "Oral" before this type existed —
+`_screeningMislabelled()` finds it and `_screeningBanner()` offers
+`relabelScreening()`, a banner-and-button that appears only when there is
+something to change. Same shape as `repairTeacherNames()`, and for the same
+reason: reinterpreting stored data silently is worse than asking.
+
+`_assessTypeChip()` draws the badge, **dashed when the type was derived** and
+solid when it was chosen, so the two are distinguishable on the card.
+
+Filters: a type filter on Score-based and on Rubric-based, built by
+`_assessTypesInUse()` from the types actually present, so the filter can never
+offer an empty result. The Analytics tab has a *scope* selector instead —
+Everything / Holistify screening only / The school's own — which is passed to
+`_assessAggregates(scope)`.
+
+`_assessAggregates(scope)` takes `'all'` (the default, so every pre-existing
+caller is unchanged), `'screening'` or `'own'`, and filters both `assessments`
+and `rubrics`, including the `unassigned` pass. Two things follow from the rule
+that an export can never disagree with the screen:
+
+- both downloads read `_assessScope()`, the selector's current value, and the
+  filename gains a `-screening` / `-own` suffix;
+- the xlsx **Summary** sheet carries a `Covers` row, so a filtered file is not
+  mistaken for the whole school.
+
+A scope with nothing in it says so and names itself rather than rendering the
+generic "add assessments and scores" empty state, which would read as *no data
+at all*. `_assessBreakdownRows(scope)` also gained a `Type` column, and its
+`Standard` column now resolves through `_assessStdLink()` rather than printing
+the legacy free-text field.
+
+The wide importer types its assessments `ASSESS_TYPE_SCREENING` when the
+sheet's own title says Holistify, and `'Skill Profiling'` otherwise — the
+"Holistify Skill Profiling Test" workbook is a screening instrument and belongs
+in the same bucket as the screening rubrics.
+
 ### Linking assessments to audit standards
 
 Student Attainment & Progress (`sa`) is where assessment evidence belongs: its
