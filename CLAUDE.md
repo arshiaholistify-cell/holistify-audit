@@ -315,6 +315,34 @@ the thing to be careful with:
 `rubricScores` from localStorage — so anything mutating it in memory must call
 `saveRubricScores()` before a repaint, or the change is discarded.
 
+#### Reading a score: `_rubricLevel()`
+
+**A stored score is not necessarily a number**, and every read goes through
+`_rubricLevel(raw, criterion, scale)` — never `parseFloat`/`parseInt` directly.
+The manual scorer writes `"3"`, but a Google Form records the *descriptor the
+teacher picked*. Some rubrics number their descriptors (`"2: Reads slowly with
+frequent pauses"`) and some do not (`"Reads most gunitaksharas correctly but
+slowly"`), so reading everything with `parseFloat` scored the unnumbered ones
+`NaN || 0` — a whole rubric averaging 0.0 and counting as "Not scored" in
+analytics and every export, with nothing on screen suggesting a problem. Three
+of one school's eight rubrics, 961 real assessments, read as zero.
+
+It resolves in order: a plain number; a leading level prefix (`"2. "`, `"1: "`,
+`"3 - "`); an exact match against that criterion's own `descriptors`; then, for
+a multi-select answer holding several descriptors comma-joined, the lowest level
+ticked. Matching collapses whitespace and ignores case, because a descriptor
+typed into the rubric editor keeps a trailing newline the form's copy of the
+same sentence does not — that one character was the whole mismatch.
+
+It returns `null`, never `0`, for blank or unresolvable. `null` means *not
+scored*: `_rubricRespAvg()` leaves those criteria out of the average rather than
+counting them as zeros, and callers skip the response instead of recording a 0%.
+
+What it deliberately does **not** do is guess. A descriptor worded differently in
+the form than in the rubric (`"Recognizes"` vs `"Recognises"`) stays unscored and
+shows as `—`; fuzzy-matching it would put a wrong level on a child's screening
+result. Fix the wording on one side instead.
+
 ### Google Form import
 
 Rubric responses come in through `openGFormImport()`. Two paths, both ending in

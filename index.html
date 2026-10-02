@@ -6346,10 +6346,10 @@ function buildSaAssessmentPanel() {
   });
   rubrics.forEach(r => {
     (rubricScores[r.id]||[]).forEach(resp => {
+      const avg = _rubricRespAvg(resp, r);
+      if (avg === null) return;   // nothing scored — a zero here would drag the grade down
       const g = resp.grade || 'Unknown';
       if (!gradeMap[g]) gradeMap[g] = [];
-      const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
-      const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
       gradeMap[g].push(Math.round(avg/(r.scale||4)*100));
     });
   });
@@ -6469,10 +6469,7 @@ function _buildSaInlineEvidence(standardText, subText) {
 
   linkedRubrics.forEach(r => {
     const responses = rubricScores[r.id]||[];
-    const vals = responses.map(resp => {
-      const vs = r.criteria.map(c=>parseFloat(resp.scores[c.name])||0);
-      return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:0;
-    });
+    const vals = responses.map(resp => _rubricRespAvg(resp, r)).filter(v => v !== null);
     const avg2 = vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):0;
     const att2 = _rubricAttainmentLabel(avg2, r.scale||4);
     html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
@@ -11724,13 +11721,16 @@ function renderGradeWiseView() {
       (rubricScores[r.id]||[]).forEach(resp => {
         const respGrade = resp.grade || grade;
         if (respGrade !== grade && respGrade !== '') return;
-        const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
-        const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+        const avg = _rubricRespAvg(resp, r);
+        if (avg === null) return;   // nothing scored — no row rather than a row of zeros
         const att = _rubricAttainmentLabel(avg, r.scale||4);
         rubricRows.push({ studentName: resp.name, grade, subject: r.subject||'', assessName: r.name,
           type: 'Rubric', term: '—', avgScore: avg.toFixed(1), maxMarks: r.scale||4,
           pct: Math.round(avg/(r.scale||4)*100), att, standard: '', source: 'rubric',
-          criteriaScores: r.criteria.map(c=>({ name:c.name, val: resp.scores[c.name]||'—' })) });
+          criteriaScores: r.criteria.map(c=>{
+            const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, r.scale||4);
+            return { name:c.name, val: lv === null ? '—' : lv };
+          }) });
       });
     });
   }
@@ -11937,7 +11937,7 @@ function _assessStudentRows() {
     const scale = r.scale || 4;
     (rubricScores[r.id] || []).forEach(resp => {
       (r.criteria || []).forEach(c => {
-        const lv = parseInt(resp.scores ? resp.scores[c.name] : '');
+        const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale);
         const pct = (lv >= 1 && lv <= scale) ? Math.round(lv / scale * 100) : '';
         rows.push({
           Type: 'Rubric', Assessment: r.name || '', Subject: r.subject || '',
@@ -11967,7 +11967,7 @@ function _assessSkillLevelRows() {
       (r.criteria || []).forEach(c => {
         for (let lv = 1; lv <= scale; lv++) {
           const names = byGrade[grade]
-            .filter(resp => parseInt(resp.scores ? resp.scores[c.name] : '') === lv)
+            .filter(resp => _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale) === lv)
             .map(resp => resp.name || '');
           rows.push({
             Rubric: r.name || '', Subject: r.subject || '', Grade: grade,
@@ -11976,7 +11976,7 @@ function _assessSkillLevelRows() {
           });
         }
         const unscored = byGrade[grade].filter(resp => {
-          const lv = parseInt(resp.scores ? resp.scores[c.name] : '');
+          const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale);
           return !(lv >= 1 && lv <= scale);
         }).map(resp => resp.name || '');
         if (unscored.length) {
@@ -12176,8 +12176,8 @@ function _assessAggregates() {
   rubrics.forEach(r => {
     (rubricScores[r.id]||[]).forEach(resp => {
       const g = resp.grade || '';
-      const vals = r.criteria.map(c => parseFloat(resp.scores[c.name])||0);
-      const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+      const avg = _rubricRespAvg(resp, r);
+      if (avg === null) return;   // unscored responses are not 0% results
       const pct = Math.round(avg/(r.scale||4)*100);
       if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
       if (r.subject) { if(!subjectAvgMap[r.subject]) subjectAvgMap[r.subject]=[]; subjectAvgMap[r.subject].push(pct); }
@@ -12367,14 +12367,12 @@ function renderAssessAnalytics() {
           const buckets = {};
           for (let lv = 1; lv <= scale; lv++) buckets[lv] = [];
           gradeResps.forEach(resp => {
-            const raw = resp.scores ? resp.scores[c.name] : '';
-            const lv = parseInt(raw);
+            const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale);
             if (lv >= 1 && lv <= scale) buckets[lv].push(resp.name);
             // students with no score are omitted
           });
           const unscored = gradeResps.filter(resp => {
-            const raw = resp.scores ? resp.scores[c.name] : '';
-            const lv = parseInt(raw);
+            const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale);
             return !(lv >= 1 && lv <= scale);
           });
 
@@ -12410,8 +12408,7 @@ function renderAssessAnalytics() {
         const allUnscored = new Set();
         r.criteria.forEach(c => {
           gradeResps.forEach(resp => {
-            const raw = resp.scores ? resp.scores[c.name] : '';
-            const lv = parseInt(raw);
+            const lv = _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale);
             if (!(lv >= 1 && lv <= scale)) allUnscored.add(resp.name);
           });
         });
@@ -12569,6 +12566,58 @@ function renderRubricsList() {
       </div>
     </div>`;
   }).join('');
+}
+
+// A rubric answer is whatever the source recorded, and that is not always a
+// number. The manual scorer writes "3"; a Google Form records the descriptor
+// the teacher picked. Some rubrics number their descriptors ("2: Reads slowly
+// with frequent pauses") and some do not ("Reads most gunitaksharas correctly
+// but slowly"), so reading everything with parseFloat scored the unnumbered
+// ones as 0 for every student — a whole rubric averaging 0.0 and counting as
+// "Not scored" in analytics and every export, with no sign anything was wrong.
+//
+// Returns the level 1..scale, or null for blank/unresolvable. null means "not
+// scored" and is left out of an average rather than counted as a zero.
+function _rubricLevel(raw, criterion, scale) {
+  const max = scale || 4;
+  const txt = String(raw == null ? '' : raw).trim();
+  if (!txt) return null;
+  const inRange = n => (n >= 1 && n <= max) ? n : null;
+
+  // A plain number, as the manual scorer stores it.
+  if (/^\d+(\.\d+)?$/.test(txt)) return inRange(Math.round(parseFloat(txt)));
+
+  // A descriptor carrying its own level: "2: …", "3. …", "1 - …".
+  const prefixed = txt.match(/^(\d+)\s*[.:)\-]/);
+  if (prefixed) { const n = inRange(parseInt(prefixed[1], 10)); if (n !== null) return n; }
+
+  // The descriptor itself. Whitespace is collapsed and case ignored because a
+  // descriptor typed into the rubric editor keeps the trailing newline that the
+  // form's copy of the same sentence does not.
+  const ds = (criterion && criterion.descriptors) || [];
+  const norm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
+  const want = norm(txt);
+  for (let i = 0; i < ds.length; i++) if (norm(ds[i]) === want) return inRange(i + 1);
+
+  // A multi-select answer: the cell holds several descriptors joined by commas.
+  // Take the lowest level ticked — on a screening assessment, under-crediting a
+  // student is the safer error.
+  if (txt.indexOf(',') >= 0) {
+    const hit = [];
+    ds.forEach((d, i) => { const n = norm(d); if (n && want.indexOf(n) >= 0) hit.push(i + 1); });
+    if (hit.length) return inRange(Math.min.apply(null, hit));
+  }
+  return null;
+}
+
+// One response's average level, or null when none of its criteria are scored.
+// Unscored criteria drop out instead of counting as zeros.
+function _rubricRespAvg(resp, r) {
+  const scale = r.scale || 4;
+  const levels = (r.criteria || [])
+    .map(c => _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale))
+    .filter(v => v !== null);
+  return levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : null;
 }
 
 // ── Google Form / Sheet import ────────────────────────────────────────────────
@@ -12962,15 +13011,21 @@ function renderRubricResponses() {
       </div>
       <div style="overflow-x:auto">
         <table class="data-table" style="font-size:11px">
-          <thead><tr><th>Student</th><th>Grade</th>${criteria.map(c=>`<th>${c}</th>`).join('')}<th>Avg</th><th>Date</th></tr></thead>
+          <thead><tr><th>Student</th><th>Grade</th>${criteria.map(c=>`<th>${_escHtml(c)}</th>`).join('')}<th>Avg</th><th>Date</th></tr></thead>
           <tbody>${responses.map(resp => {
-            const vals = criteria.map(c => parseFloat(resp.scores[c])||0);
-            const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
+            const avgNum = _rubricRespAvg(resp, r);
+            const avg = avgNum === null ? '—' : avgNum.toFixed(1);
             const date = resp.importedAt ? resp.importedAt.slice(0,10) : '';
             return `<tr>
-              <td style="font-weight:500">${resp.name}</td>
-              <td>${resp.grade||'—'}</td>
-              ${criteria.map(c=>`<td style="text-align:center">${resp.scores[c]||'—'}</td>`).join('')}
+              <td style="font-weight:500">${_escHtml(resp.name)}</td>
+              <td>${_escHtml(resp.grade||'—')}</td>
+              ${(r.criteria||[]).map(c=>{
+                // The cell shows the level. A form answer is a whole sentence —
+                // unreadable in a narrow column — so it becomes the tooltip.
+                const raw = resp.scores ? resp.scores[c.name] : '';
+                const lv = _rubricLevel(raw, c, r.scale||4);
+                return `<td style="text-align:center" title="${_escHtml(raw||'')}">${lv === null ? '—' : lv}</td>`;
+              }).join('')}
               <td style="text-align:center;font-weight:500;color:var(--sage)">${avg}</td>
               <td style="color:var(--ink-l)">${date}</td>
             </tr>`;
