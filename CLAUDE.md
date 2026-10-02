@@ -359,8 +359,16 @@ result. Fix the wording on one side instead.
 Rubric responses come in through `openGFormImport()`. Two paths, both ending in
 `_gfiAccept()` → `_csvParse()` → `_buildGfiMapper()`:
 
-- **Upload a .csv file.** The reliable one, and what the panel recommends. No
-  network, so publishing, sharing and CORS are all irrelevant.
+- **Upload a file** — `.xlsx`/`.xlsm`/`.xls`/`.ods` or `.csv`. The reliable one,
+  and what the panel recommends: no network, so publishing, sharing and CORS are
+  all irrelevant. A workbook is converted sheet-by-sheet to CSV text with
+  `XLSX.utils.sheet_to_csv()` and handed to the same parser, so column mapping,
+  the preview and Replace/Add behave identically whichever file was picked.
+  Sheets with no rows below their headings are skipped, and a book with more
+  than one sheet of data gets a picker — which lives in **step 2**, beside the
+  preview, because loading a file jumps straight there and a picker left on
+  step 1 could never be reached. Without SheetJS (CDN blocked) it says so and
+  points at CSV rather than failing silently.
 - **Fetch a URL.** `_gfiCsvUrl()` turns an ordinary `/edit#gid=` share link into
   a `gviz/tq?tqx=out:csv` export and a `pubhtml` link into `pub?output=csv`,
   because the share link is the one people have open and it returns HTML. It
@@ -400,9 +408,13 @@ that they are the same skill in two languages.
 `_skillKey(item)` builds the label:
 
 - `_deriveSkill()` takes an explicit `item.skill` if set, else matches
-  `_SKILLS` against the subject and the rubric's own name. **Order in `_SKILLS`
-  matters** — specific before general, so "Reading Comprehension" is
-  Comprehension, not Reading. Nothing recognised returns `null`.
+  `_SKILLS` against **the subject first and only then the name**. Searching both
+  as one blob let a stray word in the free-text name outrank the deliberate
+  label — a rubric called "Oral Reading" under subject "English Reading" came
+  out as *Speaking*, because "Oral" matches Speaking and Speaking is listed
+  first. **Order in `_SKILLS` matters** — specific before general, so "Reading
+  Comprehension" is Comprehension, not Reading. Nothing recognised returns
+  `null`.
 - `_subjectBase()` is what remains of the subject once the skill words are
   removed — the language or area. This is also what folds `"English- Reading"`
   and `"English-Reading"` into one card.
@@ -432,6 +444,19 @@ the same class of bug as silently dropping them.
 
 `subjectAvgMap` keeps its name for compatibility with the snapshot and exports;
 its keys are skill labels.
+
+#### The 1–4 view
+
+`subjectLevelMap` carries the raw rubric levels beside the percentages, so a
+card shows **`2.86 / 4`** and a bar of how many children sit on each level, not
+just a percentage. A rubric is scored 1–4 and that is the number a teacher
+recognises; an average alone cannot show that a cohort is split between level 1
+and level 4. The xlsx export carries `Average Level`, `Out Of` and a `Level N`
+count per level.
+
+If two rubrics of **different scales** land under one skill the distribution
+would be meaningless, so `scale` is set to `null` and the card falls back to the
+percentage only.
 
 ### CSV helpers
 

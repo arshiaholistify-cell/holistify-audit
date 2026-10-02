@@ -2514,8 +2514,9 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="gfi-step1">
       <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
         <strong>Two ways to do this.</strong><br>
-        <strong>A — upload a file (always works):</strong> in Google Sheets, File → Download →
-        <strong>Comma-separated values (.csv)</strong>, then use Upload CSV file below.<br>
+        <strong>A — upload a file (always works):</strong> an <strong>.xlsx</strong> straight from Excel,
+        or from Google Sheets File → Download → Excel or CSV. Scores may be the level
+        <strong>1–4</strong> or the descriptor wording; both are read.<br>
         <strong>B — from a link:</strong> File → Share → <strong>Publish to web</strong> → pick the responses
         tab → format <strong>CSV</strong> → Publish, then paste that link.
         A sheet that is only <em>shared</em> by link cannot be read from here; it has to be published.
@@ -2533,14 +2534,15 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div id="gfi-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-p" onclick="gfiFetch()">Fetch &amp; Preview →</button>
-        <button class="btn btn-s" onclick="document.getElementById('gfi-file').click()">⬆ Upload CSV file</button>
-        <input type="file" id="gfi-file" accept=".csv,text/csv,text/plain" style="display:none" onchange="gfiUploadFile(this)">
+        <button class="btn btn-s" onclick="document.getElementById('gfi-file').click()">⬆ Upload Excel or CSV</button>
+        <input type="file" id="gfi-file" accept=".xlsx,.xlsm,.xls,.ods,.csv,text/csv,text/plain" style="display:none" onchange="gfiUploadFile(this)">
         <button class="btn btn-s" onclick="document.getElementById('gform-import-modal').classList.remove('open')">Cancel</button>
       </div>
     </div>
 
     <!-- Step 2: Column mapper + preview -->
     <div id="gfi-step2" style="display:none">
+      <div id="gfi-sheet-wrap" class="sip-field" style="display:none;margin-bottom:12px"></div>
       <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">Map columns to rubric criteria</div>
       <div style="font-size:12px;color:var(--ink-l);margin-bottom:12px">Auto-matched by name. Adjust if needed.</div>
       <table class="data-table" style="font-size:12px;margin-bottom:16px">
@@ -12040,7 +12042,14 @@ function downloadAssessmentBreakdownXlsx() {
   add('Skill Performance', Object.keys(agg.subjectAvgMap).map(sub => {
     const arr = agg.subjectAvgMap[sub];
     const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-    return { Skill: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+    const lv = (agg.subjectLevelMap || {})[sub];
+    const row = { Skill: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+    if (lv && lv.scale && lv.levels.length) {
+      row['Average Level'] = +(lv.levels.reduce((a, b) => a + b, 0) / lv.levels.length).toFixed(2);
+      row['Out Of'] = lv.scale;
+      for (let i = 1; i <= lv.scale; i++) row['Level ' + i] = lv.levels.filter(v => v === i).length;
+    }
+    return row;
   }));
 
   add('Standards Attainment', Object.keys(agg.standardMap).map(st => {
@@ -12190,8 +12199,16 @@ const _SKILL_SUGGESTIONS = _SKILLS.map(s => s.name);
 function _deriveSkill(item) {
   const explicit = String((item && item.skill) || '').trim();
   if (explicit) return explicit;
-  const hay = String((item && item.subject) || '') + ' ' + String((item && item.name) || '');
-  for (let i = 0; i < _SKILLS.length; i++) if (_SKILLS[i].re.test(hay)) return _SKILLS[i].name;
+  // The subject is checked on its own first, and only then the name. Searching
+  // both as one blob let a stray word in the free-text name outrank the
+  // deliberate label: a rubric called "Oral Reading" under subject "English
+  // Reading" came out as Speaking, because "Oral" matches Speaking and Speaking
+  // is listed before Reading.
+  const fields = [String((item && item.subject) || ''), String((item && item.name) || '')];
+  for (let f = 0; f < fields.length; f++) {
+    if (!fields[f].trim()) continue;
+    for (let i = 0; i < _SKILLS.length; i++) if (_SKILLS[i].re.test(fields[f])) return _SKILLS[i].name;
+  }
   return null;
 }
 
@@ -12264,10 +12281,23 @@ function _assessAggregates() {
   const standardMap = {}; // standard -> {exc,meet,app,bel,total}
   const unassigned = [];  // names of the rubrics/assessments with no subject
   let totalPct = 0, totalCount = 0;
+  // Percentages drive the existing banding; the raw levels are kept beside them
+  // because a rubric is scored 1-4 and "2.05 out of 4" is what a teacher
+  // recognises. A percentage alone hides how many children sit on each level.
+  const subjectLevelMap = {};  // skill -> { scale, levels: [1..scale] }
   const pushSubject = (item, pct) => {
     const k = _skillKey(item);
     if (!subjectAvgMap[k]) subjectAvgMap[k] = [];
     subjectAvgMap[k].push(pct);
+  };
+  const pushLevels = (item, levels, scale) => {
+    if (!levels.length) return;
+    const k = _skillKey(item);
+    if (!subjectLevelMap[k]) subjectLevelMap[k] = { scale: scale, levels: [] };
+    // Mixing rubrics of different scales under one skill would make the
+    // distribution meaningless, so the card falls back to percentage only.
+    if (subjectLevelMap[k].scale !== scale) subjectLevelMap[k].scale = null;
+    levels.forEach(v => subjectLevelMap[k].levels.push(v));
   };
 
   assessments.forEach(a => {
@@ -12294,7 +12324,11 @@ function _assessAggregates() {
       const g = resp.grade || '';
       const avg = _rubricRespAvg(resp, r);
       if (avg === null) return;   // unscored responses are not 0% results
-      const pct = Math.round(avg/(r.scale||4)*100);
+      const scale = r.scale || 4;
+      pushLevels(r, (r.criteria||[])
+        .map(c => _rubricLevel(resp.scores ? resp.scores[c.name] : '', c, scale))
+        .filter(v => v !== null), scale);
+      const pct = Math.round(avg/scale*100);
       if (g) { if(!gradeAvgMap[g]) gradeAvgMap[g]=[]; gradeAvgMap[g].push(pct); }
       pushSubject(r, pct);
       totalPct += pct; totalCount++;
@@ -12323,6 +12357,7 @@ function _assessAggregates() {
   });
 
   return { gradeAvgMap: gradeAvgMap, subjectAvgMap: subjectAvgMap,
+           subjectLevelMap: subjectLevelMap,
            standardMap: standardMap, totalPct: totalPct, totalCount: totalCount,
            unassigned: unassigned, subjectDupes: subjectDupes };
 }
@@ -12395,10 +12430,28 @@ function renderAssessAnalytics() {
       const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
       const att = _attainmentLabel(avg);
       const isUn = s === _SUBJECT_UNASSIGNED;
+      const lv = (agg.subjectLevelMap || {})[s];
+      let levelBits = '';
+      if (lv && lv.scale && lv.levels.length) {
+        const mean = lv.levels.reduce((a,b)=>a+b,0) / lv.levels.length;
+        const counts = [];
+        for (let i = 1; i <= lv.scale; i++) counts.push(lv.levels.filter(v => v === i).length);
+        const total = lv.levels.length;
+        // One bar per level, width proportional to how many sit there. Reads as
+        // "where is the cohort" at a glance, which an average cannot show.
+        const palette = ['var(--red)','var(--gold)','#3b82f6','var(--grn)'];
+        levelBits =
+          `<div style="font-size:11px;font-weight:600;margin-top:2px">${mean.toFixed(2)} <span style="font-weight:400;opacity:0.7">/ ${lv.scale}</span></div>` +
+          `<div style="display:flex;height:5px;border-radius:3px;overflow:hidden;margin:5px 0 3px;background:rgba(0,0,0,0.06)">` +
+          counts.map((n,i) => n ? `<div title="Level ${i+1}: ${n} of ${total}" style="width:${n/total*100}%;background:${palette[Math.min(i, palette.length-1)]}"></div>` : '').join('') +
+          `</div>` +
+          `<div style="font-size:9px;opacity:0.75">${counts.map((n,i)=>'L'+(i+1)+' '+n).join(' · ')}</div>`;
+      }
       html += `<div style="padding:12px;border-radius:var(--r-md);${isUn ? 'background:var(--amb-p);color:var(--amb)' : att.css};border:0.5px ${isUn ? 'dashed var(--amb)' : 'solid transparent'}">
         <div style="font-size:13px;font-weight:500">${_escHtml(s)}</div>
-        <div style="font-size:22px;font-weight:700;margin:4px 0">${avg}%</div>
-        <div style="font-size:10px">${arr.length} records · ${isUn ? 'no skill set' : att.label}</div>
+        <div style="font-size:22px;font-weight:700;margin:4px 0 0">${avg}%</div>
+        ${levelBits}
+        <div style="font-size:10px;margin-top:4px">${arr.length} records · ${isUn ? 'no skill set' : att.label}</div>
       </div>`;
     });
     html += '</div>';
@@ -12796,6 +12849,8 @@ function saveRubricScores() {
 
 function openGFormImport() {
   loadRubricScores();
+  _gfiWorkbook = null;
+  _renderGfiSheetPicker([], '');
   const sel = document.getElementById('gfi-rubric');
   sel.innerHTML = '<option value="">— choose a rubric —</option>' +
     rubrics.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
@@ -12877,16 +12932,74 @@ async function gfiFetch() {
 }
 
 // Download → upload. Immune to publishing, sharing and CORS.
+//
+// Excel and CSV take the same path: a worksheet is converted to CSV text and
+// handed to the one parser, so column mapping, the preview and Replace/Add
+// behave identically whichever file was picked.
+var _gfiWorkbook = null;   // the open workbook, while a sheet is being chosen
+
 function gfiUploadFile(input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
   const rubricId = document.getElementById('gfi-rubric').value;
   if (!rubricId) { _gfiError('Please select a rubric first.'); return; }
+  const isExcel = /\.(xlsx|xlsm|xls|ods)$/i.test(file.name);
+
+  if (isExcel) {
+    if (typeof XLSX === 'undefined') {
+      _gfiError('The spreadsheet reader did not load, so .xlsx cannot be opened right now. ' +
+                'Save the sheet as <strong>CSV</strong> and upload that instead.');
+      return;
+    }
+    const r = new FileReader();
+    r.onload = e => {
+      let wb;
+      try { wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' }); }
+      catch (err) { _gfiError('That file could not be opened as a spreadsheet: ' + err.message); return; }
+      _gfiWorkbook = wb;
+      // Blank and heading-only sheets are common in a real workbook; offer the
+      // ones that actually carry rows, and start on the first of them.
+      const withRows = (wb.SheetNames || []).filter(n => {
+        try { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false }).length > 1; }
+        catch (err) { return false; }
+      });
+      if (!withRows.length) { _gfiError('No sheet in ' + file.name + ' has any rows below its headings.'); return; }
+      _renderGfiSheetPicker(withRows, file.name);
+      _gfiUseSheet(withRows[0], rubricId, file.name);
+    };
+    r.onerror = () => _gfiError('Could not read that file.');
+    r.readAsArrayBuffer(file);
+    return;
+  }
+
+  _gfiWorkbook = null;
+  _renderGfiSheetPicker([], file.name);
   const reader = new FileReader();
   reader.onload = e => _gfiAccept(String(e.target.result || ''), rubricId, file.name);
   reader.onerror = () => _gfiError('Could not read that file.');
   reader.readAsText(file);
+}
+
+function _gfiUseSheet(sheetName, rubricId, fileName) {
+  if (!_gfiWorkbook || !_gfiWorkbook.Sheets[sheetName]) return;
+  const csv = XLSX.utils.sheet_to_csv(_gfiWorkbook.Sheets[sheetName], { blankrows: false });
+  _gfiAccept(csv, rubricId, '"' + sheetName + '" in ' + fileName);
+}
+
+// Shown only for a workbook with more than one sheet of data — switching
+// re-reads that sheet through the same parser.
+function _renderGfiSheetPicker(names, fileName) {
+  const wrap = document.getElementById('gfi-sheet-wrap');
+  if (!wrap) return;
+  if (!names || names.length < 2) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = '';
+  wrap.innerHTML = '<label style="font-size:12px;color:var(--ink-l)">Sheet</label>' +
+    '<select id="gfi-sheet" onchange="_gfiUseSheet(this.value, document.getElementById(\'gfi-rubric\').value, ' +
+      JSON.stringify(fileName).replace(/"/g, '&quot;') + ')" ' +
+      'style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;' +
+      'font-family:\'DM Sans\',sans-serif;color:var(--ink);background:var(--sur-r)">' +
+    names.map(n => `<option value="${_escHtml(n)}">${_escHtml(n)}</option>`).join('') + '</select>';
 }
 
 function _fuzzyMatch(a, b) {
