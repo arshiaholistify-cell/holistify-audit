@@ -2538,6 +2538,40 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       </div>
     </div>
 
+    <!-- A wide skill-profiling sheet: one column per skill, each with its own
+         maximum. Detected on load, so the file lands here instead of on the
+         single-column mapper, which cannot describe it. -->
+    <div id="si-step3" style="display:none">
+      <div id="si-wide-head" style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:11px 13px;margin-bottom:12px;font-size:12px;color:var(--sage);line-height:1.6"></div>
+      <div id="si-wide-warn" style="display:none;background:var(--amb-p);color:var(--amb);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px;line-height:1.6"></div>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:8px">One assessment per skill column</div>
+      <div style="overflow-x:auto;margin-bottom:12px">
+        <table class="data-table" style="font-size:12px"><thead><tr>
+          <th style="width:28px"></th><th>Column</th><th>Subject</th><th>Skill</th>
+          <th style="width:76px">Out of</th><th>Marked</th><th>Highest</th>
+        </tr></thead><tbody id="si-wide-cols"></tbody></table>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="sip-field" style="margin:0"><label>Grade</label>
+          <input id="si-wide-grade" placeholder="e.g. Grade 3" style="font-size:12px" oninput="_wideRender()"></div>
+        <div class="sip-field" style="margin:0"><label>Term</label>
+          <select id="si-wide-term" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+            <option>Term 1</option><option>Term 2</option><option>Term 3</option><option>Annual</option></select></div>
+        <div class="sip-field" style="margin:0"><label>Added to each name</label>
+          <input id="si-wide-tag" placeholder="e.g. Level 2" style="font-size:12px" oninput="_wideRender()"></div>
+      </div>
+      <div id="si-wide-sheets" style="display:none;margin-bottom:12px"></div>
+      <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:8px">Preview <span id="si-wide-count" style="font-size:11px;font-weight:400;color:var(--ink-l)"></span></div>
+      <div style="overflow-x:auto;margin-bottom:14px">
+        <table class="data-table" style="font-size:12px"><thead id="si-wide-prev-head"></thead><tbody id="si-wide-prev-body"></tbody></table>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-p" onclick="siWideImport()">Import <span id="si-wide-btn-count"></span></button>
+        <button class="btn btn-s" onclick="_wideUseMapper()">Map one column instead</button>
+        <button class="btn btn-s" onclick="document.getElementById('si-step1').style.display='';document.getElementById('si-step3').style.display='none'">← Back</button>
+      </div>
+    </div>
+
     <div id="si-step2" style="display:none">
       <div id="si-sheet-wrap" class="sip-field" style="display:none;margin-bottom:12px"></div>
       <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">Map the columns</div>
@@ -11733,9 +11767,514 @@ function saveScores() {
 // bare commas, and always invented a brand new assessment with maxMarks 100.
 var _siRows = [], _siHeaders = [], _siWorkbook = null, _siFile = '';
 
+// ── Wide skill-profiling sheets ────────────────────────────────────────────
+// One row per student and one column per skill, each column carrying its own
+// maximum in the heading: "Listening Skills - 20 Marks". The ordinary mapper
+// cannot read one of these — it wants a single marks column with a single
+// maximum, and it takes the first row as the headings, which on these sheets
+// is the report's title.
+//
+// Every part of the layout is read rather than assumed, because the parts that
+// differ between two of these sheets are exactly the parts a guess gets wrong:
+// the skill headings may sit on the lower of two header rows (the upper one
+// carrying merged band names across several columns), the grade may exist
+// nowhere but the sheet's own name, and the maximum printed in a heading is
+// not always the maximum the test was actually marked out of.
+
+function _wideNorm(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
+
+// "Listening Skills - 20 Marks" → { label: 'Listening Skills', max: 20 }
+const _WIDE_MAX_RES = [
+  /[-–—(:]\s*(?:out\s*of\s*)?(\d+(?:\.\d+)?)\s*(?:marks?|mks?|m)\b\.?\s*\)?\s*$/i,
+  /\(\s*(?:out\s*of\s*)?(\d+(?:\.\d+)?)\s*\)\s*$/,
+  /\bout\s*of\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*$/i,
+];
+function _wideMax(hdr) {
+  const raw = _wideNorm(hdr);
+  for (let i = 0; i < _WIDE_MAX_RES.length; i++) {
+    const m = raw.match(_WIDE_MAX_RES[i]);
+    if (!m) continue;
+    const label = raw.slice(0, m.index).replace(/[\s\-–—(:]+$/, '').trim();
+    return { label: label || raw, max: parseFloat(m[1]) };
+  }
+  return { label: raw, max: null };
+}
+
+// A serial number is not an identity. "Sl. No" renumbers itself the moment a
+// student is added or removed, so it must never be taken for a roll number:
+// re-importing a corrected sheet matches on roll, and matching on a serial
+// would write one child's marks onto another. Roll, admission and enrolment
+// numbers do identify a student; a serial column is ignored outright.
+function _wideIsSerialHdr(v) {
+  const t = _wideNorm(v).replace(/[.:]+$/, '').toLowerCase();
+  return /^(sl|sr|s)\.? ?n[o0]\.?$/.test(t) || /^(no|#|sno|slno|srno|serial|sl)\.?$/.test(t) ||
+         /^s\.? ?l\.? ?no/.test(t) || /^serial (no|number)$/.test(t);
+}
+function _wideIsRollHdr(v) {
+  return /\b(roll|admission|adm\.? ?no|enrol(?:l)?ment|reg(?:n|istration)?\.? ?no|student id|id ?no)\b/i
+    .test(_wideNorm(v));
+}
+function _wideIsNameHdr(v) {
+  const t = _wideNorm(v).replace(/[.:*]+$/, '').toLowerCase();
+  if (!t || _wideIsSerialHdr(t)) return false;
+  if (t === 'name' || /^(student|students|pupil|pupils)$/.test(t)) return true;
+  return /\bname\b/.test(t) && /\b(student|students|pupil|pupils|child|children)\b/.test(t);
+}
+function _wideIsGradeHdr(v) {
+  const t = _wideNorm(v).replace(/[.:]+$/, '').toLowerCase();
+  return /^(grade|class|std|standard|section|division|sec)s?$/.test(t);
+}
+
+// The grade of a sheet called "Grade 3", "Class V" or "G4". These sheets carry
+// no grade column at all — one workbook is one test, one sheet is one grade —
+// so without this every row would import ungraded and the Grade Averages panel
+// would have nothing to group by.
+const _WIDE_ROMAN = { i:1, ii:2, iii:3, iv:4, v:5, vi:6, vii:7, viii:8, ix:9, x:10, xi:11, xii:12 };
+function _wideGradeFromName(name) {
+  const t = _wideNorm(name);
+  let m = t.match(/\b(?:grade|class|std|standard)\.?\s*[-–:]?\s*(\d{1,2}|[ivxIVX]{1,4})\b/i) ||
+          t.match(/^g\s*[-–:]?\s*(\d{1,2})$/i);
+  if (!m) return '';
+  const raw = m[1];
+  const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : _WIDE_ROMAN[raw.toLowerCase()];
+  if (!n || n < 1 || n > 12) return '';
+  return 'Grade ' + n;
+}
+
+// Read the layout, or return null and let the ordinary column mapper have it.
+function _wideScan(grid, sheetName) {
+  if (!grid || grid.length < 3) return null;
+  const width = grid.reduce((w, r) => Math.max(w, (r || []).length), 0);
+  if (width < 3) return null;
+  const cell = (r, c) => _wideNorm((grid[r] || [])[c]);
+
+  // 1. The row that names the students, and the column it sits in.
+  let nameRow = -1, nameCol = -1;
+  for (let r = 0; r < Math.min(grid.length, 12) && nameRow < 0; r++) {
+    for (let c = 0; c < width; c++) {
+      if (_wideIsNameHdr(cell(r, c))) { nameRow = r; nameCol = c; break; }
+    }
+  }
+  if (nameRow < 0 || nameRow + 1 >= grid.length) return null;
+
+  // 2. Which row carries the skill headings. "Name of the Students" is often
+  //    merged down two rows, with the band names beside it on the upper row
+  //    and the skills on the lower — so the row holding the name is not
+  //    necessarily the row holding the headings. Whichever of the two has more
+  //    headings that state a maximum wins; failing that, more headings at all.
+  const shape = r => {
+    let withMax = 0, total = 0;
+    for (let c = 0; c < width; c++) {
+      if (c === nameCol) continue;
+      const v = cell(r, c);
+      if (!v) continue;
+      total++;
+      if (_wideMax(v).max !== null) withMax++;
+    }
+    return { withMax: withMax, total: total };
+  };
+  const a = shape(nameRow), b = shape(nameRow + 1);
+  const headerRow = (b.withMax > a.withMax || (b.withMax === a.withMax && b.total > a.total))
+    ? nameRow + 1 : nameRow;
+
+  // 3. Roll and grade columns, which may be labelled on either header row.
+  let rollCol = -1, gradeCol = -1;
+  [nameRow, headerRow].forEach(r => {
+    for (let c = 0; c < width; c++) {
+      if (c === nameCol) continue;
+      const v = cell(r, c);
+      if (!v) continue;
+      if (rollCol < 0 && _wideIsRollHdr(v)) rollCol = c;
+      if (gradeCol < 0 && _wideIsGradeHdr(v)) gradeCol = c;
+    }
+  });
+
+  // 4. Every remaining heading is a skill column.
+  const cols = [];
+  for (let c = 0; c < width; c++) {
+    if (c === nameCol || c === rollCol || c === gradeCol) continue;
+    const raw = cell(headerRow, c);
+    if (!raw || _wideIsNameHdr(raw) || _wideIsSerialHdr(raw) || _wideIsRollHdr(raw) ||
+        _wideIsGradeHdr(raw)) continue;
+    const m = _wideMax(raw);
+    cols.push({ idx: c, label: m.label, headerMax: m.max, max: m.max, band: '', use: true });
+  }
+  if (cols.length < 2) return null;   // one marks column is the ordinary case
+
+  // 5. Band names on the row above, carried rightwards across the columns they
+  //    were merged over. Only within the skill columns: the title on row 1 sits
+  //    in the first column and must not be spread across the whole sheet.
+  const bandRow = headerRow - 1;
+  if (bandRow >= 0) {
+    const seen = cols.map(col => cell(bandRow, col.idx)).filter(Boolean);
+    // A row of numbers is data, not bands — which is what the row above the
+    // headings is on a sheet whose headings are on row 1.
+    if (seen.length && !seen.some(v => /^\d+(\.\d+)?$/.test(v))) {
+      cols.forEach(col => {
+        for (let c = col.idx; c >= cols[0].idx; c--) {
+          const v = cell(bandRow, c);
+          if (v) { col.band = v; break; }
+        }
+      });
+    }
+  }
+
+  // 6. The title rows above everything, and the level they name.
+  const titleBits = [];
+  for (let r = 0; r < Math.min(nameRow, headerRow); r++) {
+    const vs = [];
+    for (let c = 0; c < width; c++) { const v = cell(r, c); if (v) vs.push(v); }
+    if (vs.length) titleBits.push(vs.join(' '));
+  }
+  const title = titleBits.join(' — ');
+  const lv = title.match(/\blevel\s*[-–—:]?\s*([A-Za-z0-9]{1,3})\b/i);
+
+  // 7. The students.
+  const rows = [];
+  for (let r = headerRow + 1; r < grid.length; r++) {
+    const nm = cell(r, nameCol);
+    if (!nm || _wideIsNameHdr(nm) || _isInvalidName(nm)) continue;
+    rows.push({ r: r, name: nm,
+      roll: rollCol >= 0 ? cell(r, rollCol) : '',
+      grade: gradeCol >= 0 ? cell(r, gradeCol) : '' });
+  }
+  if (!rows.length) return null;
+
+  return { headerRow: headerRow, nameRow: nameRow, nameCol: nameCol, rollCol: rollCol,
+           gradeCol: gradeCol, cols: cols, rows: rows, title: title,
+           tag: lv ? 'Level ' + lv[1] : '', sheet: sheetName || '',
+           grade: _wideGradeFromName(sheetName), grid: grid };
+}
+
+// The marks in one skill column, with the raw text kept so a value that is not
+// a number can be reported rather than quietly become one.
+function _wideColumnMarks(w, col) {
+  const cell = (r, c) => _wideNorm((w.grid[r] || [])[c]);
+  return w.rows.map(row => {
+    const raw = cell(row.r, col.idx);
+    return { row: row, raw: raw,
+             num: /^\d+(\.\d+)?$/.test(raw) ? parseFloat(raw) : null };
+  });
+}
+
+function _wideColumnStats(w, col) {
+  const marks = _wideColumnMarks(w, col);
+  const nums = marks.filter(m => m.num !== null);
+  const max = parseFloat(col.max);
+  return {
+    scored: nums.length,
+    blank: marks.filter(m => m.raw === '').length,
+    bad: marks.filter(m => m.raw !== '' && m.num === null).length,
+    top: nums.length ? Math.max.apply(null, nums.map(m => m.num)) : null,
+    over: isNaN(max) ? 0 : nums.filter(m => m.num > max).length,
+  };
+}
+
+// ── The wide-sheet step ────────────────────────────────────────────────────
+// Column maxima are held by column label rather than per sheet: a workbook of
+// one sheet per grade is one test, so a maximum corrected on the first sheet is
+// corrected for all of them.
+var _siWide = null, _siWideSheets = {}, _siWideMax = {}, _siWideOff = {}, _siWideSkip = {};
+var _siWideCsv = '', _siSheetName = '';
+
+function _wideKey(col) { return String(col.label || '').toLowerCase(); }
+function _wideColMax(col) {
+  const k = _wideKey(col);
+  const v = Object.prototype.hasOwnProperty.call(_siWideMax, k) ? _siWideMax[k] : col.headerMax;
+  const n = parseFloat(v);
+  return isNaN(n) || n <= 0 ? null : n;
+}
+function _wideSetMax(key, v) { _siWideMax[String(key)] = v; _wideRender(); }
+function _wideToggleCol(key, on) { _siWideOff[String(key)] = !on; _wideRender(); }
+function _wideToggleSheet(name, on) { _siWideSkip[String(name)] = !on; _wideRender(); }
+
+// Which sheets go in: the one that was opened, plus any other sheet of the same
+// shape the user leaves ticked.
+function _wideActiveSheets() {
+  return Object.keys(_siWideSheets).filter(n => !_siWideSkip[n]);
+}
+function _wideActiveCols() {
+  if (!_siWide) return [];
+  return _siWide.cols.filter(c => !_siWideOff[_wideKey(c)]);
+}
+
+// Every sheet in the workbook that reads as the same test — same skill columns
+// in the same order. A sheet that does not match is left out rather than
+// guessed at, because a sheet of a different shape is a different test.
+function _wideSiblings(current) {
+  const out = {};
+  out[current.sheet] = current;
+  if (!_siWorkbook) return out;
+  const want = current.cols.map(c => _wideKey(c)).join('|');
+  (_siWorkbook.SheetNames || []).forEach(n => {
+    if (n === current.sheet) return;
+    let w = null;
+    try { w = _wideScan(_csvGrid(XLSX.utils.sheet_to_csv(_siWorkbook.Sheets[n], { blankrows: false })), n); }
+    catch (e) { w = null; }
+    if (w && w.cols.map(c => _wideKey(c)).join('|') === want) out[n] = w;
+  });
+  return out;
+}
+
+function _wideShow(w) {
+  _siWide = w;
+  _siWideMax = {}; _siWideOff = {}; _siWideSkip = {};
+  _siWideSheets = _wideSiblings(w);
+  const g = document.getElementById('si-wide-grade'); if (g) g.value = w.grade || '';
+  const t = document.getElementById('si-wide-tag'); if (t) t.value = w.tag || '';
+  document.getElementById('si-step1').style.display = 'none';
+  document.getElementById('si-step2').style.display = 'none';
+  document.getElementById('si-step3').style.display = '';
+  _wideRender();
+}
+
+// Back to the single-column mapper, for a sheet that only looks wide.
+function _wideUseMapper() {
+  document.getElementById('si-step3').style.display = 'none';
+  const parsed = _csvParse(_siWideCsv || '');
+  if (!parsed.headers.length || !parsed.rows.length) {
+    document.getElementById('si-step1').style.display = '';
+    _siError('That sheet has no rows the column mapper can read.');
+    return;
+  }
+  _siHeaders = parsed.headers; _siRows = parsed.rows;
+  _buildSiMapper();
+}
+
+function _wideRender() {
+  if (!_siWide) return;
+  const w = _siWide;
+  const sheets = _wideActiveSheets();
+  const cols = _wideActiveCols();
+  const gradeIn = (document.getElementById('si-wide-grade') || { value: '' }).value.trim();
+  const tag = (document.getElementById('si-wide-tag') || { value: '' }).value.trim();
+
+  const head = document.getElementById('si-wide-head');
+  if (head) {
+    const bits = ['<strong>This looks like a skill-profiling sheet</strong> — one row per student, ' +
+      'one column per skill, each with its own maximum. Each column becomes its own assessment.'];
+    if (w.title) bits.push('Title: <strong>' + _escHtml(w.title) + '</strong>');
+    bits.push('Headings read from row <strong>' + (w.headerRow + 1) + '</strong>' +
+      (w.headerRow !== w.nameRow ? ', subject bands from row <strong>' + (w.headerRow) + '</strong>' : '') + '.');
+    if (w.grade) bits.push('Grade taken from the sheet name <strong>' + _escHtml(w.sheet) + '</strong>.');
+    else if (w.gradeCol < 0) bits.push('No grade in the sheet or its name — set one below, or the marks ' +
+      'import without a grade and the Grade Averages panel cannot group them.');
+    if (w.rollCol < 0) bits.push('No roll number column — students will be matched by name. ' +
+      '(A "Sl. No" column is a serial number, not an identity, so it is ignored.)');
+    head.innerHTML = bits.join('<br>');
+  }
+
+  // One row per skill column, with the maximum editable: the number printed in
+  // a heading is not always the number the paper was marked out of.
+  const body = document.getElementById('si-wide-cols');
+  const warns = [];
+  if (body) {
+    body.innerHTML = w.cols.map(col => {
+      const key = _wideKey(col);
+      const on = !_siWideOff[key];
+      const max = _wideColMax(col);
+      // Totals across every sheet going in, so a per-column problem on sheet 3
+      // is visible before importing sheet 1.
+      let scored = 0, blank = 0, bad = 0, over = 0, top = null;
+      sheets.forEach(n => {
+        const sw = _siWideSheets[n];
+        const sc = (sw.cols.filter(c => _wideKey(c) === key)[0]) || null;
+        if (!sc) return;
+        const st = _wideColumnStats(sw, { idx: sc.idx, max: max });
+        scored += st.scored; blank += st.blank; bad += st.bad; over += st.over;
+        if (st.top !== null) top = top === null ? st.top : Math.max(top, st.top);
+      });
+      const skill = _deriveSkill({ name: col.label, subject: col.band }) || col.label;
+      if (on) {
+        if (max === null) warns.push('<strong>' + _escHtml(col.label) + '</strong> has no maximum — ' +
+          'set one, or it cannot be turned into a percentage.');
+        else if (over) warns.push(over + ' mark' + (over === 1 ? '' : 's') + ' in <strong>' +
+          _escHtml(col.label) + '</strong> ' + (over === 1 ? 'is' : 'are') + ' above ' + max +
+          ' and will be skipped.');
+        // The heading says 20 and nothing scores above 5: one of the two numbers
+        // is wrong, and taking the heading would halve every percentage in the
+        // column. Say so and let it be corrected rather than pick a side.
+        if (max !== null && top !== null && top > 0 && max >= top * 2)
+          warns.push('<strong>' + _escHtml(col.label) + '</strong> is marked out of ' + max +
+            ', but the highest mark anyone scored is ' + top +
+            '. If the paper was really out of ' + top + ', change it — otherwise every ' +
+            'percentage in this column will read about half what it should.');
+        if (bad) warns.push(bad + ' value' + (bad === 1 ? '' : 's') + ' in <strong>' +
+          _escHtml(col.label) + '</strong> ' + (bad === 1 ? 'is' : 'are') + ' not a number and will be skipped.');
+      }
+      return '<tr style="opacity:' + (on ? '1' : '0.45') + '">' +
+        '<td><input type="checkbox"' + (on ? ' checked' : '') +
+          ' onchange="_wideToggleCol(' + JSON.stringify(key) + ',this.checked)"></td>' +
+        '<td style="font-weight:500">' + _escHtml(col.label) + '</td>' +
+        '<td>' + _escHtml(col.band || '—') + '</td>' +
+        '<td>' + _escHtml(skill) + '</td>' +
+        '<td><input type="number" min="0.5" step="0.5" value="' + (max === null ? '' : max) +
+          '" onchange="_wideSetMax(' + JSON.stringify(key) + ',this.value)" ' +
+          'style="width:62px;padding:3px 5px;border:0.5px solid ' +
+          (max === null ? 'var(--red)' : 'var(--bdr-s)') +
+          ';border-radius:4px;font-size:12px;font-family:\'DM Sans\',sans-serif"></td>' +
+        '<td>' + scored + (blank ? ' <span style="color:var(--ink-f)">(' + blank + ' blank)</span>' : '') + '</td>' +
+        '<td>' + (top === null ? '—' : top) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  const sheetWrap = document.getElementById('si-wide-sheets');
+  const allNames = Object.keys(_siWideSheets);
+  if (sheetWrap) {
+    if (allNames.length < 2) { sheetWrap.style.display = 'none'; sheetWrap.innerHTML = ''; }
+    else {
+      sheetWrap.style.display = '';
+      sheetWrap.innerHTML = '<div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:6px">' +
+        'Sheets to import</div><div style="font-size:11px;color:var(--ink-l);margin-bottom:6px">' +
+        'Every sheet in this workbook has the same columns, and each names its own grade, ' +
+        'so they can all go in at once.</div>' +
+        '<div style="display:flex;gap:12px;flex-wrap:wrap">' + allNames.map(n => {
+          const sw = _siWideSheets[n];
+          const on = !_siWideSkip[n];
+          return '<label style="font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer">' +
+            '<input type="checkbox"' + (on ? ' checked' : '') +
+            ' onchange="_wideToggleSheet(' + JSON.stringify(n) + ',this.checked)"> ' +
+            _escHtml(n) + ' <span style="color:var(--ink-f)">(' + sw.rows.length + ' students' +
+            (sw.grade ? ', ' + _escHtml(sw.grade) : ', no grade in the name') + ')</span></label>';
+        }).join('') + '</div>';
+    }
+  }
+
+  if (!sheets.length) warns.push('No sheets selected.');
+  if (!cols.length) warns.push('No skill columns selected.');
+  const dupes = _wideExisting(sheets, cols, tag, gradeIn);
+  if (dupes.length) warns.push(dupes.length + ' of these already exist and will be <strong>updated</strong> ' +
+    'rather than added again: ' + dupes.map(d => _escHtml(d.name + ' · ' + (d.grade || 'no grade'))).join(', ') + '.');
+
+  const warnEl = document.getElementById('si-wide-warn');
+  if (warnEl) {
+    warnEl.style.display = warns.length ? '' : 'none';
+    warnEl.innerHTML = warns.map(x => '⚠ ' + x).join('<br>');
+  }
+
+  // Preview: the first few students of the opened sheet, across the columns.
+  const prevCols = cols.slice(0, 8);
+  document.getElementById('si-wide-prev-head').innerHTML = '<tr><th>Student</th>' +
+    (gradeIn || w.grade ? '<th>Grade</th>' : '') +
+    prevCols.map(c => '<th>' + _escHtml(c.label) + '<br><span style="font-weight:400;color:var(--ink-f)">/' +
+      (_wideColMax(c) === null ? '?' : _wideColMax(c)) + '</span></th>').join('') + '</tr>';
+  document.getElementById('si-wide-prev-body').innerHTML = w.rows.slice(0, 5).map(row => {
+    const g = row.grade || gradeIn || w.grade;
+    return '<tr><td>' + _escHtml(row.name) + '</td>' +
+      (gradeIn || w.grade ? '<td>' + _escHtml(g || '—') + '</td>' : '') +
+      prevCols.map(c => {
+        const raw = _wideNorm((w.grid[row.r] || [])[c.idx]);
+        return '<td>' + (raw === '' ? '<span style="color:var(--ink-f)">—</span>' : _escHtml(raw)) + '</td>';
+      }).join('') + '</tr>';
+  }).join('');
+
+  const nAssess = sheets.length * cols.length;
+  let nMarks = 0;
+  sheets.forEach(n => {
+    const sw = _siWideSheets[n];
+    cols.forEach(col => {
+      const sc = (sw.cols.filter(c => _wideKey(c) === _wideKey(col))[0]) || null;
+      if (!sc) return;
+      const max = _wideColMax(col);
+      nMarks += _wideColumnMarks(sw, sc).filter(
+        m => m.num !== null && (max === null || m.num <= max)).length;
+    });
+  });
+  document.getElementById('si-wide-count').textContent =
+    '(' + w.rows.length + ' students in ' + _siWide.sheet + ')';
+  document.getElementById('si-wide-btn-count').textContent =
+    nAssess + ' assessment' + (nAssess === 1 ? '' : 's') + ', ' + nMarks + ' mark' + (nMarks === 1 ? '' : 's');
+}
+
+function _wideAssessName(col, tag) {
+  return String(col.label || 'Untitled') + (tag ? ' — ' + tag : '');
+}
+
+// Assessments this import would land on top of, so the preview can say it is
+// an update: re-importing a sheet after a maximum was corrected is the normal
+// case, and a silent second copy would double every average built from it.
+function _wideExisting(sheets, cols, tag, gradeIn) {
+  const out = [];
+  sheets.forEach(n => {
+    const sw = _siWideSheets[n];
+    const grade = sw.grade || gradeIn || 'all';
+    cols.forEach(col => {
+      const name = _wideAssessName(col, tag);
+      const hit = assessments.filter(a => String(a.name || '').trim().toLowerCase() === name.toLowerCase() &&
+                                          String(a.grade || '') === grade)[0];
+      if (hit) out.push({ name: name, grade: grade, id: hit.id });
+    });
+  });
+  return out;
+}
+
+function siWideImport() {
+  if (!_siWide) return;
+  const sheets = _wideActiveSheets(), cols = _wideActiveCols();
+  if (!sheets.length || !cols.length) { _siError('Pick at least one sheet and one column.'); return; }
+  const missing = cols.filter(c => _wideColMax(c) === null);
+  if (missing.length) {
+    toast('Set a maximum for ' + missing.map(c => c.label).join(', ') + ' first.', 'warn');
+    return;
+  }
+  const gradeIn = (document.getElementById('si-wide-grade') || { value: '' }).value.trim();
+  const term = (document.getElementById('si-wide-term') || { value: 'Term 1' }).value;
+  const tag = (document.getElementById('si-wide-tag') || { value: '' }).value.trim();
+  const today = new Date().toISOString().split('T')[0];
+
+  let created = 0, updated = 0, marks = 0, skipped = 0;
+  sheets.forEach(n => {
+    const sw = _siWideSheets[n];
+    const grade = sw.grade || gradeIn || 'all';
+    cols.forEach(col => {
+      const sc = (sw.cols.filter(c => _wideKey(c) === _wideKey(col))[0]) || null;
+      if (!sc) return;
+      const max = _wideColMax(col);
+      const name = _wideAssessName(col, tag);
+      let rec = assessments.filter(a => String(a.name || '').trim().toLowerCase() === name.toLowerCase() &&
+                                        String(a.grade || '') === grade)[0];
+      if (rec) {
+        rec.maxMarks = max; rec.subject = col.band || rec.subject || '';
+        rec.skill = _deriveSkill({ name: col.label, subject: col.band }) || col.label;
+        rec.term = term;
+        updated++;
+      } else {
+        rec = { id: 'sp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                name: name, subject: col.band || '',
+                skill: _deriveSkill({ name: col.label, subject: col.band }) || col.label,
+                grade: grade, term: term, maxMarks: max, date: today, type: 'Skill Profiling' };
+        assessments.push(rec);
+        created++;
+      }
+      const entries = [];
+      _wideColumnMarks(sw, sc).forEach(m => {
+        if (m.num === null || m.num > max) { if (m.raw !== '') skipped++; return; }
+        entries.push({ name: m.row.name, roll: m.row.roll,
+                       grade: m.row.grade || (grade === 'all' ? '' : grade),
+                       score: String(m.num), remarks: '' });
+        marks++;
+      });
+      scoreEntries[rec.id] = (scoreEntries[rec.id] || []).filter(
+        e => !entries.some(x => (x.roll && x.roll === e.roll) || x.name === e.name)).concat(entries);
+    });
+  });
+
+  saveAssessmentData();
+  document.getElementById('score-import-modal').classList.remove('open');
+  renderAssessmentPage();
+  toast(marks + ' mark' + (marks === 1 ? '' : 's') + ' imported across ' + created + ' new' +
+        (updated ? ' and ' + updated + ' updated' : '') + ' assessment' +
+        (created + updated === 1 ? '' : 's') +
+        (skipped ? ', ' + skipped + ' skipped as unusable' : '') + '.', 'success');
+}
+
 function openScoreImport(assessId) {
   loadAssessmentData();
   _siWorkbook = null; _siRows = []; _siHeaders = [];
+  _siWide = null; _siWideSheets = {}; _siWideMax = {}; _siWideOff = {}; _siWideSkip = {};
+  _siWideCsv = ''; _siSheetName = '';
+  document.getElementById('si-step3').style.display = 'none';
   _renderSiSheetPicker([], '');
   const sel = document.getElementById('si-assessment');
   sel.innerHTML = assessments.map(a =>
@@ -11769,13 +12308,25 @@ function _renderSiSheetPicker(names, fileName) {
 
 function _siUseSheet(name) {
   if (!_siWorkbook || !_siWorkbook.Sheets[name]) return;
-  _siAccept(XLSX.utils.sheet_to_csv(_siWorkbook.Sheets[name], { blankrows: false }), '"' + name + '" in ' + _siFile);
+  _siSheetName = name;
+  _siAccept(XLSX.utils.sheet_to_csv(_siWorkbook.Sheets[name], { blankrows: false }),
+            '"' + name + '" in ' + _siFile, name);
 }
 
-function _siAccept(text, label) {
+function _siAccept(text, label, sheetName) {
   if (/^\s*</.test(text) || /<html|<!doctype/i.test(text.slice(0, 500))) {
     _siError('That link returned a web page, not data. Check the file is shared or the sheet is published, ' +
              'or upload the file instead.');
+    return;
+  }
+  _siWideCsv = text;
+  // A skill-profiling sheet has several marks columns and its headings below
+  // the title, so the column mapper cannot describe it. Detect it here and
+  // open the right step; "Map one column instead" goes back to the mapper.
+  const wide = _wideScan(_csvGrid(text), sheetName || '');
+  if (wide) {
+    const err = document.getElementById('si-err'); if (err) err.style.display = 'none';
+    _wideShow(wide);
     return;
   }
   const parsed = _csvParse(text);
@@ -11800,7 +12351,8 @@ function _siFromBytes(buf, label) {
   }
   _siWorkbook = null;
   _renderSiSheetPicker([], label);
-  _siAccept(src.text, label);
+  _siSheetName = label;
+  _siAccept(src.text, label, label);
 }
 
 function siUploadFile(input) {
@@ -11832,7 +12384,8 @@ async function siFetch() {
   }
   _siWorkbook = null;
   _renderSiSheetPicker([], _siFile);
-  _siAccept(src.text, _siFile);
+  _siSheetName = _siFile;
+  _siAccept(src.text, _siFile, _siFile);
 }
 
 function _buildSiMapper() {
@@ -11852,6 +12405,7 @@ function _buildSiMapper() {
   ['si-col-name','si-col-score','si-col-roll','si-col-grade','si-col-remarks']
     .forEach(id => { const el = document.getElementById(id); if (el) el.onchange = _renderSiPreview; });
   document.getElementById('si-step1').style.display = 'none';
+  document.getElementById('si-step3').style.display = 'none';
   document.getElementById('si-step2').style.display = '';
 }
 
@@ -12373,7 +12927,9 @@ function downloadAssessmentBreakdownXlsx() {
 // which silently mangled exactly the answers people write in a form: any
 // comment containing a comma shifted every column after it, and any multi-line
 // answer broke the row in half.
-function _csvParse(text) {
+// The tokenizer on its own: rows as arrays, in file order. A wide sheet has to
+// be read by position rather than by header name, so it needs the grid.
+function _csvGrid(text) {
   const src = String(text == null ? '' : text).replace(/^\uFEFF/, '');
   const rows = [];
   let row = [], field = '', inQuotes = false, started = false;
@@ -12393,8 +12949,11 @@ function _csvParse(text) {
     else { field += ch; started = true; }
   }
   if (started || field || row.length) endRow();
+  return rows;
+}
 
-  const used = rows.filter(r => r.some(c => String(c).trim() !== ''));
+function _csvParse(text) {
+  const used = _csvGrid(text).filter(r => r.some(c => String(c).trim() !== ''));
   if (!used.length) return { headers: [], rows: [] };
 
   // Google Forms happily repeats a question title. Column mapping is by header
@@ -12471,6 +13030,7 @@ const _SUBJECT_UNASSIGNED = 'Unassigned';
 const _SKILLS = [
   { name: 'Number Sense', re: /number\s*sense|numeracy|counting|place\s*value/i },
   { name: 'Computation',  re: /computation|arithmetic|calculat|addition|subtraction|multiplic|division/i },
+  { name: 'Geometry',     re: /geometry|geometric|shapes?\b|spatial/i },
   { name: 'Comprehension',re: /comprehension/i },
   { name: 'Listening',    re: /listening|aural/i },
   { name: 'Speaking',     re: /speaking|spoken|oral|speech|conversation/i },
