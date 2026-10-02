@@ -369,13 +369,33 @@ Rubric responses come in through `openGFormImport()`. Two paths, both ending in
   preview, because loading a file jumps straight there and a picker left on
   step 1 could never be reached. Without SheetJS (CDN blocked) it says so and
   points at CSV rather than failing silently.
-- **Fetch a URL.** `_gfiCsvUrl()` turns an ordinary `/edit#gid=` share link into
-  a `gviz/tq?tqx=out:csv` export and a `pubhtml` link into `pub?output=csv`,
-  because the share link is the one people have open and it returns HTML. It
-  still only works for a sheet **published to the web** — a sheet that is merely
-  shared by link cannot be read cross-origin, and `fetch()` rejects with a bare
-  `TypeError` that hides whether it was CORS or the network. The error text says
-  so and points at the upload instead of repeating "check the URL".
+- **A Google Drive link.** `_gfiDriveUrl()` turns any Drive share link
+  (`/file/d/<id>/view`, `/open?id=`, `/uc?…id=`) into
+  `drive.usercontent.google.com/download?id=…&export=download`. That host —
+  unlike the classic `drive.google.com/uc`, which 403s and sends no CORS headers
+  — answers a preflight with `access-control-allow-origin: *`, so a file shared
+  **Anyone with the link** really can be read from the browser. A link to a
+  *folder* is detected and explained rather than fetched.
+
+  `_gfiDriveUrl()` parses the **hostname** rather than pattern-matching the URL.
+  An earlier regex anchored on `(^|\.)` before `drive`, which never matched a
+  real link, because the hostname follows `//` and not a dot.
+
+- **A published Google Sheet URL.** `_gfiCsvUrl()` turns an ordinary
+  `/edit#gid=` share link into a `gviz/tq?tqx=out:csv` export and a `pubhtml`
+  link into `pub?output=csv`, because the share link is the one people have
+  open and it returns HTML. It still only works for a sheet **published to the
+  web** — a sheet that is merely shared by link cannot be read cross-origin,
+  and `fetch()` rejects with a bare `TypeError` that hides whether it was CORS
+  or the network. The error text says so and points at the upload instead of
+  repeating "check the URL".
+
+`_gfiFromBytes()` is the single entry point for file bytes, whoever produced
+them — an upload or a Drive download. It **sniffs the format** (`PK` → xlsx/ods,
+`D0 CF` → legacy xls, otherwise UTF-8 text) rather than trusting a filename,
+because a Drive response has no reliable name and a `.csv` is sometimes really a
+workbook. Google's virus-scan interstitial and a "not shared" page both arrive
+as HTML and are reported as such rather than parsed as data.
 
 `_csvParse()` is a real parser: CRLF, BOM, quoted fields containing commas or
 newlines, doubled quotes, and duplicate headers made unique. The import used to

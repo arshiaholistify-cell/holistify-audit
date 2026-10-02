@@ -2513,17 +2513,20 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <!-- Step 1: URL -->
     <div id="gfi-step1">
       <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
-        <strong>Two ways to do this.</strong><br>
+        <strong>Three ways to do this.</strong> Scores may be the level <strong>1–4</strong> or the
+        descriptor wording; both are read.<br>
         <strong>A — upload a file (always works):</strong> an <strong>.xlsx</strong> straight from Excel,
-        or from Google Sheets File → Download → Excel or CSV. Scores may be the level
-        <strong>1–4</strong> or the descriptor wording; both are read.<br>
-        <strong>B — from a link:</strong> File → Share → <strong>Publish to web</strong> → pick the responses
-        tab → format <strong>CSV</strong> → Publish, then paste that link.
-        A sheet that is only <em>shared</em> by link cannot be read from here; it has to be published.
+        or from Google Sheets File → Download → Excel or CSV.<br>
+        <strong>B — a Google Drive link:</strong> paste the share link of an .xlsx or .csv sitting in Drive.
+        Its sharing must be <strong>Anyone with the link</strong>; a file restricted to named people
+        cannot be read from here. Link to the file, not the folder.<br>
+        <strong>C — a published Google Sheet:</strong> File → Share → <strong>Publish to web</strong> → pick the
+        responses tab → format <strong>CSV</strong> → Publish, then paste that link. A sheet that is only
+        <em>shared</em> by link will not work; it has to be published.
       </div>
       <div class="sip-field">
-        <label>Published Google Sheet CSV URL</label>
-        <input id="gfi-url" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv" style="font-size:12px">
+        <label>Google Drive link, or a published Google Sheet URL</label>
+        <input id="gfi-url" placeholder="https://drive.google.com/file/d/…/view  —  or  …/pub?output=csv" style="font-size:12px">
       </div>
       <div class="sip-field">
         <label>Select rubric to map responses to</label>
@@ -12877,6 +12880,69 @@ function _gfiCsvUrl(raw) {
          '/gviz/tq?tqx=out:csv' + (gid ? '&gid=' + gid : '');
 }
 
+// A Drive share link points at a file, not a sheet. The classic
+// drive.google.com/uc download is 403 and carries no CORS headers, but
+// drive.usercontent.google.com/download answers a preflight with
+// access-control-allow-origin: *, so a file shared "anyone with the link" can
+// genuinely be read from the browser. Returns null for anything that is not a
+// Drive file link.
+function _gfiDriveUrl(raw) {
+  const u = String(raw || '').trim();
+  // The host is parsed rather than pattern-matched: an earlier regex anchored
+  // on (^|\.) before "drive", which never matched a real link because the
+  // hostname follows "//" and not a dot.
+  let host = '';
+  try { host = new URL(u).hostname.toLowerCase(); } catch (e) { return null; }
+  if (host !== 'drive.google.com' && host !== 'drive.usercontent.google.com') return null;
+  if (/\/drive\/folders\//.test(u)) return 'FOLDER';
+  const m = u.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/)
+         || u.match(/[?&]id=([A-Za-z0-9_-]{10,})/)
+         || u.match(/\/d\/([A-Za-z0-9_-]{10,})/);
+  if (!m) return null;
+  return 'https://drive.usercontent.google.com/download?id=' + m[1] + '&export=download';
+}
+
+// One entry point for file bytes, whoever produced them — an upload or a Drive
+// download. The format is sniffed rather than taken from a filename, because a
+// Drive response has no reliable name and a .csv is sometimes really a
+// workbook.
+function _gfiFromBytes(buf, rubricId, label) {
+  const bytes = new Uint8Array(buf);
+  const isZip = bytes.length > 1 && bytes[0] === 0x50 && bytes[1] === 0x4B;  // xlsx / ods
+  const isOle = bytes.length > 1 && bytes[0] === 0xD0 && bytes[1] === 0xCF;  // legacy .xls
+  if (isZip || isOle) {
+    if (typeof XLSX === 'undefined') {
+      _gfiError('That is a spreadsheet file, but the spreadsheet reader did not load, so it cannot be opened ' +
+                'right now. Save the sheet as <strong>CSV</strong> and use that instead.');
+      return;
+    }
+    let wb;
+    try { wb = XLSX.read(bytes, { type: 'array' }); }
+    catch (err) { _gfiError('That file could not be opened as a spreadsheet: ' + err.message); return; }
+    _gfiOpenWorkbook(wb, rubricId, label);
+    return;
+  }
+  let text;
+  try { text = new TextDecoder('utf-8').decode(bytes); }
+  catch (err) { text = String.fromCharCode.apply(null, bytes); }
+  _gfiWorkbook = null;
+  _renderGfiSheetPicker([], label);
+  _gfiAccept(text, rubricId, label);
+}
+
+function _gfiOpenWorkbook(wb, rubricId, label) {
+  _gfiWorkbook = wb;
+  // Blank and heading-only sheets are common in a real workbook; offer the
+  // ones that actually carry rows, and start on the first of them.
+  const withRows = (wb.SheetNames || []).filter(n => {
+    try { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false }).length > 1; }
+    catch (err) { return false; }
+  });
+  if (!withRows.length) { _gfiError('No sheet in ' + label + ' has any rows below its headings.'); return; }
+  _renderGfiSheetPicker(withRows, label);
+  _gfiUseSheet(withRows[0], rubricId, label);
+}
+
 function _gfiError(msg) {
   const errEl = document.getElementById('gfi-err');
   if (!errEl) return;
@@ -12888,7 +12954,7 @@ function _gfiAccept(text, rubricId, whatItWas) {
   if (/^\s*</.test(text) || /<html|<!doctype/i.test(text.slice(0, 500))) {
     _gfiError('That link returned a web page, not CSV. The sheet is probably not published: in Google Sheets use ' +
               '<strong>File → Share → Publish to web</strong>, pick the responses tab, choose <strong>CSV</strong>, ' +
-              'and copy that link — or use <strong>Upload CSV file</strong>, which always works.');
+              'and copy that link — or use <strong>Upload Excel or CSV</strong>, which always works.');
     return false;
   }
   const parsed = _csvParse(text);
@@ -12909,24 +12975,42 @@ async function gfiFetch() {
   if (!raw) { _gfiError('Please enter a URL.'); return; }
   if (!rubricId) { _gfiError('Please select a rubric.'); return; }
   errEl.style.display = 'none';
-  const url = _gfiCsvUrl(raw);
+
+  // A Google Sheet is exported as CSV text; anything else — a Drive file, or a
+  // plain link to a file elsewhere — is fetched as bytes and sniffed.
+  const drive = /docs\.google\.com\/spreadsheets/.test(raw) ? null : _gfiDriveUrl(raw);
+  if (drive === 'FOLDER') {
+    _gfiError('That is a link to a Drive <strong>folder</strong>, not a file. Open the file inside it and ' +
+              'share <em>that</em> link, or download it and use <strong>Upload Excel or CSV</strong>.');
+    return;
+  }
+  const url = drive || _gfiCsvUrl(raw);
+  const asBytes = !!drive || !/docs\.google\.com/.test(url);
   try {
     const res = await fetch(url);
     if (!res.ok) {
-      _gfiError('The sheet returned HTTP ' + res.status + (res.status === 404 ? ' (not found)' : '') +
-                '. Check the link, or use <strong>Upload CSV file</strong> below.');
+      _gfiError((drive ? 'Drive returned HTTP ' : 'The sheet returned HTTP ') + res.status +
+                (res.status === 404 ? ' (not found)' : res.status === 403 ? ' (no access)' : '') +
+                '. ' + (drive
+                  ? 'Set the file\'s sharing to <strong>Anyone with the link</strong>, or download it and use <strong>Upload Excel or CSV</strong>.'
+                  : 'Check the link, or use <strong>Upload Excel or CSV</strong> below.'));
       return;
     }
+    if (asBytes) { _gfiFromBytes(await res.arrayBuffer(), rubricId, drive ? 'that Drive file' : 'that file'); return; }
     _gfiAccept(await res.text(), rubricId, 'that sheet');
   } catch (e) {
     // fetch() rejects with a TypeError for a network or CORS failure, and the
     // browser deliberately hides which. A sheet that is merely shared by link
     // cannot be read from another site at all.
     _gfiError(e instanceof TypeError
-      ? 'The browser could not read that URL. A sheet that is only <em>shared</em> by link cannot be fetched from ' +
-        'another site — it has to be <strong>published to the web as CSV</strong>. ' +
-        'If that is already done, use <strong>Upload CSV file</strong> below: download the responses from Google ' +
-        'Sheets (File → Download → Comma-separated values) and upload the file. That path needs no network access.'
+      ? (drive
+          ? 'The browser could not read that Drive file. It has to be shared with ' +
+            '<strong>Anyone with the link</strong> — a file restricted to named people cannot be read from another ' +
+            'site. If it is already shared, download it and use <strong>Upload Excel or CSV</strong> below.'
+          : 'The browser could not read that URL. A sheet that is only <em>shared</em> by link cannot be fetched from ' +
+            'another site — it has to be <strong>published to the web as CSV</strong>. ' +
+            'If that is already done, use <strong>Upload Excel or CSV</strong> below: download the responses from Google ' +
+            'Sheets (File → Download → Comma-separated values) and upload the file. That path needs no network access.')
       : 'Could not read the sheet: ' + e.message);
   }
 }
@@ -12944,41 +13028,10 @@ function gfiUploadFile(input) {
   if (!file) return;
   const rubricId = document.getElementById('gfi-rubric').value;
   if (!rubricId) { _gfiError('Please select a rubric first.'); return; }
-  const isExcel = /\.(xlsx|xlsm|xls|ods)$/i.test(file.name);
-
-  if (isExcel) {
-    if (typeof XLSX === 'undefined') {
-      _gfiError('The spreadsheet reader did not load, so .xlsx cannot be opened right now. ' +
-                'Save the sheet as <strong>CSV</strong> and upload that instead.');
-      return;
-    }
-    const r = new FileReader();
-    r.onload = e => {
-      let wb;
-      try { wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' }); }
-      catch (err) { _gfiError('That file could not be opened as a spreadsheet: ' + err.message); return; }
-      _gfiWorkbook = wb;
-      // Blank and heading-only sheets are common in a real workbook; offer the
-      // ones that actually carry rows, and start on the first of them.
-      const withRows = (wb.SheetNames || []).filter(n => {
-        try { return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false }).length > 1; }
-        catch (err) { return false; }
-      });
-      if (!withRows.length) { _gfiError('No sheet in ' + file.name + ' has any rows below its headings.'); return; }
-      _renderGfiSheetPicker(withRows, file.name);
-      _gfiUseSheet(withRows[0], rubricId, file.name);
-    };
-    r.onerror = () => _gfiError('Could not read that file.');
-    r.readAsArrayBuffer(file);
-    return;
-  }
-
-  _gfiWorkbook = null;
-  _renderGfiSheetPicker([], file.name);
   const reader = new FileReader();
-  reader.onload = e => _gfiAccept(String(e.target.result || ''), rubricId, file.name);
+  reader.onload = e => _gfiFromBytes(e.target.result, rubricId, file.name);
   reader.onerror = () => _gfiError('Could not read that file.');
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
 }
 
 function _gfiUseSheet(sheetName, rubricId, fileName) {
