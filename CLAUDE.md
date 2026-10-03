@@ -531,11 +531,30 @@ counts both before you choose.
 nothing it can read for itself. `openBulkImport()` → `bulkUploadFiles()` →
 `_bulkIngest()` per file → `_bulkScanSheet()` per sheet, into one preview.
 
-It extracts **three things only: the student's name, the mark scored and what
-it was out of.** Roll numbers, remarks, section and grade columns are ignored
-— they are what makes each of these sheets a different shape, and none of them
-is needed to produce a percentage. Entries are stored as `{name, score}`
-and nothing else.
+It extracts **five things: the student's name, roll number, grade, the mark
+scored and what it was out of.** Entries are stored as
+`{name, roll, grade, score}` and nothing else; remarks and section columns are
+ignored.
+
+**A `Sl. No` serial is never taken for a roll number.** The roll column is found
+by its heading alone, because by value a roll is indistinguishable from the
+serial in column A — and a serial renumbers whenever a student is added, so
+taking one for an identity writes one child's marks onto another on the next
+import. Re-import matches on roll where there is one and name otherwise, since
+two children can share a name.
+
+`_bulkGradeValue()` normalises whatever the office typed — `3`, `III`,
+`Class V`, `5th`, `Grade 3`, `UKG` — onto the one label `GRADES_ORDER` uses,
+or Grade Averages treats "3" and "Grade 3" as two cohorts. Per-row grade wins,
+then the sheet name, then the file name; the preview says which, and the grade
+is editable where none was found.
+
+**A grade column needs its values to read as grades; its heading alone is never
+enough.** "Class" is also what many sheets call the *section*, and filing a
+child into Grade 2 because their section is B is worse than leaving them
+ungraded. So a column headed grade/class/std is taken when **any** value
+resolves, and a column without such a heading only when **every** filled value
+does.
 
 `_bulkScanSheet()` tries `_wideScan()` first, so a sheet of six skill columns
 becomes six assessments exactly as the wide importer makes them; otherwise

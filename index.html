@@ -2556,9 +2556,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.65">
         Pick <strong>every workbook at once</strong> — one term’s screening, one grade per sheet, as many
         files as you have. Each sheet becomes an assessment and each marks column within it becomes its own.<br><br>
-        Only three things are read: the <strong>student’s name</strong>, the <strong>mark scored</strong> and
-        <strong>what it was out of</strong>. Roll numbers, remarks, section and grade columns are ignored — they
-        are what makes every one of these sheets a different shape, and none is needed to produce a percentage.
+        Read from every row: the <strong>student’s name</strong>, their <strong>roll number</strong>, their
+        <strong>grade</strong>, the <strong>mark scored</strong> and <strong>what it was out of</strong>.
+        A grade written only in the sheet or file name is picked up too, and a
+        <strong>“Sl. No” serial column is never taken for a roll number</strong> — it renumbers whenever a
+        student is added. Remarks and section columns are ignored.
       </div>
       <div id="bulk-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:12px;line-height:1.6"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2573,7 +2575,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div id="bulk-warn" style="display:none;background:var(--amb-p);color:var(--amb);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px;line-height:1.7"></div>
       <div style="overflow-x:auto;max-height:46vh;overflow-y:auto;margin-bottom:14px">
         <table class="data-table" style="font-size:12px"><thead><tr>
-          <th style="width:28px"></th><th>Assessment</th><th>From</th><th>Grade</th>
+          <th style="width:28px"></th><th>Assessment</th><th>From</th><th style="width:100px">Grade</th>
           <th>Students</th><th>Highest</th><th style="width:86px">Out of</th>
         </tr></thead><tbody id="bulk-rows"></tbody></table>
       </div>
@@ -13711,6 +13713,59 @@ var _bulkRows = [], _bulkFiles = 0, _bulkSkipped = [];
 // never a guess from the highest mark, which is only ever a lower bound.
 function _bulkMaxFromHeader(label) { return _wideMax(label).max; }
 
+// One cell to a grade label. A grade column holds whatever the office types \u2014
+// "3", "III", "Class V", "5th", "Grade 3", "UKG" \u2014 and all of them have to
+// land on the same label the rest of the app groups by, or Grade Averages
+// treats "3" and "Grade 3" as two different cohorts.
+function _bulkGradeValue(raw) {
+  const t = _wideNorm(raw);
+  if (!t) return '';
+  const low = t.toLowerCase().replace(/[.]/g, '');
+  if (/^(pre.?kg|nursery|pre.?k)$/.test(low)) return 'Pre-KG';
+  if (/^(lkg|kg.?1|kg.?i|jr.?kg)$/.test(low)) return 'KG 1';
+  if (/^(ukg|kg.?2|kg.?ii|sr.?kg)$/.test(low)) return 'KG 2';
+  const named = _wideGradeFromName(t);
+  if (named) return named;
+  let m = low.match(/^(\d{1,2})(st|nd|rd|th)?$/);
+  if (m) { const n = parseInt(m[1], 10); if (n >= 1 && n <= 12) return 'Grade ' + n; }
+  const ROM = { i:1, ii:2, iii:3, iv:4, v:5, vi:6, vii:7, viii:8, ix:9, x:10, xi:11, xii:12 };
+  if (ROM[low]) return 'Grade ' + ROM[low];
+  return '';
+}
+
+// A grade column needs its values to read as grades; its heading alone is never
+// enough. "Class" is also what many sheets call the section (A, B, C), and a
+// section is not a grade \u2014 filing a child into "Grade 2" because their section
+// is B would be worse than leaving them ungraded.
+//
+// So: a column headed grade/class/std is taken when **any** value resolves,
+// since the heading says what it is meant to hold and one typo should not
+// disqualify the rest. A column with no such heading is taken only when
+// **every** filled value resolves, because without the heading a uniform
+// column of grades is the only thing that distinguishes it from a section
+// column that happens to contain a stray "V".
+function _bulkGradeCol(grid, headerRow, rows, skip) {
+  const width = grid.reduce((n, r) => Math.max(n, (r || []).length), 0);
+  const cell = (r, c) => _wideNorm((grid[r] || [])[c]);
+  let best = null;
+  for (let c = 0; c < width; c++) {
+    if (skip.indexOf(c) >= 0) continue;
+    let filled = 0, graded = 0;
+    rows.forEach(row => {
+      const v = cell(row.r, c);
+      if (v === '') return;
+      filled++;
+      if (_bulkGradeValue(v)) graded++;
+    });
+    if (!filled || !graded) continue;
+    const titled = _wideIsGradeHdr(cell(headerRow, c));
+    if (!titled && graded < filled) continue;
+    const score = graded + (titled ? 1000 : 0);
+    if (!best || score > best.score) best = { idx: c, score: score };
+  }
+  return best ? best.idx : -1;
+}
+
 function _bulkMaxColumn(grid, headerRow, nameCol) {
   const w = grid.reduce((n, r) => Math.max(n, (r || []).length), 0);
   for (let c = 0; c < w; c++) {
@@ -13765,7 +13820,18 @@ function _bulkSimpleScan(grid) {
     if (!best || score > best.score) best = { idx: c, label: raw, score: score };
   }
   if (!best) return null;
-  return { headerRow: headerRow, nameCol: nameCol, rows: rows, col: best, grid: grid };
+  const gradeCol = _bulkGradeCol(grid, headerRow, rows, [nameCol, best.idx]);
+  // A roll number is found by its heading only. By value it is indistinguishable
+  // from the serial number in column A, and a serial is not an identity \u2014 it
+  // renumbers whenever a student is added, so taking one for a roll would write
+  // one child\u2019s marks onto another on the next import.
+  let rollCol = -1;
+  for (let c = 0; c < width && rollCol < 0; c++) {
+    if (c === nameCol || c === best.idx || c === gradeCol) continue;
+    if (_wideIsRollHdr(cell(headerRow, c))) rollCol = c;
+  }
+  return { headerRow: headerRow, nameCol: nameCol, gradeCol: gradeCol, rollCol: rollCol,
+           rows: rows, col: best, grid: grid };
 }
 
 // One sheet in, zero or more assessments out.
@@ -13780,23 +13846,31 @@ function _bulkScanSheet(grid, sheetName, fileName) {
     wide.cols.forEach(col => {
       const marks = _wideColumnMarks(wide, col).filter(m => m.num !== null);
       if (!marks.length) return;
-      out.push({
-        file: fileName, sheet: sheetName,
-        name: col.label + (wide.tag ? ' \u2014 ' + wide.tag : ''),
-        subject: col.band || '', grade: grade || 'all',
-        max: col.headerMax, maxFrom: col.headerMax === null ? '' : 'heading',
-        entries: marks.map(m => ({ name: m.row.name, score: m.num })),
-        use: true,
-      });
+      const entries = marks.map(m => ({
+        name: m.row.name,
+        roll: m.row.roll || '',
+        grade: _bulkGradeValue(m.row.grade) || grade || '',
+        score: m.num,
+      }));
+      out.push(_bulkRow(fileName, sheetName,
+        col.label + (wide.tag ? ' \u2014 ' + wide.tag : ''),
+        col.band || '', grade, col.headerMax,
+        col.headerMax === null ? '' : 'heading',
+        wide.gradeCol >= 0 ? 'column' : (grade ? 'sheet name' : ''),
+        entries));
     });
     return out;
   }
 
   const simple = _bulkSimpleScan(grid);
   if (!simple) return out;
+  const at = (row, c) => c >= 0 ? _wideNorm((grid[row.r] || [])[c]) : '';
   const marks = simple.rows.map(row => {
     const v = _wideNorm((grid[row.r] || [])[simple.col.idx]);
-    return { name: row.name, score: /^\d+(\.\d+)?$/.test(v) ? parseFloat(v) : null };
+    return { name: row.name,
+             roll: at(row, simple.rollCol),
+             grade: _bulkGradeValue(at(row, simple.gradeCol)) || grade || '',
+             score: /^\d+(\.\d+)?$/.test(v) ? parseFloat(v) : null };
   }).filter(m => m.score !== null);
   if (!marks.length) return out;
 
@@ -13809,16 +13883,30 @@ function _bulkScanSheet(grid, sheetName, fileName) {
   // The sheet name is the assessment unless the workbook has only this one,
   // in which case the file name is what the person recognises.
   const label = _wideMax(simple.col.label).label;
-  out.push({
-    file: fileName, sheet: sheetName,
-    name: (sheetName && !/^sheet\d*$/i.test(sheetName) ? sheetName : stem) ||
-          label || 'Uploaded assessment',
-    subject: /^(marks|score|total|obtained)$/i.test(label) ? '' : label,
-    grade: grade || 'all',
-    max: max, maxFrom: from,
-    entries: marks, use: true,
-  });
+  out.push(_bulkRow(fileName, sheetName,
+    (sheetName && !/^sheet\d*$/i.test(sheetName) ? sheetName : stem) || label || 'Uploaded assessment',
+    /^(marks|score|total|obtained)$/i.test(label) ? '' : label,
+    grade, max, from,
+    simple.gradeCol >= 0 ? 'column' : (grade ? (sheetName ? 'sheet name' : 'file name') : ''),
+    marks));
   return out;
+}
+
+// One preview row. The assessment's own grade is the one every student shares,
+// so a sheet of one grade still reads as that grade; a sheet holding several
+// becomes an "all grades" assessment whose students keep their own, which is
+// what Grade Averages groups by.
+function _bulkRow(file, sheet, name, subject, sheetGrade, max, maxFrom, gradeFrom, entries) {
+  const seen = {};
+  entries.forEach(e => { if (e.grade) seen[e.grade] = 1; });
+  const grades = Object.keys(seen);
+  return {
+    file: file, sheet: sheet, name: name, subject: subject,
+    grade: grades.length === 1 ? grades[0] : (grades.length ? 'all' : (sheetGrade || 'all')),
+    grades: grades, gradeFrom: gradeFrom,
+    rolls: entries.filter(e => e.roll).length,
+    max: max, maxFrom: maxFrom, entries: entries, use: true,
+  };
 }
 
 function openBulkImport() {
@@ -13949,8 +14037,10 @@ function _bulkRender() {
         'border-radius:4px;font-size:12px;font-family:\'DM Sans\',sans-serif"></td>' +
       '<td style="font-size:11px;color:var(--ink-f)">' + _escHtml(r.file) +
         (r.sheet ? '<br>' + _escHtml(r.sheet) : '') + '</td>' +
-      '<td>' + _escHtml(r.grade === 'all' ? '\u2014' : r.grade) + '</td>' +
-      '<td>' + r.entries.length + '</td>' +
+      '<td>' + _bulkGradeCell(r, i) + '</td>' +
+      '<td>' + r.entries.length +
+        (r.rolls ? '<div style="font-size:9px;color:var(--ink-f)">' + r.rolls + ' with a roll no.</div>' : '') +
+        '</td>' +
       '<td>' + (top === null ? '\u2014' : top) + '</td>' +
       '<td><input type="number" min="0.5" step="0.5" value="' + (r.max === null ? '' : r.max) + '" ' +
         'onchange="_bulkSetMax(' + i + ',this.value)" style="width:62px;padding:3px 5px;border:0.5px solid ' +
@@ -13977,12 +14067,44 @@ function _bulkRender() {
   const on = _bulkRows.filter(r => r.use);
   const marks = on.reduce((n, r) => n + r.entries.filter(e => r.max === null || e.score <= r.max).length, 0);
   const head = document.getElementById('bulk-head');
+  const withRoll = _bulkRows.reduce((n, r) => n + (r.use ? r.rolls : 0), 0);
+  const withGrade = _bulkRows.reduce((n, r) => n + (r.use ? r.entries.filter(e => e.grade).length : 0), 0);
   if (head) head.innerHTML = '<strong>' + _bulkRows.length + '</strong> assessment' +
     (_bulkRows.length === 1 ? '' : 's') + ' found across <strong>' + _bulkFiles + '</strong> file' +
-    (_bulkFiles === 1 ? '' : 's') + '. Only the student name, the mark and what it is out of are read \u2014 ' +
-    'roll numbers, remarks and section columns are ignored.';
+    (_bulkFiles === 1 ? '' : 's') + '. Read from each row: the student\u2019s <strong>name</strong>, ' +
+    'their <strong>roll number</strong> (' + withRoll + ' have one), their <strong>grade</strong> (' +
+    withGrade + ' have one), the <strong>mark</strong> and <strong>what it is out of</strong>. ' +
+    'Remarks and section columns are ignored.';
   const btn = document.getElementById('bulk-count');
   if (btn) btn.textContent = on.length + ' assessment' + (on.length === 1 ? '' : 's') + ', ' + marks + ' marks';
+}
+
+// Mixed grades are shown as what they are. A grade typed here is applied to
+// every student in the row who has none of their own, so a sheet that never
+// says its grade can still be filed to one.
+function _bulkGradeCell(r, i) {
+  if (r.grades.length > 1) {
+    return '<span title="' + _escHtml(r.grades.join(', ')) + '" style="font-size:11px">' +
+      r.grades.length + ' grades</span><div style="font-size:9px;color:var(--ink-f)">from the column</div>';
+  }
+  const v = r.grades.length ? r.grades[0] : (r.grade === 'all' ? '' : r.grade);
+  return '<select onchange="_bulkSetGrade(' + i + ',this.value)" style="width:92px;padding:3px 5px;' +
+    'border:0.5px solid var(--bdr-s);border-radius:4px;font-size:11px;font-family:\'DM Sans\',sans-serif">' +
+    '<option value="">\u2014 no grade \u2014</option>' +
+    GRADES_ORDER.map(g => '<option value="' + _escHtml(g) + '"' + (g === v ? ' selected' : '') + '>' +
+      _escHtml(g) + '</option>').join('') + '</select>' +
+    (r.gradeFrom && v ? '<div style="font-size:9px;color:var(--ink-f)">from the ' +
+      _escHtml(r.gradeFrom) + '</div>' : '');
+}
+
+function _bulkSetGrade(i, v) {
+  const row = _bulkRows[i];
+  if (!row) return;
+  row.grade = v || 'all';
+  row.grades = v ? [v] : [];
+  row.gradeFrom = v ? 'typed' : '';
+  row.entries.forEach(e => { e.grade = v || ''; });
+  _bulkShow();
 }
 
 function _bulkSameName(name) {
@@ -14031,12 +14153,16 @@ function bulkImport() {
     const entries = [];
     r.entries.forEach(e => {
       if (e.score > r.max) { skipped++; return; }
-      entries.push({ name: e.name, roll: '', grade: r.grade === 'all' ? '' : r.grade,
+      entries.push({ name: e.name, roll: e.roll || '',
+                     grade: e.grade || (r.grade === 'all' ? '' : r.grade),
                      score: String(e.score), remarks: '' });
       marks++;
     });
-    scoreEntries[rec.id] = (scoreEntries[rec.id] || [])
-      .filter(x => !entries.some(n => n.name === x.name)).concat(entries);
+    // Matched on roll where there is one, name otherwise \u2014 two children can
+    // share a name, and the roll is what tells them apart.
+    scoreEntries[rec.id] = (scoreEntries[rec.id] || []).filter(
+      x => !entries.some(n => (n.roll && n.roll === x.roll) || (!n.roll && n.name === x.name))
+    ).concat(entries);
   });
 
   saveAssessmentData();
