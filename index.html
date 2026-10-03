@@ -1595,6 +1595,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       style="padding:8px 20px;background:none;border:none;border-bottom:3px solid transparent;font-size:13px;color:var(--ink-l);cursor:pointer;margin-bottom:-2px;font-family:'DM Sans',sans-serif">
       👥 Stakeholder Reports
     </button>
+    <button id="rpt-tab-docs" onclick="switchReportTab('docs')"
+      style="padding:8px 20px;background:none;border:none;border-bottom:3px solid transparent;font-size:13px;color:var(--ink-l);cursor:pointer;margin-bottom:-2px;font-family:'DM Sans',sans-serif">
+      📄 Formal Reports
+    </button>
   </div>
 
   <!-- Score report panel -->
@@ -1618,6 +1622,14 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="fb" onclick="fstInReport('Parents',this)">Parents</button>
     </div>
     <div id="stk-body-report"></div>
+  </div>
+
+  <!-- Formal reports: the four documents Holistify issues -->
+  <div id="rpt-panel-docs" style="display:none">
+    <div class="info-ban">Each report opens as a paginated A4 document in a new tab. Use your browser's
+      <strong>Print \u2192 Save as PDF</strong> to produce the file, and turn on background graphics so the
+      cover prints.</div>
+    <div id="rpt-docs-body"></div>
   </div>
 </div>
 
@@ -6685,6 +6697,1027 @@ function _buildStdInlineEvidence(domainId, stdIdx) {
 
 function printReport(){renderReport();window.print();}
 
+// ═══════════════════════════════════════════
+// FORMAL REPORTS
+// ═══════════════════════════════════════════
+// The four documents Holistify issues, generated from this audit's own data:
+// the School Audit Report Summary, the Teachers Performance Report, a single
+// teacher's report, and the Students' Screening Report Summary.
+//
+// Each opens as a paginated A4 document in its own window and prints to PDF
+// from the browser. That keeps the text real — selectable, searchable and
+// accessible — where a canvas-to-image exporter would flatten it to a picture,
+// and it adds no dependency to a repo that deliberately has none.
+//
+// Every number is computed from the audit; nothing is written in that the data
+// does not support. Where a section of the published format has no source in
+// this app at all — the behavioural screening is a separate psychologist-run
+// instrument — the report says so in place of the section rather than leaving
+// a silent gap that reads as "nothing found".
+
+const _RPT_CSS = `
+  @page { size: A4 portrait; margin: 16mm 14mm; }
+  @page :first { margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Georgia, 'Times New Roman', serif; font-size: 10.5pt;
+         line-height: 1.5; color: #1a1a1a; background:#fff; }
+  .sheet { max-width: 182mm; margin: 0 auto; }
+  h1 { font-size: 19pt; margin: 0 0 4mm; font-weight: 600; letter-spacing:-0.2px; }
+  h2 { font-size: 14pt; margin: 9mm 0 3mm; color:#1E3A35; border-bottom:1.5px solid #1E3A35;
+       padding-bottom:1.5mm; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 6mm 0 2mm; color:#2D4A3E; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; margin: 4mm 0 1mm; color:#1a1a1a; page-break-after: avoid; }
+  p  { margin: 0 0 2.5mm; text-align: justify; }
+  ul { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1mm; }
+  table { width:100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.5pt;
+          page-break-inside: avoid; }
+  th { background:#EAF0ED; color:#1E3A35; text-align:left; font-weight:600;
+       padding:1.8mm 2.5mm; border:0.5pt solid #B9CCC4; }
+  td { padding:1.8mm 2.5mm; border:0.5pt solid #D5DEDA; vertical-align: top; }
+  tr:nth-child(even) td { background:#FAFBFB; }
+  td.num, th.num { text-align:center; width:13mm; }
+  .cover { height: 297mm; display:flex; flex-direction:column; justify-content:center;
+           align-items:center; text-align:center; background:linear-gradient(160deg,#1E3A35,#3C6B5B);
+           color:#fff; padding: 0 24mm; page-break-after: always; }
+  .cover .eyebrow { font-size:12pt; letter-spacing:5px; text-transform:uppercase; opacity:.8; }
+  .cover .title { font-size:34pt; line-height:1.1; margin:6mm 0 3mm; font-weight:600; }
+  .cover .rule { width:30mm; height:2px; background:rgba(255,255,255,.55); margin:5mm 0; }
+  .cover .school { font-size:17pt; margin-bottom:2mm; }
+  .cover .meta { font-size:11pt; opacity:.85; }
+  .pb { page-break-before: always; }
+  .avoid { page-break-inside: avoid; }
+  .lede { font-size:11pt; color:#3a4a45; font-style:italic; margin-bottom:4mm; }
+  .kv { display:flex; gap:3mm; margin-bottom:1mm; }
+  .note { background:#FDF5E6; border-left:3px solid #D4860B; padding:3mm 4mm; margin:3mm 0;
+          font-size:9.5pt; page-break-inside:avoid; }
+  .bars { margin:2mm 0 4mm; }
+  .bar { display:flex; align-items:center; gap:2.5mm; margin-bottom:1.6mm; font-size:9pt;
+         page-break-inside:avoid; }
+  .bar .lab { width:52mm; flex:0 0 52mm; }
+  .bar .track { flex:1; height:4.5mm; background:#EEF2F0; border-radius:2.5mm; overflow:hidden; }
+  .bar .fill { height:100%; border-radius:2.5mm; }
+  .bar .val { width:16mm; flex:0 0 16mm; text-align:right; font-weight:600; }
+  .foot { margin-top:8mm; padding-top:3mm; border-top:0.5pt solid #ccc; font-size:8.5pt;
+          color:#777; text-align:center; }
+  .toolbar { position:fixed; top:0; left:0; right:0; background:#1E3A35; color:#fff;
+             padding:9px 16px; font-family:system-ui,sans-serif; font-size:13px; z-index:99;
+             display:flex; gap:10px; align-items:center; }
+  .toolbar button { font:inherit; padding:5px 14px; border-radius:6px; border:0;
+                    background:#fff; color:#1E3A35; font-weight:600; cursor:pointer; }
+  .toolbar .hint { opacity:.75; font-size:12px; }
+  .wrap { padding-top:46px; }
+  @media print { .toolbar { display:none; } .wrap { padding-top:0; } }
+`;
+
+// Opens the document in its own window. A blocked pop-up is reported rather
+// than failing silently, which is the usual way a print window "does nothing".
+function _rptOpen(title, bodyHtml, landscape) {
+  const w = window.open('', '_blank');
+  if (!w) {
+    toast('Allow pop-ups for this site to open the report.', 'error');
+    return null;
+  }
+  const css = _RPT_CSS + (landscape ? '\n@page { size: A4 landscape; margin: 12mm; }\n' +
+    '@page :first { margin: 12mm; }\n.sheet { max-width: 272mm; }\n.cover { height:auto; padding:30mm 24mm; }' : '');
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' +
+    _escHtml(title) + '</title><style>' + css + '</style></head><body>' +
+    '<div class="toolbar"><button onclick="window.print()">\u2399 Print / Save as PDF</button>' +
+    '<span class="hint">Choose <strong>Save as PDF</strong> as the destination. ' +
+    'Turn on background graphics for the cover.</span></div>' +
+    '<div class="wrap">' + bodyHtml + '</div></body></html>');
+  w.document.close();
+  w.focus();
+  return w;
+}
+
+function _rptSchool() { return (document.getElementById('inp-school') || {}).value || 'School'; }
+// This app records a school name and a board, not a campus. Rather than
+// invent a campus line the data cannot fill, the board is shown as a board.
+function _rptBoard()  { return (document.getElementById('inp-board') || {}).value || ''; }
+function _rptDate()   {
+  const d = (document.getElementById('inp-date') || {}).value;
+  return d || new Date().toISOString().slice(0, 10);
+}
+function _rptAuditor(){ return (document.getElementById('inp-auditor') || {}).value || ''; }
+
+function _rptCover(eyebrow, title, subtitle) {
+  return '<div class="cover"><div class="eyebrow">' + _escHtml(eyebrow) + '</div>' +
+    '<div class="title">' + _escHtml(title) + '</div><div class="rule"></div>' +
+    '<div class="school">' + _escHtml(_rptSchool()) + '</div>' +
+    (_rptBoard() ? '<div class="meta">' + _escHtml(_rptBoard()) + '</div>' : '') +
+    '<div class="meta">' + _escHtml(subtitle || '') + '</div>' +
+    '<div class="meta" style="margin-top:4mm">' + _escHtml(_rptDate()) +
+    (_rptAuditor() ? ' \u00b7 ' + _escHtml(_rptAuditor()) : '') + '</div></div>';
+}
+
+function _rptFoot() {
+  return '<div class="foot">Generated by Holistify \u00b7 #4, Promenade Road, Frazer Town, Bangalore ' +
+    '\u00b7 transformation@holistifyedtech.com<br>' + _escHtml(_rptSchool()) +
+    (_rptBoard() ? ' \u00b7 ' + _escHtml(_rptBoard()) : '') + ' \u00b7 ' + _escHtml(_rptDate()) + '</div>';
+}
+
+// A level-1..4 distribution bar block, used by every report.
+const _RPT_LV_COLOR = ['', '#C44B3A', '#D4860B', '#1B5C30', '#2B5FAD'];
+// `labels` lets a report supply its own wording for the four levels. The audit
+// rates a standard "Satisfactory"; a screening rates a child "Basic
+// understanding but frequent errors". Printing the audit's words under a
+// screening table would describe the wrong thing.
+function _rptLevelBars(counts, total, labels) {
+  if (!total) return '';
+  const lab = labels || R_LABELS;
+  let h = '<div class="bars">';
+  for (let lv = 1; lv <= 4; lv++) {
+    const n = counts[lv] || 0;
+    const pct = Math.round(n / total * 100);
+    h += '<div class="bar"><div class="lab">Level ' + lv + ' \u2014 ' + _escHtml(lab[lv]) + '</div>' +
+      '<div class="track"><div class="fill" style="width:' + pct + '%;background:' + _RPT_LV_COLOR[lv] + '"></div></div>' +
+      '<div class="val">' + n + ' (' + pct + '%)</div></div>';
+  }
+  return h + '</div>';
+}
+
+function _rptPct(n, d) { return d ? Math.round(n / d * 100) : 0; }
+
+// ── Report 1: School Audit Report Summary ───────────────────────
+
+// What the audit actually recorded for one domain.
+function _rptDomainStats(d) {
+  const counts = { 1:0, 2:0, 3:0, 4:0 };
+  let scored = 0, sum = 0;
+  d.standards.forEach((st, i) => {
+    const v = scores[d.id + '-' + i];
+    if (!v) return;
+    counts[v]++; scored++; sum += v;
+  });
+  // The declared sub-domain count, not the number of distinct `sub` labels:
+  // `sub` is a per-standard label (Student Attainment alone has 19 of them for
+  // 19 standards), so counting those reported 172 sub-domains for a framework
+  // that has 26.
+  const subs = {};
+  d.standards.forEach(x => { subs[x.sub] = 1; });
+  return { counts: counts, scored: scored, total: d.standards.length,
+           notAssessed: d.standards.length - scored,
+           sum: sum, avg: scored ? sum / scored : 0,
+           pct: scored ? Math.round(sum / scored / 4 * 100) : 0,
+           level: scored ? Math.round(sum / scored) : 0,
+           subCount: d.subs || Object.keys(subs).length,
+           labelCount: Object.keys(subs).length };
+}
+
+// The standards themselves, split by how they scored. These become the Key
+// Strengths and Key Concerns sections — quoted from the audit rather than
+// written for it, so the report cannot claim a strength nobody recorded.
+function _rptStandardsAt(d, levels) {
+  const out = [];
+  d.standards.forEach((st, i) => {
+    const v = scores[d.id + '-' + i];
+    if (v && levels.indexOf(v) >= 0) out.push({ st: st, v: v, i: i, note: notes[d.id + '-' + i] || '' });
+  });
+  return out;
+}
+
+// Recommendations come from the transformation plan already written for this
+// domain, so the report and the 3-year roadmap cannot contradict each other.
+function _rptRecommendations(domId, limit) {
+  return PLAN.filter(x => x.dom === domId).slice(0, limit || 5);
+}
+
+function _rptDomainSection(d) {
+  const st = _rptDomainStats(d);
+  if (!st.scored) {
+    return '<h3>' + d.emoji + ' ' + _escHtml(d.label) + '</h3>' +
+      '<p><em>No standard in this domain has been scored, so no findings are reported for it. ' +
+      'Score the ' + st.total + ' standards on the ' + _escHtml(d.label) + ' page to include this domain.</em></p>';
+  }
+  const strengths = _rptStandardsAt(d, [3, 4]);
+  const concerns  = _rptStandardsAt(d, [1, 2]);
+  const recs = _rptRecommendations(d.id, 5);
+
+  let h = '<div class="pb"></div><h2>' + d.emoji + ' ' + _escHtml(d.label) + '</h2>';
+
+  h += '<h3>1. Domain Statistics</h3><table><tr><th>Indicator</th><th>Value</th></tr>' +
+    '<tr><td>Number of Sub-Domains</td><td>' + st.subCount + '</td></tr>' +
+    '<tr><td>Number of Standards</td><td>' + st.total + '</td></tr>' +
+    '<tr><td>Standards Assessed</td><td>' + st.scored +
+      (st.notAssessed ? ' (' + st.notAssessed + ' not assessed)' : '') + '</td></tr>' +
+    '<tr><td>Overall Level</td><td>Level ' + st.level + '</td></tr>' +
+    '<tr><td>Overall Rating</td><td>' + R_LABELS[st.level] + '</td></tr>' +
+    '<tr><td>Domain Score</td><td>' + st.pct + '% \u00b7 ' + (Math.round(st.pct / 10 * 10) / 10) +
+      ' out of 10 weighted points</td></tr></table>';
+
+  h += '<h3>2. Performance Distribution</h3><table><tr><th>Level</th><th class="num">Standards</th><th class="num">Share</th></tr>';
+  for (let lv = 4; lv >= 1; lv--) {
+    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' +
+      st.counts[lv] + '</td><td class="num">' + _rptPct(st.counts[lv], st.scored) + '%</td></tr>';
+  }
+  if (st.notAssessed) h += '<tr><td>Not assessed</td><td class="num">' + st.notAssessed + '</td><td class="num">\u2014</td></tr>';
+  h += '</table>';
+  if (st.notAssessed) h += '<p class="lede">Shares are of the ' + st.scored + ' standards assessed.</p>';
+  h += _rptLevelBars(st.counts, st.scored);
+
+  h += '<h3>3. Interpretation</h3><p>' +
+    'Across the ' + st.scored + ' standard' + (st.scored === 1 ? '' : 's') + ' assessed in this domain, ' +
+    _escHtml(_rptSchool()) + ' scores <strong>' + st.pct + '%</strong>, placing the domain at ' +
+    '<strong>Level ' + st.level + ' \u2014 ' + R_LABELS[st.level] + '</strong>. ' +
+    (st.counts[3] + st.counts[4] ? 'Of these, ' + (st.counts[3] + st.counts[4]) + ' standard' +
+      (st.counts[3] + st.counts[4] === 1 ? ' is' : 's are') + ' rated Good or Excellent' : 'No standard reached Good or Excellent') +
+    ', while ' + (st.counts[1] ? st.counts[1] + ' require' + (st.counts[1] === 1 ? 's' : '') + ' improvement'
+      : 'none falls at Level 1') + '. ' +
+    (st.notAssessed ? 'A further ' + st.notAssessed + ' standard' + (st.notAssessed === 1 ? ' was' : 's were') +
+      ' not assessed and are excluded from the figures above.' : '') + '</p>';
+
+  if (strengths.length) {
+    h += '<h3>4. Key Strengths</h3><p class="lede">Standards rated Good or Excellent in this audit.</p><ul>';
+    strengths.slice(0, 8).forEach(x => {
+      h += '<li><strong>' + _escHtml(x.st.sub) + ':</strong> ' + _escHtml(x.st.s) +
+        ' <em>(Level ' + x.v + ' \u2014 ' + R_LABELS[x.v] + ')</em>' +
+        (x.note ? '<br><span style="font-size:9pt;color:#555">Evidence: ' + _escHtml(x.note) + '</span>' : '') + '</li>';
+    });
+    h += '</ul>';
+    if (strengths.length > 8) h += '<p><em>and ' + (strengths.length - 8) + ' further standard' +
+      (strengths.length - 8 === 1 ? '' : 's') + ' at Level 3 or above.</em></p>';
+  }
+
+  if (concerns.length) {
+    const lv1 = concerns.filter(x => x.v === 1);
+    h += '<h3>5. Key Concerns</h3><p class="lede">' +
+      (lv1.length ? 'Standards rated Needs Improvement are listed first.' : 'Standards rated Satisfactory or below.') +
+      '</p><ul>';
+    lv1.concat(concerns.filter(x => x.v === 2)).slice(0, 8).forEach(x => {
+      h += '<li><strong>' + _escHtml(x.st.sub) + ':</strong> ' + _escHtml(x.st.s) +
+        ' <em>(Level ' + x.v + ' \u2014 ' + R_LABELS[x.v] + ')</em>' +
+        (x.note ? '<br><span style="font-size:9pt;color:#555">Evidence: ' + _escHtml(x.note) + '</span>' : '') + '</li>';
+    });
+    h += '</ul>';
+    if (concerns.length > 8) h += '<p><em>and ' + (concerns.length - 8) + ' further standard' +
+      (concerns.length - 8 === 1 ? '' : 's') + ' at Level 2 or below.</em></p>';
+  }
+
+  if (recs.length) {
+    h += '<h3>6. Recommendations</h3><ul>';
+    recs.forEach(r => {
+      h += '<li><strong>' + _escHtml(r.title) + '</strong><br>' +
+        _escHtml((r.do || []).slice(0, 3).join(' ')) + '</li>';
+    });
+    h += '</ul>';
+  }
+
+  h += '<h3>7. Final Interpretation</h3><p>' +
+    'The ' + _escHtml(d.label) + ' domain carries ' + d.weight + ' of the 100 institutional points and ' +
+    'currently contributes <strong>' + (Math.round(st.pct / 100 * d.weight * 10) / 10) + '</strong> of them. ' +
+    (st.pct >= 65
+      ? 'Performance here is a relative strength; the priority is to hold it while weaker domains are raised.'
+      : 'Raising this domain would have a measurable effect on the overall institutional score, and the ' +
+        'recommendations above are the sequenced actions already defined for it in the transformation plan.') +
+    '</p>';
+  return h;
+}
+
+// Stakeholder view: the same standards, grouped by the role accountable for
+// them (`st` on each standard) rather than by domain.
+function _rptStakeholderStats(name) {
+  const counts = { 1:0, 2:0, 3:0, 4:0 };
+  let scored = 0, sum = 0, total = 0;
+  const doms = {}, subs = {}, strengths = [], concerns = [];
+  DOMAINS.forEach(d => {
+    d.standards.forEach((st, i) => {
+      if (st.st !== name) return;
+      total++; doms[d.id] = 1; subs[d.label + '|' + st.sub] = 1;
+      const v = scores[d.id + '-' + i];
+      if (!v) return;
+      counts[v]++; scored++; sum += v;
+      const rec = { st: st, v: v, dom: d.label };
+      if (v >= 3) strengths.push(rec); else concerns.push(rec);
+    });
+  });
+  return { counts: counts, scored: scored, total: total, sum: sum,
+           pct: scored ? Math.round(sum / scored / 4 * 100) : 0,
+           level: scored ? Math.round(sum / scored) : 0,
+           domains: Object.keys(doms).length, subs: Object.keys(subs).length,
+           strengths: strengths, concerns: concerns };
+}
+
+const _RPT_STAKEHOLDERS = ['Management', 'Principal', 'Teachers', 'Students', 'Parents', 'Admin'];
+
+const _RPT_SCALE_TABLE =
+  '<table><tr><th>Rating Level</th><th>Description</th></tr>' +
+  '<tr><td>Level 1</td><td>Needs Improvement</td></tr>' +
+  '<tr><td>Level 2</td><td>Satisfactory</td></tr>' +
+  '<tr><td>Level 3</td><td>Good</td></tr>' +
+  '<tr><td>Level 4</td><td>Excellent</td></tr></table>';
+
+function buildAuditSummaryReport() {
+  const scoredAny = DOMAINS.some(d => d.standards.some((_, i) => scores[d.id + '-' + i]));
+  if (!scoredAny) {
+    toast('Score some standards in the Audit pages first \u2014 the report is built from them.', 'warn');
+    return;
+  }
+
+  // Institution-wide figures, all from the scored standards.
+  const counts = { 1:0, 2:0, 3:0, 4:0 };
+  let scored = 0, sum = 0, totalStds = 0, totalSubs = 0;
+  DOMAINS.forEach(d => {
+    const st = _rptDomainStats(d);
+    totalStds += st.total; totalSubs += st.subCount;
+    [1,2,3,4].forEach(lv => { counts[lv] += st.counts[lv]; });
+    scored += st.scored; sum += st.sum;
+  });
+  const notAssessed = totalStds - scored;
+  const overall = totalScore();
+  const overallLevel = scored ? Math.round(sum / scored) : 0;
+
+  const ranked = DOMAINS.map(d => ({ d: d, st: _rptDomainStats(d) }))
+    .filter(x => x.st.scored).sort((a, b) => b.st.pct - a.st.pct);
+  const best = ranked[0], worst = ranked[ranked.length - 1];
+
+  let h = _rptCover('School 360\u00b0', 'Comprehensive School Audit Report',
+                    'Holistify School Audit Report Summary');
+
+  // Contents
+  h += '<div class="sheet"><h1>Holistify School Audit Report Summary</h1>' +
+    '<h3>Table of contents</h3><ul>' +
+    '<li>Section 1: About Holistify &amp; Audit Process</li>' +
+    '<li>Section 2: Overall School Performance</li>' +
+    '<li>Section 3: Domain-Wise Reports</li>' +
+    '<li>Section 4: Stakeholder Reports</li>' +
+    '<li>Section 5: Behavioural Report</li>' +
+    '<li>Section 6: Consolidated Insights</li>' +
+    '<li>Section 7: 3-year Road Map</li>' +
+    '<li>Section 8: Final Note</li></ul>';
+
+  // ── Section 1
+  h += '<div class="pb"></div><h2>Section 1 \u2014 About Holistify &amp; the Audit Process</h2>' +
+    '<h3>1.1 About Holistify</h3>' +
+    '<p>Holistify is a comprehensive institutional development framework designed to evaluate and improve ' +
+    'the quality of education in schools. The framework assesses key aspects of school functioning, including ' +
+    'leadership practices, teaching and learning processes, infrastructure, student development, and ' +
+    'stakeholder engagement.</p>' +
+    '<p>The Holistify School Audit provides schools with an evidence-based evaluation of their current ' +
+    'institutional performance and identifies the areas that require strengthening in order to improve ' +
+    'educational outcomes. By combining quantitative scoring with qualitative analysis, the framework helps ' +
+    'schools understand their strengths, recognise challenges, and develop a structured pathway for ' +
+    'continuous improvement.</p>' +
+    '<h3>1.2 Purpose of the School Audit</h3><ul>' +
+    '<li>evaluate the effectiveness of institutional systems</li>' +
+    '<li>assess the quality of teaching and learning processes</li>' +
+    '<li>understand the level of student engagement and development</li>' +
+    '<li>examine the role of different stakeholders in supporting school improvement</li>' +
+    '<li>identify institutional strengths and improvement priorities</li>' +
+    '<li>provide a strategic roadmap for future school development</li></ul>' +
+    '<h3>1.3 Domains Assessed</h3><table><tr><th>Domain</th><th class="num">Sub-domains</th>' +
+    '<th class="num">Standards</th><th class="num">Weight</th></tr>' +
+    DOMAINS.map(d => { const st = _rptDomainStats(d);
+      return '<tr><td>' + d.emoji + ' ' + _escHtml(d.label) + '</td><td class="num">' + st.subCount +
+        '</td><td class="num">' + st.total + '</td><td class="num">' + d.weight + '</td></tr>'; }).join('') +
+    '<tr><td><strong>Total</strong></td><td class="num"><strong>' + totalSubs +
+    '</strong></td><td class="num"><strong>' + totalStds + '</strong></td><td class="num"><strong>100</strong></td></tr></table>' +
+    '<h3>1.4 Stakeholders Assessed</h3><ul>' +
+    _RPT_STAKEHOLDERS.map(n => { const st = _rptStakeholderStats(n);
+      return st.total ? '<li>' + _escHtml(n) + ' \u2014 ' + st.total + ' standards</li>' : ''; }).join('') +
+    '</ul>' +
+    '<h3>1.5 Audit Methodology</h3>' +
+    '<p>Each standard is evaluated using a four-level rating scale:</p>' + _RPT_SCALE_TABLE +
+    '<p>The evaluation process includes a review of institutional documents and records, analysis of school ' +
+    'policies and operational systems, observation of teaching and learning practices, stakeholder feedback ' +
+    'and engagement analysis, and evaluation of infrastructure and learning resources.</p>';
+
+  // ── Section 2
+  h += '<div class="pb"></div><h2>Section 2 \u2014 Overall School Performance</h2>' +
+    '<h3>2.1 School Information</h3><table><tr><th>Indicator</th><th>Details</th></tr>' +
+    '<tr><td>School Name</td><td>' + _escHtml(_rptSchool()) + '</td></tr>' +
+    (_rptBoard() ? '<tr><td>Board</td><td>' + _escHtml(_rptBoard()) + '</td></tr>' : '') +
+    '<tr><td>Overall Institutional Rating</td><td>Level ' + overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</td></tr>' +
+    '<tr><td>Total Assessed Domains</td><td>' + ranked.length + ' of ' + DOMAINS.length + '</td></tr>' +
+    '<tr><td>Total Assessed Sub-Domains</td><td>' + totalSubs + '</td></tr>' +
+    '<tr><td>Total Assessed Standards</td><td>' + scored + ' of ' + totalStds + '</td></tr>' +
+    '<tr><td>School Quality Score</td><td>' + overall + ' / 100</td></tr></table>' +
+    '<p>The institutional score is the weighted sum of each domain\u2019s percentage against the points that ' +
+    'domain carries. ' + (overall >= 65
+      ? 'It indicates an institution operating effectively across most of its systems.'
+      : 'It indicates that the school demonstrates basic operational effectiveness, with several areas ' +
+        'requiring further strengthening to improve overall educational quality.') + '</p>';
+
+  h += '<h3>2.2 Domain Performance Summary</h3><table><tr><th>Domain</th><th class="num">Sub-Domains</th>' +
+    '<th class="num">Standards</th><th class="num">Assessed</th><th class="num">Score Obtained</th>' +
+    '<th class="num">Percentage</th></tr>';
+  let obtained = 0, possible = 0;
+  DOMAINS.forEach(d => {
+    const st = _rptDomainStats(d);
+    obtained += st.sum; possible += st.scored * 4;
+    h += '<tr><td>' + _escHtml(d.label) + '</td><td class="num">' + st.subCount + '</td><td class="num">' +
+      st.total + '</td><td class="num">' + st.scored + '</td><td class="num">' + st.sum +
+      '</td><td class="num">' + (st.scored ? st.pct + '%' : '\u2014') + '</td></tr>';
+  });
+  h += '<tr><td colspan="4"><strong>Total Score</strong></td><td class="num"><strong>' + obtained +
+    ' / ' + possible + '</strong></td><td class="num"><strong>' + _rptPct(obtained, possible) +
+    '%</strong></td></tr></table>';
+
+  h += '<h3>2.3 Institutional Performance Distribution</h3>' +
+    '<table><tr><th>Performance Level</th><th class="num">Number of Standards</th>' +
+    '<th class="num">% of all ' + totalStds + '</th></tr>';
+  for (let lv = 1; lv <= 4; lv++) {
+    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' + counts[lv] +
+      '</td><td class="num">' + _rptPct(counts[lv], totalStds) + '%</td></tr>';
+  }
+  h += '<tr><td>Not assessed</td><td class="num">' + notAssessed + '</td><td class="num">' +
+    _rptPct(notAssessed, totalStds) + '%</td></tr></table>' +
+    '<p class="lede">Share of the ' + scored + ' standards actually assessed:</p>' +
+    _rptLevelBars(counts, scored);
+
+  h += '<h3>2.4 Domain Performance Interpretation</h3><p>' +
+    (best ? 'The <strong>' + _escHtml(best.d.label) + '</strong> domain shows the strongest performance (' +
+      best.st.pct + '%). ' : '') +
+    (worst && worst !== best ? 'The <strong>' + _escHtml(worst.d.label) + '</strong> domain shows the lowest score (' +
+      worst.st.pct + '%), suggesting that improvement there would have the greatest impact on overall ' +
+      'institutional performance' + (worst.d.weight >= 20 ? ', not least because it carries ' + worst.d.weight +
+      ' of the 100 institutional points' : '') + '. ' : '') +
+    'The remaining domains show moderate performance, indicating that institutional systems are present but ' +
+    'require further strengthening to improve consistency and effectiveness.</p>';
+
+  h += '<h3>2.5 Overall Institutional Interpretation</h3><p>' + _escHtml(_rptSchool()) +
+    ' is currently positioned at <strong>Level ' +
+    overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</strong>, with ' +
+    _rptPct(counts[2] + counts[3] + counts[4], scored) + '% of assessed standards at Satisfactory or above. ' +
+    'Addressing the standards recorded at Level 1 through structured institutional planning is the shortest ' +
+    'route to a higher institutional score.</p>';
+
+  // ── Section 3
+  h += '<div class="pb"></div><h2>Section 3 \u2014 Domain-Wise Reports</h2>' +
+    '<p class="lede">One report per domain, built from the standards scored in this audit.</p>';
+  DOMAINS.forEach(d => { h += _rptDomainSection(d); });
+
+  // ── Section 4
+  h += '<div class="pb"></div><h2>Section 4 \u2014 Stakeholder Reports</h2>' +
+    '<p class="lede">The same standards, grouped by the stakeholder group accountable for them.</p>' +
+    '<table><tr><th>Stakeholder</th><th class="num">Standards</th><th class="num">Assessed</th>' +
+    '<th class="num">Score</th><th>Rating</th></tr>' +
+    _RPT_STAKEHOLDERS.map(n => { const st = _rptStakeholderStats(n);
+      if (!st.total) return '';
+      return '<tr><td>' + _escHtml(n) + '</td><td class="num">' + st.total + '</td><td class="num">' +
+        st.scored + '</td><td class="num">' + (st.scored ? st.pct + '%' : '\u2014') + '</td><td>' +
+        (st.scored ? 'Level ' + st.level + ' \u2014 ' + R_LABELS[st.level] : 'Not assessed') + '</td></tr>';
+    }).join('') + '</table>';
+  _RPT_STAKEHOLDERS.forEach(n => { h += _rptStakeholderSection(n); });
+
+  // ── Section 5 — honestly absent
+  h += '<div class="pb"></div><h2>Section 5 \u2014 Behavioural Report</h2>' +
+    '<div class="note"><strong>Not included in this report.</strong> The behavioural and psychosocial ' +
+    'screening is a separate instrument, administered and interpreted by a psychologist, and its responses ' +
+    'are not held in this platform. This section is left for that report to be attached rather than ' +
+    'summarised from data the audit does not hold.</div>';
+
+  // ── Section 6
+  const allStrengths = [], allConcerns = [];
+  DOMAINS.forEach(d => {
+    _rptStandardsAt(d, [3, 4]).forEach(x => allStrengths.push({ d: d, x: x }));
+    _rptStandardsAt(d, [1]).forEach(x => allConcerns.push({ d: d, x: x }));
+  });
+  h += '<div class="pb"></div><h2>Section 6 \u2014 Consolidated Institutional Insights</h2>' +
+    '<h3>6.1 Institutional Strengths</h3>';
+  if (allStrengths.length) {
+    h += '<p>' + allStrengths.length + ' standard' + (allStrengths.length === 1 ? ' was' : 's were') +
+      ' rated Good or Excellent across the audit. The strongest areas are:</p><ul>';
+    allStrengths.sort((a, b) => b.x.v - a.x.v).slice(0, 10).forEach(r => {
+      h += '<li><strong>' + _escHtml(r.d.label) + ' \u00b7 ' + _escHtml(r.x.st.sub) + '</strong> \u2014 ' +
+        _escHtml(r.x.st.s) + ' <em>(Level ' + r.x.v + ')</em></li>';
+    });
+    h += '</ul>';
+  } else {
+    h += '<p>No standard in this audit reached Level 3 or above.</p>';
+  }
+  h += '<h3>6.2 Institutional Challenges</h3>';
+  if (allConcerns.length) {
+    h += '<p>' + allConcerns.length + ' standard' + (allConcerns.length === 1 ? ' is' : 's are') +
+      ' recorded at Level 1 \u2014 Needs Improvement. These are the institution\u2019s most immediate priorities:</p><ul>';
+    allConcerns.slice(0, 12).forEach(r => {
+      h += '<li><strong>' + _escHtml(r.d.label) + ' \u00b7 ' + _escHtml(r.x.st.sub) + '</strong> \u2014 ' +
+        _escHtml(r.x.st.s) + '</li>';
+    });
+    h += '</ul>';
+  } else {
+    h += '<p>No standard in this audit was rated Level 1.</p>';
+  }
+  h += '<h3>6.3 Domain Insights</h3><ul>';
+  ranked.forEach(r => {
+    h += '<li><strong>' + _escHtml(r.d.label) + '</strong> \u2014 ' + r.st.pct + '% (Level ' + r.st.level +
+      '). ' + (r.st.pct >= 65 ? 'A relative strength to protect.'
+        : r.st.pct >= 45 ? 'Systems are present but need consistency.'
+        : 'A priority area; most standards here sit below Satisfactory.') + '</li>';
+  });
+  h += '</ul>';
+
+  // ── Section 7
+  h += '<div class="pb"></div><h2>Section 7 \u2014 Three-Year School Transformation Roadmap</h2>' +
+    '<p>The roadmap translates the audit findings into a structured improvement plan, organised into three ' +
+    'phases, each building on the last.</p>' +
+    '<table><tr><th>Year</th><th>Strategic Focus</th></tr>' +
+    '<tr><td>Year 1</td><td>Institutional Stabilisation</td></tr>' +
+    '<tr><td>Year 2</td><td>Academic Strengthening</td></tr>' +
+    '<tr><td>Year 3</td><td>Excellence &amp; Sustainability</td></tr></table>';
+  const YEARS = [
+    { ph: [1], label: 'Year 1 \u2014 Institutional Stabilisation',
+      obj: 'Strengthen institutional systems, leadership practices and operational structures to create a stable foundation for school improvement.' },
+    { ph: [2], label: 'Year 2 \u2014 Academic Strengthening',
+      obj: 'Improve teaching quality, curriculum implementation and student learning outcomes.' },
+    { ph: [3], label: 'Year 3 \u2014 Excellence &amp; Sustainability',
+      obj: 'Embed the improvements, build internal capacity and sustain performance without external support.' },
+  ];
+  YEARS.forEach(y => {
+    const items = PLAN.filter(x => y.ph.indexOf(x.ph) >= 0);
+    h += '<h3>' + y.label + '</h3><p><strong>Strategic Objective.</strong> ' + y.obj + '</p>';
+    if (!items.length) { h += '<p><em>No actions are defined for this phase.</em></p>'; return; }
+    h += '<h4>Key Priorities</h4><ul>';
+    items.forEach(it => {
+      const dom = DOMAINS.filter(d => d.id === it.dom)[0];
+      h += '<li><strong>' + _escHtml(it.title) + '</strong>' +
+        (dom ? ' <em>(' + _escHtml(dom.label) + ')</em>' : '') +
+        ((it.do || []).length ? '<br>Key actions: ' + _escHtml(it.do.slice(0, 3).join(' ')) : '') + '</li>';
+    });
+    h += '</ul>';
+  });
+
+  // ── Section 8
+  h += '<div class="pb"></div><h2>Section 8 \u2014 Final Note</h2><p>' +
+    'The Holistify audit indicates that ' + _escHtml(_rptSchool()) +
+    ' possesses the foundational systems required to function as an effective educational institution. ' +
+    'With targeted improvements in the areas identified above, and by implementing the recommended ' +
+    'transformation roadmap, the school can move progressively toward becoming a high-performing ' +
+    'institution that provides strong academic and developmental opportunities for all students.</p>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen('Holistify School Audit Report Summary \u2014 ' + _rptSchool(), h);
+}
+
+// ── Reports 2 and 3: Teachers Performance ───────────────────────
+
+// Every observation standard of one TP domain, flattened with its key, so a
+// report can walk them in the same order the scoring screen does.
+function _rptTpStandards(dom) {
+  const out = [];
+  let idx = 0;
+  (dom.subs || []).forEach(sub => {
+    (sub.standards || []).forEach(st => {
+      out.push({ key: dom.id + '-' + idx, text: st.s, sub: sub.label, idx: idx });
+      idx++;
+    });
+  });
+  return out;
+}
+
+// Level counts for one teacher, or across every teacher when tid is null —
+// which is what the consolidated report's domain table shows.
+function _rptTpCounts(dom, tid) {
+  const counts = { 1:0, 2:0, 3:0, 4:0 };
+  let scored = 0, sum = 0;
+  const list = tid ? [tid] : teachers.map(t => t.id);
+  _rptTpStandards(dom).forEach(st => {
+    list.forEach(id => {
+      const v = tpScore(id, st.key);
+      if (!v) return;
+      const lv = Math.round(v);
+      if (lv >= 1 && lv <= 4) { counts[lv]++; scored++; sum += v; }
+    });
+  });
+  return { counts: counts, scored: scored, sum: sum, avg: scored ? sum / scored : 0,
+           total: _rptTpStandards(dom).length };
+}
+
+function _rptTpDomainTable(tid) {
+  let h = '<table><tr><th class="num">Sl. No</th><th>Domain</th>' +
+    '<th class="num">No. of standards assessed in each domain</th>' +
+    '<th class="num">Level 1</th><th class="num">Level 2</th><th class="num">Level 3</th>' +
+    '<th class="num">Level 4</th></tr>';
+  const tot = { 1:0, 2:0, 3:0, 4:0 };
+  let totStds = 0;
+  TP_DOMAINS.forEach((d, i) => {
+    const c = _rptTpCounts(d, tid);
+    totStds += d.count || c.total;
+    [1,2,3,4].forEach(lv => { tot[lv] += c.counts[lv]; });
+    h += '<tr><td class="num">' + (i + 1) + '</td><td>' + _escHtml(d.label) + '</td>' +
+      '<td class="num">' + (d.count || c.total) + '</td>' +
+      [1,2,3,4].map(lv => '<td class="num">' + c.counts[lv] + '</td>').join('') + '</tr>';
+  });
+  h += '<tr><td></td><td><strong>Total</strong></td><td class="num"><strong>' + totStds + '</strong></td>' +
+    [1,2,3,4].map(lv => '<td class="num"><strong>' + tot[lv] + '</strong></td>').join('') + '</tr></table>';
+  return h;
+}
+
+function buildTeachersReport() {
+  if (!teachers.length) {
+    toast('Add teachers on the Teacher Performance page first.', 'warn');
+    return;
+  }
+  const overall = tpSchoolOverall();
+  let h = _rptCover('Holistify.ai', 'Teachers Performance Report',
+                    'Detailed consolidated report \u2014 average performance of all teachers');
+
+  h += '<div class="sheet"><h1>Teachers Performance Report</h1>' +
+    '<p class="lede">' + _escHtml(_rptSchool()) + (_rptBoard() ? ' \u00b7 ' + _escHtml(_rptBoard()) : '') +
+    ' \u00b7 ' + teachers.length + ' teacher' + (teachers.length === 1 ? '' : 's') + ' observed</p>';
+
+  h += '<h2>Observation Domains</h2>' +
+    '<p>Counts below are of individual observation ratings across all ' + teachers.length +
+    ' teachers \u2014 one rating per standard per teacher.</p>' + _rptTpDomainTable(null);
+
+  h += '<table style="width:auto"><tr><th>Overall School\u2019s Average Teaching Score &amp; Rating</th>' +
+    '<td class="num"><strong>' + (overall || '\u2014') + '</strong></td><td><strong>' +
+    tpLabel(overall) + '</strong></td></tr></table>';
+
+  h += '<h2>Detailed Consolidated Report</h2>' +
+    '<table><tr><th class="num">Sl. No</th><th>Teacher\u2019s Name</th><th>Qualification</th>' +
+    '<th>Section</th><th>Years of Experience</th><th>Subjects</th><th class="num">Score</th>' +
+    '<th>Rating</th></tr>';
+  teachers.forEach((t, i) => {
+    const avg = tpTeacherAvg(t.id);
+    h += '<tr><td class="num">' + (i + 1) + '</td><td>' + _escHtml(t.name || '') + '</td>' +
+      '<td>' + _escHtml(t.qual || '\u2014') + '</td>' +
+      '<td>' + _escHtml(t.section || t.grade || '\u2014') + '</td>' +
+      '<td>' + _escHtml(String(t.exp || '\u2014')) + '</td>' +
+      '<td>' + _escHtml(t.subject || '\u2014') + '</td>' +
+      '<td class="num">' + (avg ? Math.round(avg) : '\u2014') + '</td>' +
+      '<td>' + (avg ? tpLabel(avg) : 'Not observed') + '</td></tr>';
+  });
+  h += '</table>';
+
+  const unobserved = teachers.filter(t => !tpTeacherAvg(t.id)).length;
+  if (unobserved) {
+    h += '<div class="note">' + unobserved + ' of the ' + teachers.length +
+      ' teachers listed have no observation recorded yet, and are shown as <em>Not observed</em>. ' +
+      'They are excluded from the school average rather than counted as zero.</div>';
+  }
+
+  h += _rptFoot() + '</div>';
+  _rptOpen('Teachers Performance Report \u2014 ' + _rptSchool(), h, true);
+}
+
+function buildTeacherIndivReport(tid) {
+  const t = teachers.filter(x => x.id === tid)[0];
+  if (!t) { toast('Pick a teacher first.', 'warn'); return; }
+  const avg = tpTeacherAvg(t.id);
+  if (!avg) { toast('No observation has been recorded for ' + (t.name || 'this teacher') + ' yet.', 'warn'); return; }
+
+  let h = _rptCover('Holistify.ai', 'Teachers Performance Report', t.name || '');
+
+  h += '<div class="sheet"><h1>' + _escHtml(t.name || '') + '</h1>' +
+    '<p class="lede">' + _escHtml(t.subject || '\u2014') +
+    (t.qual ? ' \u00b7 ' + _escHtml(t.qual) : '') +
+    (t.exp ? ' \u00b7 ' + _escHtml(String(t.exp)) : '') + '</p>';
+
+  h += '<h2>Detailed Consolidated Report</h2>' + _rptTpDomainTable(t.id);
+
+  TP_DOMAINS.forEach(d => {
+    const stds = _rptTpStandards(d).map(st => ({ st: st, v: tpScore(t.id, st.key) }));
+    if (!stds.some(x => x.v)) return;
+    h += '<h3>' + _escHtml(d.label) + '</h3><table><tr><th>Standard</th>' +
+      '<th class="num">Average score</th><th>Average Level</th></tr>';
+    stds.forEach(x => {
+      h += '<tr><td>' + _escHtml(x.st.text) + '</td><td class="num">' + (x.v || 0) + '</td><td>' +
+        (x.v ? tpLabel(x.v) : 'NA') + '</td></tr>';
+    });
+    h += '</table>';
+  });
+
+  h += '<table style="width:auto"><tr><th>Overall Average Teaching Score &amp; Level</th>' +
+    '<td class="num"><strong>' + Math.round(avg) + '</strong></td><td><strong>' + tpLabel(avg) +
+    '</strong></td></tr></table>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen((t.name || 'Teacher') + ' \u2014 Performance Report', h, true);
+}
+
+// ── Report 4: Students\u2019 Screening Report Summary ────────────────
+
+// Every screened child\u2019s result, bucketed to levels 1-4 per skill. A
+// score-based assessment is banded by percentage; a rubric response keeps the
+// level it was actually scored at, because that is the number the teacher
+// recorded and re-deriving it from a percentage would lose it.
+function _rptScreeningSkills(scope) {
+  const inScope = item => !scope || scope === 'all' ||
+    (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
+  const skills = {};   // label -> { counts, n, grades:{} }
+  const bump = (item, lv, grade) => {
+    if (!lv) return;
+    const k = _skillKey(item);
+    if (!skills[k]) skills[k] = { counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, grades: {} };
+    skills[k].counts[lv]++; skills[k].n++;
+    if (grade) skills[k].grades[grade] = 1;
+  };
+  assessments.filter(inScope).forEach(a => {
+    (scoreEntries[a.id] || []).forEach(sc => {
+      if (!a.maxMarks) return;
+      const pct = Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100);
+      bump(a, _bandLevel(pct), sc.grade || a.grade);
+    });
+  });
+  rubrics.filter(inScope).forEach(r => {
+    const scale = r.scale || 4;
+    (rubricScores[r.id] || []).forEach(resp => {
+      const avg = _rubricRespAvg(resp, r);
+      if (avg === null) return;
+      // A rubric already scores 1-4; anything else is mapped through its band.
+      const lv = scale === 4 ? Math.max(1, Math.min(4, Math.round(avg)))
+                             : _bandLevel(Math.round(avg / scale * 100));
+      bump(r, lv, resp.grade);
+    });
+  });
+  return skills;
+}
+
+// The four screening levels, as the published report words them. Used by the
+// framework table, each skill table and the bars, so the three cannot drift.
+const _RPT_SCREEN_LEVELS = ['',
+  'Significant difficulty performing the skill',
+  'Basic understanding but frequent errors',
+  'Competent performance with minor errors',
+  'Strong mastery with accurate application'];
+
+function _rptGradeSpan(gradeMap) {
+  const gs = GRADES_ORDER.filter(g => gradeMap[g]);
+  if (!gs.length) return '';
+  return gs.length === 1 ? gs[0] : gs[0] + ' to ' + gs[gs.length - 1];
+}
+
+// The prose under each chart in the published format: every level, named, with
+// its share. Written from the counts, so it cannot drift from the table.
+function _rptSkillProse(label, d) {
+  const p = lv => _rptPct(d.counts[lv], d.n);
+  return 'Across ' + d.n + ' screened result' + (d.n === 1 ? '' : 's') + ' for ' + _escHtml(label) + ', ' +
+    p(4) + '% of students demonstrate strong mastery with accurate application, and ' + p(3) +
+    '% perform competently with only minor errors. ' + p(2) +
+    '% show a basic understanding but make frequent errors, while ' + p(1) +
+    '% have significant difficulty performing the skill. ' +
+    (p(1) + p(2) >= 50
+      ? 'More than half of the cohort sits below competent performance here, which makes this a priority for targeted instructional support.'
+      : p(3) + p(4) >= 70
+        ? 'With ' + (p(3) + p(4)) + '% at competent or above, this is a relative strength for the cohort.'
+        : 'The cohort is spread across the scale, indicating inconsistent attainment rather than a uniform gap.');
+}
+
+function buildScreeningReport() {
+  const scope = (document.getElementById('rpt-screening-scope') || { value: 'screening' }).value || 'screening';
+  const skills = _rptScreeningSkills(scope);
+  const labels = Object.keys(skills);
+  if (!labels.length) {
+    toast(scope === 'screening'
+      ? 'No Holistify screening results yet \u2014 import scores, or switch the report to cover everything.'
+      : 'No assessment results to report yet.', 'warn');
+    return;
+  }
+  labels.sort((a, b) => skills[b].n - skills[a].n);
+
+  // Cohort-wide totals.
+  const tot = { 1:0, 2:0, 3:0, 4:0 };
+  let n = 0;
+  const allGrades = {};
+  labels.forEach(k => {
+    [1,2,3,4].forEach(lv => { tot[lv] += skills[k].counts[lv]; });
+    n += skills[k].n;
+    Object.keys(skills[k].grades).forEach(g => { allGrades[g] = 1; });
+  });
+  const span = _rptGradeSpan(allGrades);
+  const weakest = labels.slice().sort((a, b) =>
+    (_rptPct(skills[a].counts[3] + skills[a].counts[4], skills[a].n)) -
+    (_rptPct(skills[b].counts[3] + skills[b].counts[4], skills[b].n)));
+  const strongest = weakest.slice().reverse();
+
+  let h = _rptCover('Holistify', 'Students\u2019 Screening Report', 'Screening Report Summary');
+
+  h += '<div class="sheet"><h1>Holistify Students\u2019 Screening Report Summary</h1>';
+
+  // 1. Executive summary — every figure from the data
+  h += '<h2>1. Executive Summary</h2><p>This report presents the findings of an academic screening ' +
+    'conducted for students' + (span ? ' in ' + _escHtml(span) : '') + ' at ' + _escHtml(_rptSchool()) +
+    '. The screening covered <strong>' +
+    labels.length + '</strong> skill area' + (labels.length === 1 ? '' : 's') + ' across <strong>' + n +
+    '</strong> recorded student result' + (n === 1 ? '' : 's') + ', and aimed to identify foundational ' +
+    'strengths and the areas requiring targeted instructional support.</p>' +
+    '<p>Overall, <strong>' + _rptPct(tot[3] + tot[4], n) + '%</strong> of results sit at competent ' +
+    'performance or above (Levels 3 and 4), while <strong>' + _rptPct(tot[1] + tot[2], n) +
+    '%</strong> fall at Level 1 or 2 and warrant intervention.</p><ul>';
+  strongest.slice(0, 2).forEach(k => {
+    h += '<li><strong>Relative strength \u2014 ' + _escHtml(k) + ':</strong> ' +
+      _rptPct(skills[k].counts[3] + skills[k].counts[4], skills[k].n) +
+      '% of students reach competent performance or above.</li>';
+  });
+  weakest.slice(0, 3).forEach(k => {
+    h += '<li><strong>Priority \u2014 ' + _escHtml(k) + ':</strong> ' +
+      _rptPct(skills[k].counts[1] + skills[k].counts[2], skills[k].n) +
+      '% of students are below competent performance, the widest gap of the skills screened.</li>';
+  });
+  h += '</ul>';
+
+  // 2. Methodology
+  h += '<h2>2. Assessment Methodology</h2>' +
+    '<p>The screening was conducted through a multi-modal academic evaluation framework designed to measure ' +
+    'students\u2019 competencies across different learning modalities: audio-based listening tasks, ' +
+    'one-to-one speaking and reading assessment with an evaluator, and written assessment covering ' +
+    'mathematics, reading comprehension and writing.</p>' +
+    '<h3>Evaluation Framework</h3><p>Each skill was evaluated using a four-level proficiency scale:</p>' +
+    '<table><tr><th>Level</th><th>Description</th></tr>' +
+    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
+      '</td></tr>').join('') + '</table>';
+
+  // 3. Overall distribution
+  h += '<h2>3. Overall Proficiency Distribution</h2>' +
+    '<table><tr><th>Level</th><th>Description</th><th class="num">Results</th><th class="num">Share</th></tr>' +
+    [4,3,2,1].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
+      '</td><td class="num">' + tot[lv] + '</td><td class="num">' + _rptPct(tot[lv], n) +
+      '%</td></tr>').join('') +
+    '</table>' + _rptLevelBars(tot, n, _RPT_SCREEN_LEVELS);
+
+  // 4. Skill by skill
+  h += '<div class="pb"></div><h2>4. Skill-wise Findings</h2>';
+  labels.forEach(k => {
+    const d = skills[k];
+    const gs = _rptGradeSpan(d.grades);
+    h += '<div class="avoid"><h3>' + _escHtml(k) + (gs ? ' \u2014 ' + _escHtml(gs) : '') + '</h3>' +
+      '<table><tr><th>Level</th><th>Description</th><th class="num">Students</th><th class="num">Share</th></tr>' +
+      [4,3,2,1].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
+        '</td><td class="num">' + d.counts[lv] + '</td><td class="num">' + _rptPct(d.counts[lv], d.n) +
+        '%</td></tr>').join('') + '</table>' +
+      _rptLevelBars(d.counts, d.n, _RPT_SCREEN_LEVELS) +
+      '<p>' + _rptSkillProse(k, d) + '</p></div>';
+  });
+
+  // 5. Risks
+  h += '<div class="pb"></div><h2>5. Summary of Recurring Academic Risks</h2><ul>';
+  weakest.slice(0, 3).forEach(k => {
+    const d = skills[k];
+    h += '<li><strong>' + _escHtml(k) + '</strong> \u2014 ' + _rptPct(d.counts[1], d.n) +
+      '% at Level 1 and ' + _rptPct(d.counts[2], d.n) + '% at Level 2. ' +
+      'Students at these levels cannot yet work independently in this skill, and without intervention the ' +
+      'gap widens as content becomes more demanding in later grades.</li>';
+  });
+  if (strongest.length && weakest.length && strongest[0] !== weakest[0]) {
+    h += '<li><strong>Uneven profile.</strong> ' + _escHtml(strongest[0]) + ' reaches ' +
+      _rptPct(skills[strongest[0]].counts[3] + skills[strongest[0]].counts[4], skills[strongest[0]].n) +
+      '% at competent or above, while ' + _escHtml(weakest[0]) + ' reaches only ' +
+      _rptPct(skills[weakest[0]].counts[3] + skills[weakest[0]].counts[4], skills[weakest[0]].n) +
+      '%. A gap of this width between skills suggests the weaker area needs dedicated teaching time ' +
+      'rather than general academic support.</li>';
+  }
+  h += '</ul>';
+
+  // 6. Recommendation
+  h += '<h2>6. Final Assessment &amp; Strategic Recommendation</h2><ul>' +
+    '<li><strong>Target the widest gap first.</strong> ' + _escHtml(weakest[0]) +
+    ' has the largest share of students below competent performance and should receive dedicated ' +
+    'remedial time in the timetable, not incidental coverage.</li>' +
+    '<li><strong>Re-screen on the same instrument.</strong> Attainment is only comparable if the ' +
+    'screening is repeated with the same levels and the same descriptors, so the next cycle should reuse ' +
+    'these rubrics rather than new ones.</li>' +
+    '<li><strong>Carry the results into classroom planning.</strong> Each skill above is linked to a ' +
+    'Student Attainment standard in the audit, so improvement here moves the institutional score as well ' +
+    'as the children.</li></ul>';
+
+  h += '<div class="note">Figures are counts of recorded results, not of distinct children: a student ' +
+    'screened in several skills is counted once in each. Results with nothing scored are excluded rather ' +
+    'than counted as Level 1.</div>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen('Students\u2019 Screening Report Summary \u2014 ' + _rptSchool(), h);
+}
+
+// ── The Formal Reports panel ───────────────────────────────
+
+// Each card says what the report will contain *and* whether there is data for
+// it, so an empty report is predicted here rather than discovered after it
+// opens. A report with no source is offered disabled, with the reason.
+function _rptReadiness() {
+  const scoredStds = DOMAINS.reduce((n, d) => n + d.standards.filter((_, i) => scores[d.id + '-' + i]).length, 0);
+  const totalStds  = DOMAINS.reduce((n, d) => n + d.standards.length, 0);
+  const observed   = teachers.filter(t => tpTeacherAvg(t.id)).length;
+  const screening  = _rptScreeningSkills('screening');
+  const everything = _rptScreeningSkills('all');
+  const nScreen = Object.keys(screening).reduce((n, k) => n + screening[k].n, 0);
+  const nAll    = Object.keys(everything).reduce((n, k) => n + everything[k].n, 0);
+  return { scoredStds: scoredStds, totalStds: totalStds, teachers: teachers.length,
+           observed: observed, screenSkills: Object.keys(screening).length,
+           screenResults: nScreen, allResults: nAll };
+}
+
+function renderFormalReports() {
+  const el = document.getElementById('rpt-docs-body');
+  if (!el) return;
+  loadAssessmentData();
+  const r = _rptReadiness();
+
+  const card = (icon, title, sub, lines, ready, why, action) =>
+    '<div class="card" style="margin-bottom:14px;padding:16px;display:flex;gap:14px;align-items:flex-start">' +
+    '<div style="width:42px;height:42px;border-radius:var(--r-md);background:var(--sage-p);display:flex;' +
+    'align-items:center;justify-content:center;font-size:20px;flex-shrink:0">' + icon + '</div>' +
+    '<div style="flex:1;min-width:0">' +
+    '<div style="font-size:15px;font-weight:500;color:var(--ink)">' + _escHtml(title) + '</div>' +
+    '<div style="font-size:12px;color:var(--ink-l);margin:3px 0 7px">' + sub + '</div>' +
+    '<div style="font-size:11px;color:var(--ink-f);line-height:1.7">' + lines + '</div>' +
+    (ready ? '' : '<div style="margin-top:7px;font-size:11px;color:var(--amb)">\u26a0 ' + why + '</div>') +
+    '</div><div style="flex-shrink:0;align-self:center">' + action + '</div></div>';
+
+  const btn = (label, fn, ready) => ready
+    ? '<button class="btn btn-p" onclick="' + fn + '">' + label + '</button>'
+    : '<button class="btn btn-s" disabled style="opacity:.45;cursor:not-allowed">' + label + '</button>';
+
+  let h = '';
+
+  h += card('📘', 'School Audit Report Summary',
+    'Eight sections \u2014 about the audit, overall performance, every domain, every stakeholder group, ' +
+    'consolidated insights, the three-year roadmap and a final note.',
+    'Built from <strong>' + r.scoredStds + ' of ' + r.totalStds + '</strong> scored standards \u00b7 ' +
+    'A4 portrait \u00b7 strengths and concerns are quoted from the standards you scored, with your evidence notes',
+    r.scoredStds > 0, 'Nothing is scored yet. Score standards on the Audit pages first.',
+    btn('Generate', 'buildAuditSummaryReport()', r.scoredStds > 0));
+
+  h += card('📊', 'Teachers Performance Report',
+    'The consolidated observation report: level counts per observation domain, the school\u2019s average ' +
+    'teaching score, and the full teacher roster with each teacher\u2019s score and rating.',
+    'Built from <strong>' + r.observed + ' of ' + r.teachers + '</strong> teachers observed \u00b7 A4 landscape',
+    r.observed > 0, 'No teacher has been observed yet. Score observations on the Teacher Performance page.',
+    btn('Generate', 'buildTeachersReport()', r.observed > 0));
+
+  const opts = teachers.map(t => '<option value="' + _escHtml(t.id) + '">' + _escHtml(t.name || 'Untitled') +
+    (tpTeacherAvg(t.id) ? '' : ' \u2014 not observed') + '</option>').join('');
+  h += card('👤', 'Individual Teacher Report',
+    'One teacher\u2019s observation in full: level counts per domain, every standard with its score and ' +
+    'level, and the overall average teaching score.',
+    'A4 landscape \u00b7 one document per teacher' +
+    (r.teachers ? '<br><select id="rpt-teacher-pick" style="margin-top:6px;padding:5px 8px;border:0.5px solid var(--bdr-s);' +
+      'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif;max-width:260px">' + opts + '</select>' : ''),
+    r.observed > 0, 'No teacher has been observed yet.',
+    btn('Generate', 'buildTeacherIndivReport((document.getElementById(\'rpt-teacher-pick\')||{}).value)', r.observed > 0));
+
+  h += card('🎓', 'Students\u2019 Screening Report Summary',
+    'Executive summary, the four-level evaluation framework, the overall proficiency distribution, a ' +
+    'section per skill with its level breakdown, recurring academic risks and strategic recommendations.',
+    'Built from <strong>' + r.screenResults + '</strong> screening result' + (r.screenResults === 1 ? '' : 's') +
+    ' across <strong>' + r.screenSkills + '</strong> skill' + (r.screenSkills === 1 ? '' : 's') +
+    ' \u00b7 A4 portrait<br>' +
+    '<select id="rpt-screening-scope" style="margin-top:6px;padding:5px 8px;border:0.5px solid var(--bdr-s);' +
+    'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif">' +
+    '<option value="screening">🔬 Holistify screening only (' + r.screenResults + ' results)</option>' +
+    '<option value="all">Everything assessed (' + r.allResults + ' results)</option></select>',
+    r.allResults > 0, 'No assessment or rubric scores yet. Import or enter scores on the Assessment page.',
+    btn('Generate', 'buildScreeningReport()', r.allResults > 0));
+
+  el.innerHTML = h;
+}
+
+
+
+
+
+function _rptStakeholderSection(name) {
+  const st = _rptStakeholderStats(name);
+  if (!st.total) return '';
+  let h = '<div class="pb"></div><h2>Stakeholder \u2014 ' + _escHtml(name) + '</h2>';
+  if (!st.scored) {
+    return h + '<p><em>None of the ' + st.total + ' standards accountable to ' + _escHtml(name) +
+      ' has been scored yet, so no findings are reported for this group.</em></p>';
+  }
+  h += '<h3>1. Stakeholder Statistics</h3><table><tr><th>Indicator</th><th>Value</th></tr>' +
+    '<tr><td>Number of Domains</td><td>' + st.domains + '</td></tr>' +
+    '<tr><td>Number of Sub-domains</td><td>' + st.subs + '</td></tr>' +
+    '<tr><td>Number of Standards</td><td>' + st.total + '</td></tr>' +
+    '<tr><td>Standards Assessed</td><td>' + st.scored + '</td></tr>' +
+    '<tr><td>Overall Level</td><td>Level ' + st.level + '</td></tr>' +
+    '<tr><td>Overall Rating</td><td>' + R_LABELS[st.level] + '</td></tr></table>';
+
+  h += '<h3>2. Performance Distribution</h3><table><tr><th>Level</th><th class="num">Standards</th><th class="num">Share</th></tr>';
+  for (let lv = 4; lv >= 1; lv--) {
+    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' + st.counts[lv] +
+      '</td><td class="num">' + _rptPct(st.counts[lv], st.scored) + '%</td></tr>';
+  }
+  h += '</table>' + _rptLevelBars(st.counts, st.scored);
+
+  h += '<h3>3. Interpretation</h3><p>' + _escHtml(name) +
+    ' is accountable for ' + st.total + ' of the institution\u2019s standards, of which ' + st.scored +
+    ' were assessed. The group scores <strong>' + st.pct + '%</strong> overall, placing it at <strong>Level ' +
+    st.level + ' \u2014 ' + R_LABELS[st.level] + '</strong>. ' +
+    (st.counts[1] ? st.counts[1] + ' standard' + (st.counts[1] === 1 ? '' : 's') +
+      ' sit at Level 1 and should be treated as this group\u2019s immediate priorities.'
+      : 'No standard in this group sits at Level 1.') + '</p>';
+
+  if (st.strengths.length) {
+    h += '<h3>4. Key Strengths</h3><ul>';
+    st.strengths.slice(0, 7).forEach(x => {
+      h += '<li><strong>' + _escHtml(x.dom) + ' \u00b7 ' + _escHtml(x.st.sub) + ':</strong> ' +
+        _escHtml(x.st.s) + ' <em>(Level ' + x.v + ')</em></li>';
+    });
+    h += '</ul>';
+  }
+  if (st.concerns.length) {
+    h += '<h3>5. Key Concerns</h3><ul>';
+    st.concerns.sort((a, b) => a.v - b.v).slice(0, 7).forEach(x => {
+      h += '<li><strong>' + _escHtml(x.dom) + ' \u00b7 ' + _escHtml(x.st.sub) + ':</strong> ' +
+        _escHtml(x.st.s) + ' <em>(Level ' + x.v + ')</em></li>';
+    });
+    h += '</ul>';
+  }
+  return h;
+}
+
+
+
 
 // ═══════════════════════════════════════════
 // 3-YEAR SCHOOL IMPROVEMENT PLAN ENGINE
@@ -7591,6 +8624,13 @@ function switchReportTab(tab) {
   reportTab = tab;
   document.getElementById('rpt-panel-scores').style.display = tab === 'scores' ? '' : 'none';
   document.getElementById('rpt-panel-stk').style.display = tab === 'stk' ? '' : 'none';
+  const dPanel = document.getElementById('rpt-panel-docs');
+  if (dPanel) dPanel.style.display = tab === 'docs' ? '' : 'none';
+  const dBtn = document.getElementById('rpt-tab-docs');
+  if (dBtn) { dBtn.style.borderBottomColor = tab === 'docs' ? 'var(--sage)' : 'transparent';
+              dBtn.style.color = tab === 'docs' ? 'var(--sage)' : 'var(--ink-l)';
+              dBtn.style.fontWeight = tab === 'docs' ? '500' : '400'; }
+  if (tab === 'docs') renderFormalReports();
   const sBtn = document.getElementById('rpt-tab-scores');
   const kBtn = document.getElementById('rpt-tab-stk');
   if (sBtn) { sBtn.style.borderBottomColor = tab === 'scores' ? 'var(--sage)' : 'transparent'; sBtn.style.color = tab === 'scores' ? 'var(--sage)' : 'var(--ink-l)'; sBtn.style.fontWeight = tab === 'scores' ? '500' : '400'; }

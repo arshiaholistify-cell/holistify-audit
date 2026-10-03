@@ -708,6 +708,55 @@ failure modes: some broke the row outright on an embedded quote, and others
 replaced `"` with `'`, silently altering what had been typed. Both are fixed;
 a name like `Smith, John "JJ"` now round-trips exactly.
 
+## Formal reports
+
+The four documents Holistify issues are generated from this audit's own data,
+from a **Formal Reports** tab on the Score Report page (beside Score Report and
+Stakeholder Reports):
+
+| Report | Source | Page |
+|---|---|---|
+| School Audit Report Summary | `scores`, `notes`, `DOMAINS`, `PLAN` | A4 portrait |
+| Teachers Performance Report | `teachers`, `teacherScores`, `TP_DOMAINS` | A4 landscape |
+| Individual Teacher Report | one teacher's `teacherScores` | A4 landscape |
+| Students' Screening Report Summary | `assessments`, `rubrics` and their scores | A4 portrait |
+
+`_rptOpen()` writes the document into a new window with `_RPT_CSS` and a print
+toolbar; the browser's **Print → Save as PDF** produces the file. That keeps the
+text real — selectable, searchable, accessible — where a canvas-to-image
+exporter would flatten it to a picture, and it adds no dependency to a repo that
+deliberately has none. A blocked pop-up is reported, because a print window that
+silently does nothing is the usual failure here.
+
+**Nothing is written in that the data does not support.** Key Strengths and Key
+Concerns quote the standards actually scored, with the evidence notes typed
+against them; recommendations come from the `PLAN` entries for that domain, so
+the report and the 3-year roadmap cannot contradict each other; the screening
+prose is generated from the level counts, so it cannot drift from its own table.
+Where a section of the published format has no source in this app at all — the
+behavioural screening is a separate psychologist-run instrument — the report
+**says so in place of the section** rather than leaving a gap that reads as
+"nothing found".
+
+Three things that were wrong and are easy to reintroduce:
+
+- **`subs` on a DOMAIN is the sub-domain count; `sub` on a standard is a much
+  finer label.** Counting distinct `sub` strings reported 172 sub-domains for a
+  framework that has 26, because Student Attainment alone has 19 of them for 19
+  standards. `_rptDomainStats()` uses `d.subs`.
+- **The distribution table and its bars use different denominators** — the table
+  counts every standard, so its rows plus "not assessed" reach 100%; the bars
+  count only the assessed ones. Both are right, and both are now labelled,
+  because side by side and unlabelled they read as a contradiction.
+- **`_rptLevelBars(counts, total, labels)` takes its wording.** The audit rates a
+  standard "Satisfactory"; a screening rates a child "Basic understanding but
+  frequent errors". `_RPT_SCREEN_LEVELS` is the screening wording, used by its
+  framework table, every skill table and the bars, so the three cannot drift.
+
+There is no campus field in this app — only a school name and a board. The
+reports show the board as a board rather than filling a campus line the data
+cannot fill.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:
