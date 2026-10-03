@@ -190,6 +190,36 @@ A modal that can open over the admin hub needs a z-index above 8000. The
 generic `.modal-overlay` (1000) is fine only because it is used inside the
 audit shell, which the hub covers anyway.
 
+## Branches
+
+A school's identity is `schoolKey(name)` — every localStorage key, the `schools`
+row and the `audit_states` row all derive from it. **So a branch has to be part
+of the name**, or two campuses of one school would share one key and silently
+overwrite each other's audit.
+
+The branch is therefore stored twice, deliberately: joined into `name`, which is
+what everything keys on, and kept separately on the record as `branch` so the UI
+and the reports can say "Shaheen School, Golekhana branch" rather than printing
+the joined string. `joinBranch()` / `splitBranch()` are inverses around
+`BRANCH_SEP`, and `_hubBase()` / `_hubBranchOf()` recover both from a record
+written before the field existed.
+
+**A school with no branch joins to exactly its own name**, so every audit saved
+before this existed keeps the key it already had — `Iqra School` is still
+`iqra_school`. That is the property to preserve in any change here; breaking it
+orphans live Supabase rows with no error to explain where the data went.
+
+Each branch is its own hub entry with its own audit, because that is what a
+branch needs. The hub's duplicate check runs on the joined name, so a second
+branch of the same school is allowed where a second entry of the same single
+campus still is not. Cards show the school name with the branch beneath it, and
+the grid sorts by school then branch so campuses of one school sit together.
+
+`currentBranch()` / `currentBaseSchool()` read the topbar's joined value; the
+topbar shows the branch as a chip rather than one long string, and the reports
+print it as the **Campus** row of the School Information table and on the cover,
+as the published format does.
+
 ## Teachers imported with numbers for names
 
 An early staff import took a serial-number column as the name, so teachers were
@@ -753,9 +783,9 @@ Three things that were wrong and are easy to reintroduce:
   frequent errors". `_RPT_SCREEN_LEVELS` is the screening wording, used by its
   framework table, every skill table and the bars, so the three cannot drift.
 
-There is no campus field in this app — only a school name and a board. The
-reports show the board as a board rather than filling a campus line the data
-cannot fill.
+The branch of the school being audited fills the **Campus** line the published
+format has; see **Branches** above for how it is stored. A school with one
+campus prints no campus row at all.
 
 ## Database
 

@@ -1306,7 +1306,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="sip-modal" style="max-width:440px">
     <button onclick="document.getElementById('hub-add-modal').classList.remove('open')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
     <div class="sip-modal-title">Add School to Hub</div>
-    <div class="sip-field"><label>School name *</label><input id="hub-new-school-name" placeholder="e.g. Greenwood International School"></div>
+    <div class="sip-field"><label>School name *</label><input id="hub-new-school-name" placeholder="e.g. Greenwood International School" oninput="_hubBranchHint()"></div>
+    <div class="sip-field"><label>Branch / Campus</label>
+      <input id="hub-new-school-branch" placeholder="e.g. Golekhana English Medium \u2014 leave blank if the school has one campus" oninput="_hubBranchHint()">
+      <div id="hub-branch-hint" style="font-size:11px;color:var(--ink-f);margin-top:4px;line-height:1.5"></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="sip-field" style="margin:0"><label>City / Location</label><input id="hub-new-school-city" placeholder="e.g. Bengaluru"></div>
       <div class="sip-field" style="margin:0"><label>Board</label>
@@ -1399,6 +1403,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     </div>
     <input type="file" id="school-logo-input" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
     <input class="top-input" id="inp-school" style="width:180px" placeholder="School name" oninput="onSchoolInput()">
+    <span id="top-branch" style="display:none;font-size:11px;font-weight:500;color:var(--sage);background:var(--sage-p);padding:3px 9px;border-radius:20px;white-space:nowrap" title="Branch / campus"></span>
     <select class="top-input" id="inp-board" style="width:100px">
       <option>CBSE</option><option>ICSE</option><option>IB</option><option>State Board</option><option>IGCSE</option><option>Other</option>
     </select>
@@ -4482,13 +4487,26 @@ function updateTopbar() {
   }
   updateDocsBadge();
 }
+// The school field holds the joined name; the chip shows the branch part of it
+// so the topbar reads as a school with a campus rather than one long string.
+function _updateBranchChip() {
+  const el = document.getElementById('top-branch');
+  if (!el) return;
+  const b = currentBranch();
+  el.style.display = b ? '' : 'none';
+  el.textContent = b ? '📍 ' + b : '';
+}
+
 function onSchoolInput() {
+  _updateBranchChip();
   _assessCloudLoaded = false; // reset so next cloud load can repopulate assessment globals
   var _sn=(document.getElementById('inp-school')||{}).value||''; if(_sn) loadAuditStateForSchool(_sn); updateSidebarBadges();
   const n = document.getElementById('inp-school').value;
+  const sp = splitBranch(n);
   const el = document.getElementById('ov-sub');
   if (el) el.textContent = n
-    ? `Audit dashboard for ${n}. Score each domain using the sidebar.`
+    ? 'Audit dashboard for ' + sp.school + (sp.branch ? ', ' + sp.branch + ' branch' : '') +
+      '. Score each domain using the sidebar.'
     : 'Enter the school name above to begin.';
 }
 
@@ -6791,10 +6809,17 @@ function _rptOpen(title, bodyHtml, landscape) {
   return w;
 }
 
-function _rptSchool() { return (document.getElementById('inp-school') || {}).value || 'School'; }
-// This app records a school name and a board, not a campus. Rather than
-// invent a campus line the data cannot fill, the board is shown as a board.
+function _rptSchool() { return currentBaseSchool() || 'School'; }
 function _rptBoard()  { return (document.getElementById('inp-board') || {}).value || ''; }
+// The school field holds the joined name; reports print the school and its
+// branch separately, as the published format does.
+function _rptBranch() { return currentBranch(); }
+// "Shaheen School, Golekhana branch" for running prose, where the cover and the
+// information table keep the two on separate lines.
+function _rptSchoolFull() {
+  const b = _rptBranch();
+  return _rptSchool() + (b ? ', ' + b + ' branch' : '');
+}
 function _rptDate()   {
   const d = (document.getElementById('inp-date') || {}).value;
   return d || new Date().toISOString().slice(0, 10);
@@ -6805,6 +6830,8 @@ function _rptCover(eyebrow, title, subtitle) {
   return '<div class="cover"><div class="eyebrow">' + _escHtml(eyebrow) + '</div>' +
     '<div class="title">' + _escHtml(title) + '</div><div class="rule"></div>' +
     '<div class="school">' + _escHtml(_rptSchool()) + '</div>' +
+    (_rptBranch() ? '<div class="meta" style="font-size:13pt;margin-bottom:2mm">' +
+      _escHtml(_rptBranch()) + '</div>' : '') +
     (_rptBoard() ? '<div class="meta">' + _escHtml(_rptBoard()) + '</div>' : '') +
     '<div class="meta">' + _escHtml(subtitle || '') + '</div>' +
     '<div class="meta" style="margin-top:4mm">' + _escHtml(_rptDate()) +
@@ -6814,6 +6841,7 @@ function _rptCover(eyebrow, title, subtitle) {
 function _rptFoot() {
   return '<div class="foot">Generated by Holistify \u00b7 #4, Promenade Road, Frazer Town, Bangalore ' +
     '\u00b7 transformation@holistifyedtech.com<br>' + _escHtml(_rptSchool()) +
+    (_rptBranch() ? ', ' + _escHtml(_rptBranch()) : '') +
     (_rptBoard() ? ' \u00b7 ' + _escHtml(_rptBoard()) : '') + ' \u00b7 ' + _escHtml(_rptDate()) + '</div>';
 }
 
@@ -7086,6 +7114,7 @@ function buildAuditSummaryReport() {
   h += '<div class="pb"></div><h2>Section 2 \u2014 Overall School Performance</h2>' +
     '<h3>2.1 School Information</h3><table><tr><th>Indicator</th><th>Details</th></tr>' +
     '<tr><td>School Name</td><td>' + _escHtml(_rptSchool()) + '</td></tr>' +
+    (_rptBranch() ? '<tr><td>Campus</td><td>' + _escHtml(_rptBranch()) + '</td></tr>' : '') +
     (_rptBoard() ? '<tr><td>Board</td><td>' + _escHtml(_rptBoard()) + '</td></tr>' : '') +
     '<tr><td>Overall Institutional Rating</td><td>Level ' + overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</td></tr>' +
     '<tr><td>Total Assessed Domains</td><td>' + ranked.length + ' of ' + DOMAINS.length + '</td></tr>' +
@@ -7135,7 +7164,7 @@ function buildAuditSummaryReport() {
     'The remaining domains show moderate performance, indicating that institutional systems are present but ' +
     'require further strengthening to improve consistency and effectiveness.</p>';
 
-  h += '<h3>2.5 Overall Institutional Interpretation</h3><p>' + _escHtml(_rptSchool()) +
+  h += '<h3>2.5 Overall Institutional Interpretation</h3><p>' + _escHtml(_rptSchoolFull()) +
     ' is currently positioned at <strong>Level ' +
     overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</strong>, with ' +
     _rptPct(counts[2] + counts[3] + counts[4], scored) + '% of assessed standards at Satisfactory or above. ' +
@@ -7239,14 +7268,14 @@ function buildAuditSummaryReport() {
 
   // ── Section 8
   h += '<div class="pb"></div><h2>Section 8 \u2014 Final Note</h2><p>' +
-    'The Holistify audit indicates that ' + _escHtml(_rptSchool()) +
+    'The Holistify audit indicates that ' + _escHtml(_rptSchoolFull()) +
     ' possesses the foundational systems required to function as an effective educational institution. ' +
     'With targeted improvements in the areas identified above, and by implementing the recommended ' +
     'transformation roadmap, the school can move progressively toward becoming a high-performing ' +
     'institution that provides strong academic and developmental opportunities for all students.</p>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Holistify School Audit Report Summary \u2014 ' + _rptSchool(), h);
+  _rptOpen('Holistify School Audit Report Summary \u2014 ' + _rptSchoolFull(), h);
 }
 
 // ── Reports 2 and 3: Teachers Performance ───────────────────────
@@ -7313,7 +7342,7 @@ function buildTeachersReport() {
                     'Detailed consolidated report \u2014 average performance of all teachers');
 
   h += '<div class="sheet"><h1>Teachers Performance Report</h1>' +
-    '<p class="lede">' + _escHtml(_rptSchool()) + (_rptBoard() ? ' \u00b7 ' + _escHtml(_rptBoard()) : '') +
+    '<p class="lede">' + _escHtml(_rptSchoolFull()) + (_rptBoard() ? ' \u00b7 ' + _escHtml(_rptBoard()) : '') +
     ' \u00b7 ' + teachers.length + ' teacher' + (teachers.length === 1 ? '' : 's') + ' observed</p>';
 
   h += '<h2>Observation Domains</h2>' +
@@ -7348,7 +7377,7 @@ function buildTeachersReport() {
   }
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Teachers Performance Report \u2014 ' + _rptSchool(), h, true);
+  _rptOpen('Teachers Performance Report \u2014 ' + _rptSchoolFull(), h, true);
 }
 
 function buildTeacherIndivReport(tid) {
@@ -7487,7 +7516,7 @@ function buildScreeningReport() {
 
   // 1. Executive summary — every figure from the data
   h += '<h2>1. Executive Summary</h2><p>This report presents the findings of an academic screening ' +
-    'conducted for students' + (span ? ' in ' + _escHtml(span) : '') + ' at ' + _escHtml(_rptSchool()) +
+    'conducted for students' + (span ? ' in ' + _escHtml(span) : '') + ' at ' + _escHtml(_rptSchoolFull()) +
     '. The screening covered <strong>' +
     labels.length + '</strong> skill area' + (labels.length === 1 ? '' : 's') + ' across <strong>' + n +
     '</strong> recorded student result' + (n === 1 ? '' : 's') + ', and aimed to identify foundational ' +
@@ -7576,7 +7605,7 @@ function buildScreeningReport() {
     'than counted as Level 1.</div>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Students\u2019 Screening Report Summary \u2014 ' + _rptSchool(), h);
+  _rptOpen('Students\u2019 Screening Report Summary \u2014 ' + _rptSchoolFull(), h);
 }
 
 // ── The Formal Reports panel ───────────────────────────────
@@ -10320,13 +10349,25 @@ function startAudit() {
 }
 
 // ── Transformation hub ────────────────────────────────────────────────────────
+// A hub record written before the branch field has neither `school` nor
+// `branch`, so both are recovered from the joined name.
+function _hubBase(s)     { return (s && s.school) || splitBranch((s || {}).name).school; }
+function _hubBranchOf(s) { return (s && s.branch) || splitBranch((s || {}).name).branch; }
+
 function renderHubGrid() {
   const container = document.getElementById('hub-school-grid');
   if (!container) return;
 
   const query = (document.getElementById('hub-search').value || '').toLowerCase().trim();
   let schools = getHubSchools();
-  if (query) schools = schools.filter(s => s.name.toLowerCase().includes(query) || (s.city||'').toLowerCase().includes(query));
+  if (query) schools = schools.filter(s => s.name.toLowerCase().includes(query) ||
+    (_hubBranchOf(s) || '').toLowerCase().includes(query) || (s.city||'').toLowerCase().includes(query));
+  // Branches of one school sit together, and in a stable order.
+  schools = schools.slice().sort((a, b) => {
+    const ab = _hubBase(a).toLowerCase(), bb = _hubBase(b).toLowerCase();
+    if (ab !== bb) return ab < bb ? -1 : 1;
+    return _hubBranchOf(a).toLowerCase() < _hubBranchOf(b).toLowerCase() ? -1 : 1;
+  });
 
   const subtitle = document.getElementById('hub-subtitle');
   if (subtitle) subtitle.textContent = `${schools.length} school${schools.length!==1?'s':''} · Click to open transformation dashboard`;
@@ -10334,7 +10375,8 @@ function renderHubGrid() {
   let html = schools.map(s => `
     <div class="hub-school-card" onclick="openSchoolTransformDashboard('${s.name.replace(/'/g,"\\'")}','${s.id}')">
       <div class="hub-school-icon">${s.icon || '🏫'}</div>
-      <div class="hub-school-name">${s.name}</div>
+      <div class="hub-school-name">${_escHtml(_hubBase(s))}</div>
+      ${_hubBranchOf(s) ? '<div style="font-size:11px;color:var(--sage);font-weight:500;margin-top:2px">📍 ' + _escHtml(_hubBranchOf(s)) + '</div>' : ''}
       <div class="hub-school-meta">${s.city || ''}${s.city && s.board ? ' · ' : ''}${s.board || ''}</div>
       <div style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:4px">
         <span style="font-size:10px;background:var(--grn-p);color:var(--grn);padding:2px 8px;border-radius:20px;font-weight:500">Active</span>
@@ -10354,18 +10396,42 @@ function renderHubGrid() {
 function openHubAddSchool() {
   document.getElementById('hub-add-modal').classList.add('open');
   document.getElementById('hub-new-school-icon').value = '🏫';
+  _hubBranchHint();
+}
+
+// Each branch is its own entry, because each needs its own audit. They are
+// distinguished by the joined name, which is what the key is built from.
+function _hubBranchHint() {
+  const el = document.getElementById('hub-branch-hint');
+  if (!el) return;
+  const name = (document.getElementById('hub-new-school-name') || {}).value || '';
+  const br = (document.getElementById('hub-new-school-branch') || {}).value || '';
+  if (!name.trim()) { el.textContent = ''; return; }
+  el.innerHTML = br.trim()
+    ? 'Added as <strong>' + _escHtml(joinBranch(name, br)) + '</strong>, with its own audit. ' +
+      'Add the other branches the same way, each with its own name here.'
+    : 'Added as <strong>' + _escHtml(name.trim()) + '</strong>. ' +
+      'If this school has more than one campus, name the branch so each gets its own audit.';
 }
 
 function addSchoolToHub() {
-  const name = (document.getElementById('hub-new-school-name').value || '').trim();
-  if (!name) { toast('Please enter a school name.'); return; }
+  const base = (document.getElementById('hub-new-school-name').value || '').trim();
+  if (!base) { toast('Please enter a school name.'); return; }
+  const branch = ((document.getElementById('hub-new-school-branch') || {}).value || '').trim();
+  const name = joinBranch(base, branch);
   const schools = getHubSchools();
+  // The check is on the joined name, so two branches of one school are both
+  // allowed; without the branch it is the same check as before.
   if (schools.find(s => s.name.toLowerCase() === name.toLowerCase())) {
-    toast('A school with this name already exists.'); return;
+    toast(branch ? 'That branch of ' + base + ' is already in the hub.'
+                 : 'A school with this name already exists. Add a branch to tell campuses apart.');
+    return;
   }
   schools.push({
     id: schoolKey(name),
     name,
+    school: base,
+    branch: branch,
     city: document.getElementById('hub-new-school-city').value.trim(),
     board: document.getElementById('hub-new-school-board').value,
     icon: document.getElementById('hub-new-school-icon').value.trim() || '🏫',
@@ -10375,9 +10441,10 @@ function addSchoolToHub() {
   });
   saveHubSchools(schools);
   document.getElementById('hub-add-modal').classList.remove('open');
-  ['hub-new-school-name','hub-new-school-city','hub-new-school-icon'].forEach(id => {
+  ['hub-new-school-name','hub-new-school-branch','hub-new-school-city','hub-new-school-icon'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  _hubBranchHint();
   renderHubGrid();
 }
 
@@ -10731,6 +10798,44 @@ let currentAuditScope = null; // array of domain IDs included in this audit
 // ── Utility: get school key (school name normalised) ─────────────────────────
 function schoolKey(name) {
   return (name || 'default').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
+// ── Branches ──────────────────────────────────────────────
+// A school's identity is schoolKey(name) — every localStorage key, the
+// `schools` row and the `audit_states` row all derive from it. So a branch has
+// to be part of the name, or two branches of one school would share one key and
+// silently overwrite each other's audit.
+//
+// The branch is therefore stored twice, deliberately: joined into `name`, which
+// is what everything keys on, and kept separately in `branch` so the UI and the
+// reports can say "Shaheen School, Golekhana branch" rather than printing the
+// joined string. BRANCH_SEP is the one separator that makes the two reversible.
+//
+// A school with no branch joins to exactly its own name, so every audit saved
+// before this existed keeps the key it already had.
+const BRANCH_SEP = ' \u2014 ';
+
+function joinBranch(name, branch) {
+  const n = String(name || '').trim();
+  const b = String(branch || '').trim();
+  return b ? n + BRANCH_SEP + b : n;
+}
+
+// The inverse. Records that predate the branch field keep their whole name as
+// the school and no branch, which is the correct reading of them.
+function splitBranch(fullName) {
+  const t = String(fullName || '').trim();
+  const i = t.indexOf(BRANCH_SEP);
+  if (i < 0) return { school: t, branch: '' };
+  return { school: t.slice(0, i).trim(), branch: t.slice(i + BRANCH_SEP.length).trim() };
+}
+
+// The branch of the audit currently open, for the topbar and the reports.
+function currentBranch() {
+  return splitBranch((document.getElementById('inp-school') || {}).value || '').branch;
+}
+function currentBaseSchool() {
+  return splitBranch((document.getElementById('inp-school') || {}).value || '').school;
 }
 
 // ── Get effective standards for a domain (custom overrides or originals) ──────
@@ -18881,6 +18986,7 @@ function launchAuditDashboard(meta) {
   if (shell) shell.style.display = 'grid';
   applyAccessControls();
   updateTopbar();
+  _updateBranchChip();
   onSchoolInput();
   renderOverview();
   goPage('overview', document.querySelector('[data-page=overview]'));
