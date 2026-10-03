@@ -307,6 +307,22 @@ SheetJS is loaded from a CDN for reading uploads and is now used for writing
 too. `downloadAssessmentBreakdownXlsx()` checks `typeof XLSX` first and points
 at the CSV if the script did not load, rather than failing silently.
 
+### Attainment bands carry their level
+
+The four attainment bands are the same four levels the audit standards and the
+rubrics are scored on, so each band carries its level: **Below is Level 1 and
+Exceeding is Level 4**. `_attainmentLabel(pct)` returns `{label, level, css}`,
+and the level is decided there because that is the only place the band is
+decided — as the 80 / 60 / 35 thresholds are. `_bandLevel(pct)` and
+`_BAND_LEVEL` give the same mapping from a percentage or from the short band
+word `_band()` returns. No data returns `level: null`, never `0`.
+
+In the exports the column is called **`Attainment Level`**, not `Level`. The
+Skill Performance sheet already carries `Average Level` and `Level 1`…`Level 4`
+meaning the *rubric's* own scale, so a bare `Level` there would be two different
+things under one name — the same class of ambiguity as the two sheets that both
+say "skill".
+
 ### Rubrics
 
 `rubrics` holds the definitions; `rubricScores` holds the student responses,

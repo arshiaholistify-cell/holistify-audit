@@ -6519,10 +6519,10 @@ function buildSaAssessmentPanel() {
         ${attCounts.bel?`<div style="flex:${attCounts.bel};background:var(--red)" title="Below"></div>`:''}
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px">
-        <span style="color:var(--grn)">■ Exceeding ${Math.round(attCounts.exc/total*100)}% (${attCounts.exc})</span>
-        <span style="color:#3b82f6">■ Meeting ${Math.round(attCounts.meet/total*100)}% (${attCounts.meet})</span>
-        <span style="color:var(--gold)">■ Approaching ${Math.round(attCounts.app/total*100)}% (${attCounts.app})</span>
-        <span style="color:var(--red)">■ Below ${Math.round(attCounts.bel/total*100)}% (${attCounts.bel})</span>
+        <span style="color:var(--grn)">■ Level 4 Exceeding ${Math.round(attCounts.exc/total*100)}% (${attCounts.exc})</span>
+        <span style="color:#3b82f6">■ Level 3 Meeting ${Math.round(attCounts.meet/total*100)}% (${attCounts.meet})</span>
+        <span style="color:var(--gold)">■ Level 2 Approaching ${Math.round(attCounts.app/total*100)}% (${attCounts.app})</span>
+        <span style="color:var(--red)">■ Level 1 Below ${Math.round(attCounts.bel/total*100)}% (${attCounts.bel})</span>
       </div>
     </div>`;
   }
@@ -6639,10 +6639,10 @@ function _buildStdInlineEvidence(domainId, stdIdx) {
       ${all !== null ? `<span style="font-size:10px;padding:1px 6px;border-radius:20px;${allAtt.css}">${pcts.length} records · ${all}% — ${allAtt.label}</span>` : ''}
     </div>
     ${pcts.length ? `<div style="font-size:10px;color:var(--ink-l);margin-bottom:8px;line-height:1.5">
-      <span style="color:var(--grn)">■ ${share(band.exc)}% exceeding</span> ·
-      <span style="color:#3b82f6">■ ${share(band.meet)}% meeting</span> ·
-      <span style="color:var(--gold)">■ ${share(band.app)}% approaching</span> ·
-      <span style="color:var(--red)">■ ${share(band.bel)}% below</span>
+      <span style="color:var(--grn)">■ ${share(band.exc)}% exceeding (L4)</span> ·
+      <span style="color:#3b82f6">■ ${share(band.meet)}% meeting (L3)</span> ·
+      <span style="color:var(--gold)">■ ${share(band.app)}% approaching (L2)</span> ·
+      <span style="color:var(--red)">■ ${share(band.bel)}% below (L1)</span>
     </div>` : ''}`;
 
   linked.forEach(a => {
@@ -12684,13 +12684,24 @@ function handleAssessmentUpload(input) {
 }
 
 // ── Attainment helper ─────────────────────────────────────────────
+// The four attainment bands are the same four levels the audit standards and
+// the rubrics are scored on, so each band carries its level: Below is Level 1
+// and Exceeding is Level 4. A teacher reads "Level 3" and an auditor scoring a
+// standard picks a level 1-4; printing the band on its own left the reader to
+// make that translation, when the two are the same scale.
+//
+// The level lives here, beside the band, because this is the only place the
+// band is decided — as the 80 / 60 / 35 thresholds are.
 function _attainmentLabel(pct) {
-  if (pct === null || pct === undefined) return { label:'—', css:'background:var(--sur-r);color:var(--ink-l)' };
-  if (pct >= 80) return { label:'Exceeding Standard', css:'background:var(--grn-p);color:var(--grn)' };
-  if (pct >= 60) return { label:'Meeting Standard', css:'background:var(--blue-p);color:var(--blue)' };
-  if (pct >= 35) return { label:'Approaching Standard', css:'background:var(--gold-p);color:var(--gold)' };
-  return { label:'Below Standard', css:'background:var(--red-p);color:var(--red)' };
+  if (pct === null || pct === undefined) return { label:'—', level:null, css:'background:var(--sur-r);color:var(--ink-l)' };
+  if (pct >= 80) return { label:'Exceeding Standard', level:4, css:'background:var(--grn-p);color:var(--grn)' };
+  if (pct >= 60) return { label:'Meeting Standard', level:3, css:'background:var(--blue-p);color:var(--blue)' };
+  if (pct >= 35) return { label:'Approaching Standard', level:2, css:'background:var(--gold-p);color:var(--gold)' };
+  return { label:'Below Standard', level:1, css:'background:var(--red-p);color:var(--red)' };
 }
+// The same mapping from the short band word the exports use.
+const _BAND_LEVEL = { Exceeding:4, Meeting:3, Approaching:2, Below:1 };
+function _bandLevel(pct) { return _attainmentLabel(pct).level; }
 function _rubricAttainmentLabel(avg, scale) {
   const pct = scale ? Math.round(avg / scale * 100) : null;
   return _attainmentLabel(pct);
@@ -12821,18 +12832,22 @@ function renderGradeWiseView() {
       <div class="card" style="text-align:center;padding:14px 10px;background:var(--grn-p)">
         <div style="font-size:22px;font-weight:700;color:var(--grn)">${attCounts.exc}</div>
         <div style="font-size:11px;color:var(--grn)">Exceeding Standard</div>
+        <div style="font-size:10px;font-weight:600;color:var(--grn);opacity:0.72;margin-top:3px">Level 4</div>
       </div>
       <div class="card" style="text-align:center;padding:14px 10px;background:var(--blue-p)">
         <div style="font-size:22px;font-weight:700;color:var(--blue)">${attCounts.meet}</div>
         <div style="font-size:11px;color:var(--blue)">Meeting Standard</div>
+        <div style="font-size:10px;font-weight:600;color:var(--blue);opacity:0.72;margin-top:3px">Level 3</div>
       </div>
       <div class="card" style="text-align:center;padding:14px 10px;background:var(--gold-p)">
         <div style="font-size:22px;font-weight:700;color:var(--gold)">${attCounts.app}</div>
         <div style="font-size:11px;color:var(--gold)">Approaching Standard</div>
+        <div style="font-size:10px;font-weight:600;color:var(--gold);opacity:0.72;margin-top:3px">Level 2</div>
       </div>
       <div class="card" style="text-align:center;padding:14px 10px;background:var(--red-p)">
         <div style="font-size:22px;font-weight:700;color:var(--red)">${attCounts.bel}</div>
         <div style="font-size:11px;color:var(--red)">Below Standard</div>
+        <div style="font-size:10px;font-weight:600;color:var(--red);opacity:0.72;margin-top:3px">Level 1</div>
       </div>
     </div>`;
 
@@ -12847,10 +12862,10 @@ function renderGradeWiseView() {
         ${attCounts.bel?`<div style="flex:${attCounts.bel};background:var(--red)"></div>`:''}
       </div>
       <div style="display:flex;gap:12px;margin-top:5px;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--grn)">■ Exceeding ${Math.round(attCounts.exc/total*100)}%</span>
-        <span style="font-size:11px;color:#3b82f6">■ Meeting ${Math.round(attCounts.meet/total*100)}%</span>
-        <span style="font-size:11px;color:var(--gold)">■ Approaching ${Math.round(attCounts.app/total*100)}%</span>
-        <span style="font-size:11px;color:var(--red)">■ Below ${Math.round(attCounts.bel/total*100)}%</span>
+        <span style="font-size:11px;color:var(--grn)">■ L4 Exceeding ${Math.round(attCounts.exc/total*100)}%</span>
+        <span style="font-size:11px;color:#3b82f6">■ L3 Meeting ${Math.round(attCounts.meet/total*100)}%</span>
+        <span style="font-size:11px;color:var(--gold)">■ L2 Approaching ${Math.round(attCounts.app/total*100)}%</span>
+        <span style="font-size:11px;color:var(--red)">■ L1 Below ${Math.round(attCounts.bel/total*100)}%</span>
       </div>
     </div>`;
   }
@@ -12952,7 +12967,8 @@ function _assessBreakdownRows(scope) {
       Term: a.term || '',
       Standard: (function () { const l = _assessStdLink(a); return l ? _assessStdText(l) : ''; })(),
       'Max Marks': max, 'Students Scored': scores.length,
-      Average: Math.round(avg * 100) / 100, 'Average %': pct, Attainment: _band(pct),
+      Average: Math.round(avg * 100) / 100, 'Average %': pct,
+      Attainment: _band(pct), 'Attainment Level': _bandLevel(pct),
       Passed: scores.filter(sc => sc >= max * 0.35).length,
       Exceeding: dist.Exceeding, Meeting: dist.Meeting,
       Approaching: dist.Approaching, Below: dist.Below
@@ -12973,7 +12989,8 @@ function _assessStudentRows() {
       rows.push({
         Type: 'Score', Assessment: a.name || '', Subject: a.subject || '',
         Grade: sc.grade || a.grade || '', Student: sc.name || '', Roll: sc.roll || '',
-        Skill: '', Score: raw, 'Out Of': max, 'Percent': pct, Attainment: _band(pct),
+        Skill: '', Score: raw, 'Out Of': max, 'Percent': pct,
+        Attainment: _band(pct), 'Attainment Level': _bandLevel(pct),
         Remarks: sc.remarks || ''
       });
     });
@@ -12988,7 +13005,8 @@ function _assessStudentRows() {
           Type: 'Rubric', Assessment: r.name || '', Subject: r.subject || '',
           Grade: resp.grade || '', Student: resp.name || '', Roll: '',
           Skill: c.name || '', Score: (lv >= 1 ? lv : 'Not scored'), 'Out Of': scale,
-          'Percent': pct, Attainment: pct === '' ? 'Not scored' : _band(pct), Remarks: ''
+          'Percent': pct, Attainment: pct === '' ? 'Not scored' : _band(pct),
+          'Attainment Level': pct === '' ? '' : _bandLevel(pct), Remarks: ''
         });
       });
     });
@@ -13079,14 +13097,18 @@ function downloadAssessmentBreakdownXlsx() {
   add('Grade Averages', Object.keys(agg.gradeAvgMap).map(g => {
     const arr = agg.gradeAvgMap[g];
     const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-    return { Grade: g, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+    return { Grade: g, Records: arr.length, 'Average %': avg, Attainment: _band(avg), 'Attainment Level': _bandLevel(avg) };
   }));
 
   add('Skill Performance', Object.keys(agg.subjectAvgMap).map(sub => {
     const arr = agg.subjectAvgMap[sub];
     const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
     const lv = (agg.subjectLevelMap || {})[sub];
-    const row = { Skill: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg) };
+    // "Attainment Level" is the 1-4 band this percentage falls in; "Average Level"
+    // further down is the rubric's own scale. Two different things, so neither of
+    // them is called just "Level".
+    const row = { Skill: sub, Records: arr.length, 'Average %': avg, Attainment: _band(avg),
+                  'Attainment Level': _bandLevel(avg) };
     if (lv && lv.scale && lv.levels.length) {
       row['Average Level'] = +(lv.levels.reduce((a, b) => a + b, 0) / lv.levels.length).toFixed(2);
       row['Out Of'] = lv.scale;
@@ -13101,10 +13123,10 @@ function downloadAssessmentBreakdownXlsx() {
     return {
       Domain: dom ? dom.label : '', 'Sub-domain': d.sub,
       'Standard / Learning Objective': d.text, Records: d.total,
-      Exceeding: d.exc, 'Exceeding %': Math.round(d.exc / d.total * 100),
-      Meeting: d.meet, 'Meeting %': Math.round(d.meet / d.total * 100),
-      Approaching: d.app, 'Approaching %': Math.round(d.app / d.total * 100),
-      Below: d.bel, 'Below %': Math.round(d.bel / d.total * 100)
+      'Level 4 Exceeding': d.exc, 'Exceeding %': Math.round(d.exc / d.total * 100),
+      'Level 3 Meeting': d.meet, 'Meeting %': Math.round(d.meet / d.total * 100),
+      'Level 2 Approaching': d.app, 'Approaching %': Math.round(d.app / d.total * 100),
+      'Level 1 Below': d.bel, 'Below %': Math.round(d.bel / d.total * 100)
     };
   }));
 
@@ -13712,7 +13734,7 @@ function renderAssessAnalytics() {
       <div class="card" style="text-align:center;padding:16px 10px">
         <div style="font-size:28px;font-weight:700;color:var(--sage)">${overallAvg}%</div>
         <div style="font-size:11px;color:var(--ink-f);margin-top:4px">Overall Average</div>
-        <span style="font-size:10px;padding:2px 8px;border-radius:20px;margin-top:6px;display:inline-block;${overallAtt.css}">${overallAtt.label}</span>
+        <span style="font-size:10px;padding:2px 8px;border-radius:20px;margin-top:6px;display:inline-block;${overallAtt.css}">${overallAtt.level?'Level '+overallAtt.level+' · ':''}${overallAtt.label}</span>
       </div>
       <div class="card" style="text-align:center;padding:16px 10px">
         <div style="font-size:28px;font-weight:700;color:var(--blue)">${Object.keys(gradeAvgMap).length}</div>
@@ -13807,7 +13829,7 @@ function renderAssessAnalytics() {
       <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Standards Attainment</div>
       <div style="overflow-x:auto">
       <table class="data-table" style="font-size:12px">
-        <thead><tr><th>Domain</th><th>Standard</th><th>Records</th><th style="color:var(--grn)">Exceeding</th><th style="color:#3b82f6">Meeting</th><th style="color:var(--gold)">Approaching</th><th style="color:var(--red)">Below</th></tr></thead>
+        <thead><tr><th>Domain</th><th>Standard</th><th>Records</th><th style="color:var(--grn)">L4 Exceeding</th><th style="color:#3b82f6">L3 Meeting</th><th style="color:var(--gold)">L2 Approaching</th><th style="color:var(--red)">L1 Below</th></tr></thead>
         <tbody>`;
     standardKeys.forEach(st => {
       const d = standardMap[st];
