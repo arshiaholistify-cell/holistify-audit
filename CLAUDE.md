@@ -236,6 +236,37 @@ the staff sync re-add it correctly. A record that cannot be matched but *does*
 have scores is left alone for a human to rename — putting the wrong name on
 someone's appraisal is worse than leaving a number.
 
+## School Records ↔ School Documents
+
+A record marked compliant is a *claim*; the file in School Documents is the
+*evidence*. The two modules held that pair apart, so an audit could record
+"Attendance Registers — Compliant" with nothing behind it and no way to find
+the document.
+
+`recordsOverrides[id].docs` is a list of `{folder, name}` **references, never
+copies**. School Documents stays the one place a file lives, so deleting it
+there is not silently contradicted by a record still claiming it: `_recEvidence()`
+resolves each reference against Documents as it stands now and marks a vanished
+file `exists: false`, which the row shows as **missing**. That is the honest
+answer and the one an auditor needs — a reference to a file that is gone
+evidences nothing, so `_recHasEvidence()` ignores it.
+
+- The records table has an **Evidence** column: a chip per file, opening
+  Documents at that folder, plus **+ Attach**.
+- `openRecordAttach()` lists every folder and file for the school being audited.
+  `_recDocsKey()` resolves the same key `renderDocsPage()` does, so the Records
+  page can read Documents without rendering it first.
+- **Upload into a folder straight from the record**, which files it in Documents
+  and attaches it in one step, rather than requiring a trip there and back.
+- The compliance bar reports **Evidenced: n of m** beside the headline, and
+  names the records marked compliant with nothing attached. A compliance figure
+  that counts unevidenced claims overstates the school.
+- The reverse link: a file in Documents shows the records it evidences, and
+  deleting it names them in the confirm, so the person tidying up can see what
+  they are about to break.
+- `exportRecordsCSV()` carries an Evidence column, with `(MISSING)` against a
+  reference that no longer resolves.
+
 ## What syncs, and how
 
 Everything auto-saves. Any edit calls `queueSave()`, which debounces 300 ms and

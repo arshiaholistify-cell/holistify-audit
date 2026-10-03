@@ -3295,6 +3295,25 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 <!-- ══════════════════════════════════════════════════════
      SCHOOL RECORDS PAGE
 ══════════════════════════════════════════════════════ -->
+<!-- Attach a record's evidence from School Documents -->
+<div class="sip-modal-overlay" id="rec-attach-modal">
+  <div class="sip-modal" style="max-width:560px;max-height:88vh;overflow-y:auto">
+    <button onclick="document.getElementById('rec-attach-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">📎 Attach evidence</div>
+    <div id="rec-attach-title" style="font-size:13px;color:var(--ink-l);margin-bottom:6px"></div>
+    <div style="font-size:12px;color:var(--ink-f);margin-bottom:14px;line-height:1.6">
+      Tick the files in <strong>School Documents</strong> that evidence this record. The record stores a
+      reference, not a copy — the file stays in Documents, and if it is deleted there the record says so
+      rather than claiming evidence it no longer has.
+    </div>
+    <div id="rec-attach-body" style="max-height:48vh;overflow-y:auto;border:0.5px solid var(--bdr);border-radius:var(--r-md);padding:12px"></div>
+    <input type="file" id="rec-upload-input" multiple style="display:none" onchange="handleRecordEvidenceUpload(this)">
+    <div class="act-row" style="margin-top:14px">
+      <button class="btn btn-p" onclick="document.getElementById('rec-attach-modal').classList.remove('open')">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="page" id="page-records">
   <div class="pg-hd-row">
     <div>
@@ -3338,6 +3357,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
           <th>Record Name</th>
           <th style="width:140px">Maintained By</th>
           <th style="width:120px">Compliant?</th>
+          <th style="width:180px">Evidence</th>
           <th>Comments / Recommendations</th>
           <th style="width:90px">Last Verified</th>
         </tr>
@@ -11800,6 +11820,7 @@ function renderFolderContents() {
         <div style="flex:1;min-width:0">
           <div class="doc-name">${f.name}</div>
           <div class="doc-meta">${f.uploadedBy||''} · ${f.uploadedOn||''}</div>
+          ${_docRecordChips(currentFolderId, f.name)}
         </div>
         <div class="doc-meta" style="margin-right:8px">${size}</div>
         <button onclick="deleteDoc('${currentFolderId}',${fi})" style="font-size:11px;padding:3px 8px;border-radius:4px;border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer;flex-shrink:0">✕</button>
@@ -11841,12 +11862,35 @@ function handleDocDrop(event) {
   handleDocUpload(input);
 }
 
+// The other half of the link: a file says which records it evidences, so the
+// person tidying Documents can see what they are about to break.
+function _docRecordChips(folderId, fileName) {
+  if (typeof SCHOOL_RECORDS_MASTER === 'undefined' || typeof _recordsForFile !== 'function') return '';
+  const recs = _recordsForFile(folderId, fileName);
+  if (!recs.length) return '';
+  return '<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">' + recs.map(r =>
+    '<span title="Evidence for school record ' + r.id + '" style="font-size:10px;background:var(--sage-p);' +
+    'color:var(--sage);padding:1px 7px;border-radius:20px">📋 ' + _escHtml(r.name) + '</span>').join('') +
+    '</div>';
+}
+
 function deleteDoc(folderId, fileIdx) {
-  if (!confirm('Remove this file?')) return;
   const data = getSchoolDocs(currentDocsSchool);
+  const file = (data.files[folderId] || [])[fileIdx];
+  // Deleting a file that a record leans on is allowed, but not by accident.
+  const used = file ? _recordsForFile(folderId, file.name) : [];
+  const msg = used.length
+    ? 'Remove this file?\n\nIt is attached as evidence for ' + used.length + ' school record' +
+      (used.length === 1 ? '' : 's') + ':\n' + used.map(r => '\u2022 ' + r.name).join('\n') +
+      '\n\nThose records will show the evidence as missing.'
+    : 'Remove this file?';
+  if (!confirm(msg)) return;
   if (data.files[folderId]) data.files[folderId].splice(fileIdx,1);
   saveDocsData();
   renderFolderContents();
+  if (typeof renderRecordsTable === 'function' && document.getElementById('records-table')) {
+    renderRecordsComplianceBar(); renderRecordsTable();
+  }
 }
 
 // ── Folder create/edit ────────────────────────────────────────────────────────
@@ -17652,7 +17696,80 @@ const RECORD_STATUS_CFG = {
 };
 
 // Per-school record status overrides (user-edited compliance status + comments)
-let recordsOverrides = {}; // { recordId: { status, comment, verifiedDate } }
+let recordsOverrides = {}; // { recordId: { status, comment, verifiedDate, docs: [{folder,name}] } }
+
+// ══ School Records ↔ School Documents ══════════════════════════
+// A record marked compliant is a claim; the document in School Documents is the
+// evidence for it. The two modules held that pair apart, so an audit could say
+// "Attendance Registers — Compliant" with nothing behind it and no way to find
+// the file.
+//
+// Evidence is stored as a **reference**, { folder, name }, never a copy of the
+// file. Documents stays the one place a file lives, so deleting it there is not
+// silently contradicted by a record still claiming it exists — the reference
+// resolves to "missing" instead, which is the honest answer and the one an
+// auditor needs to see.
+
+// The documents slice for the school being audited. renderDocsPage() resolves
+// the same key from the same topbar value; this is that lookup, callable from
+// the Records page without rendering Documents first.
+function _recDocsKey() {
+  const school = (document.getElementById('inp-school') || {}).value || '';
+  if (!school) return 'default';
+  const found = getHubSchools().find(x => x.name === school);
+  return found ? found.id : schoolKey(school);
+}
+function _recDocs() { loadDocsData(); return getSchoolDocs(_recDocsKey()); }
+
+// Each attachment resolved against Documents as it stands now.
+function _recEvidence(id) {
+  const refs = ((recordsOverrides[id] || {}).docs) || [];
+  if (!refs.length) return [];
+  const data = _recDocs();
+  return refs.map(ref => {
+    const folder = (data.folders || []).find(f => f.id === ref.folder) || null;
+    const files = (data.files || {})[ref.folder] || [];
+    const exists = !!folder && files.some(f => f.name === ref.name);
+    return { folder: ref.folder, name: ref.name,
+             folderName: folder ? folder.name : 'Deleted folder', exists: exists };
+  });
+}
+
+// Compliance with nothing behind it. A missing file counts as no evidence,
+// because a reference to a file that is gone evidences nothing.
+function _recHasEvidence(id) { return _recEvidence(id).some(e => e.exists); }
+function _recUnevidenced() {
+  return SCHOOL_RECORDS_MASTER.filter(r =>
+    (recordsOverrides[r.id] || {}).status === 'compliant' && !_recHasEvidence(r.id));
+}
+// Every record one file is evidence for — the reverse link, shown in Documents.
+function _recordsForFile(folderId, fileName) {
+  return SCHOOL_RECORDS_MASTER.filter(r =>
+    (((recordsOverrides[r.id] || {}).docs) || [])
+      .some(d => d.folder === folderId && d.name === fileName));
+}
+
+function _recAttach(id, folderId, fileName) {
+  if (!recordsOverrides[id]) recordsOverrides[id] = {};
+  const docs = recordsOverrides[id].docs || (recordsOverrides[id].docs = []);
+  if (docs.some(d => d.folder === folderId && d.name === fileName)) return false;
+  docs.push({ folder: folderId, name: fileName });
+  return true;
+}
+function _recDetach(id, folderId, fileName) {
+  const ov = recordsOverrides[id];
+  if (!ov || !ov.docs) return;
+  ov.docs = ov.docs.filter(d => !(d.folder === folderId && d.name === fileName));
+  saveRecordsData();
+  renderRecordsComplianceBar();
+  renderRecordsTable();
+}
+
+// Open School Documents at the folder holding this record's evidence.
+function openRecordEvidence(folderId) {
+  goPage('docs', document.querySelector('.ni[data-page="docs"]'));
+  setTimeout(function () { if (folderId) selectFolder(folderId); }, 60);
+}
 
 function loadRecordsData() {
   try {
@@ -17693,6 +17810,22 @@ function filterRecordsByStatus(status, btn) {
   renderRecordsTable();
 }
 
+// A compliance figure that counts claims with nothing behind them overstates
+// the school. The bar reports both, rather than only the headline.
+function _recEvidenceBanner() {
+  const gaps = _recUnevidenced();
+  if (!gaps.length) return '';
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;' +
+    'padding:9px 13px;background:var(--amb-p);border:0.5px solid var(--amb);border-radius:var(--r-md)">' +
+    '<span style="font-size:12px;color:var(--amb);flex:1">' + gaps.length + ' record' +
+    (gaps.length === 1 ? ' is' : 's are') + ' marked compliant with no document attached from School ' +
+    'Documents: ' + _escHtml(gaps.slice(0, 3).map(r => r.name).join(', ')) +
+    (gaps.length > 3 ? ' and ' + (gaps.length - 3) + ' more' : '') + '.</span>' +
+    '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" ' +
+    'onclick="filterRecordsByStatus(\'compliant\',null);document.querySelectorAll(\'#page-records .fb\')' +
+    '.forEach(function(b){b.classList.remove(\'active\')})">Show them</button></div>';
+}
+
 function renderRecordsComplianceBar() {
   const el = document.getElementById('records-compliance-bar');
   if (!el) return;
@@ -17723,7 +17856,9 @@ function renderRecordsComplianceBar() {
         <span><span style="color:var(--red)">■</span> Non-Compliant: <strong>${stats.non_compliant}</strong></span>
         <span><span style="color:var(--amb)">■</span> Pending: <strong>${stats.pending}</strong></span>
         <span><span style="color:var(--ink-f)">○</span> Not Checked: <strong>${stats.unchecked+stats.na}</strong></span>
+        <span title="Compliant records with a live document attached from School Documents">📎 Evidenced: <strong>${SCHOOL_RECORDS_MASTER.filter(r=>(recordsOverrides[r.id]||{}).status==='compliant'&&_recHasEvidence(r.id)).length}</strong> of ${stats.compliant}</span>
       </div>
+      ${_recEvidenceBanner()}
     </div>`;
 }
 
@@ -17764,6 +17899,7 @@ function renderRecordsTable() {
           ${Object.entries(RECORD_STATUS_CFG).map(([k,v])=>`<option value="${k}" ${status===k?'selected':''}>${v.emoji} ${v.label}</option>`).join('')}
         </select>
       </td>
+      <td>${_recEvidenceCell(r.id, status)}</td>
       <td>
         <input value="${ov.comment||''}" placeholder="Add comment or recommendation…"
           onchange="setRecordComment(${r.id},this.value)"
@@ -17772,6 +17908,135 @@ function renderRecordsTable() {
       <td style="text-align:center;font-size:11px;color:var(--ink-f)">${ov.verifiedDate||'—'}</td>
     </tr>`;
   }).join('');
+}
+
+// A chip per attached file: live ones open Documents at their folder, a file
+// that has since been deleted says so rather than looking attached.
+function _recEvidenceCell(id, status) {
+  const ev = _recEvidence(id);
+  let h = '<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">';
+  ev.forEach(e => {
+    h += e.exists
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;max-width:168px">' +
+        '<a href="#" onclick="openRecordEvidence(' + JSON.stringify(e.folder) + ');return false" ' +
+        'title="' + _escHtml(e.folderName + ' / ' + e.name) + '" ' +
+        'style="font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;' +
+        'text-overflow:ellipsis;white-space:nowrap">📎 ' + _escHtml(e.name) + '</a>' +
+        '<button onclick="_recDetach(' + id + ',' + JSON.stringify(e.folder) + ',' +
+        JSON.stringify(e.name) + ')" title="Detach" style="border:0;background:none;cursor:pointer;' +
+        'color:var(--ink-f);font-size:11px;padding:0 2px">\u00d7</button></span>'
+      : '<span title="This file is no longer in School Documents" style="font-size:11px;color:var(--red)">' +
+        '\u26a0 ' + _escHtml(e.name) + ' \u2014 missing' +
+        '<button onclick="_recDetach(' + id + ',' + JSON.stringify(e.folder) + ',' +
+        JSON.stringify(e.name) + ')" title="Remove this reference" style="border:0;background:none;' +
+        'cursor:pointer;color:var(--ink-f);font-size:11px;padding:0 2px">\u00d7</button></span>';
+  });
+  const live = ev.filter(e => e.exists).length;
+  if (status === 'compliant' && !live) {
+    h += '<span style="font-size:10px;color:var(--amb)">\u26a0 compliant, no evidence</span>';
+  }
+  h += '<button onclick="openRecordAttach(' + id + ')" style="font-size:10px;padding:2px 8px;' +
+    'border-radius:20px;border:0.5px solid var(--bdr-s);background:var(--sur-r);color:var(--ink-f);' +
+    'cursor:pointer">+ Attach</button></div>';
+  return h;
+}
+
+var _recAttachId = null;
+
+function openRecordAttach(id) {
+  _recAttachId = id;
+  const rec = SCHOOL_RECORDS_MASTER.filter(r => r.id === id)[0];
+  const t = document.getElementById('rec-attach-title');
+  if (t) t.textContent = 'Evidence for: ' + (rec ? rec.name : 'record ' + id);
+  _renderRecAttach();
+  document.getElementById('rec-attach-modal').classList.add('open');
+}
+
+function _renderRecAttach() {
+  const el = document.getElementById('rec-attach-body');
+  if (!el || _recAttachId === null) return;
+  const data = _recDocs();
+  const folders = data.folders || [];
+  const attached = ((recordsOverrides[_recAttachId] || {}).docs) || [];
+  const isOn = (fid, name) => attached.some(d => d.folder === fid && d.name === name);
+
+  if (!folders.length) {
+    el.innerHTML = '<div style="padding:22px;text-align:center;color:var(--ink-f);font-size:13px">' +
+      'No folders in School Documents yet.<br>Create one there first, then attach the record\u2019s file here.' +
+      '<div style="margin-top:12px"><button class="btn btn-s" onclick="document.getElementById(' +
+      "'rec-attach-modal').classList.remove('open');openRecordEvidence('')" + '">Open School Documents</button></div></div>';
+    return;
+  }
+
+  let h = '';
+  folders.forEach(f => {
+    const files = (data.files || {})[f.id] || [];
+    h += '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--ink);' +
+      'margin-bottom:5px">' + (FOLDER_CAT_ICONS[f.category] || '📁') + ' ' + _escHtml(f.name) +
+      ' <span style="font-weight:400;color:var(--ink-f)">\u00b7 ' + files.length + ' file' +
+      (files.length === 1 ? '' : 's') + '</span></div>';
+    if (!files.length) {
+      h += '<div style="font-size:11px;color:var(--ink-f);font-style:italic;padding-left:18px">Empty</div>';
+    } else {
+      files.forEach(fl => {
+        const on = isOn(f.id, fl.name);
+        h += '<label style="display:flex;align-items:center;gap:7px;padding:3px 0 3px 18px;font-size:12px;' +
+          'cursor:pointer;color:var(--ink)"><input type="checkbox"' + (on ? ' checked' : '') +
+          ' onchange="_recToggle(' + JSON.stringify(f.id) + ',' + JSON.stringify(fl.name) + ',this.checked)">' +
+          _escHtml(fl.name) + '<span style="color:var(--ink-f);font-size:11px">' +
+          (fl.uploadedOn ? ' \u00b7 ' + _escHtml(fl.uploadedOn) : '') + '</span></label>';
+      });
+    }
+    h += '<div style="padding-left:18px;margin-top:4px">' +
+      '<button onclick="_recUploadTo(' + JSON.stringify(f.id) + ')" style="font-size:10px;padding:2px 8px;' +
+      'border-radius:20px;border:0.5px solid var(--sage);background:var(--sage-p);color:var(--sage);' +
+      'cursor:pointer">\u2b06 Upload into this folder and attach</button></div></div>';
+  });
+  el.innerHTML = h;
+}
+
+function _recToggle(folderId, fileName, on) {
+  if (_recAttachId === null) return;
+  if (on) _recAttach(_recAttachId, folderId, fileName);
+  else {
+    const ov = recordsOverrides[_recAttachId];
+    if (ov && ov.docs) ov.docs = ov.docs.filter(d => !(d.folder === folderId && d.name === fileName));
+  }
+  saveRecordsData();
+  renderRecordsComplianceBar();
+  renderRecordsTable();
+}
+
+// Upload straight from the record, so the evidence does not require a trip to
+// Documents and back to be filed and linked.
+var _recUploadFolder = null;
+function _recUploadTo(folderId) {
+  _recUploadFolder = folderId;
+  const inp = document.getElementById('rec-upload-input');
+  if (inp) inp.click();
+}
+function handleRecordEvidenceUpload(input) {
+  const folderId = _recUploadFolder;
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!folderId || !files.length || _recAttachId === null) return;
+  const data = _recDocs();
+  if (!data.files[folderId]) data.files[folderId] = [];
+  const u = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  files.forEach(f => {
+    if (!data.files[folderId].some(x => x.name === f.name)) {
+      data.files[folderId].push({ name: f.name, size: f.size, type: f.type,
+        uploadedBy: u ? u.name : 'Unknown', uploadedOn: new Date().toLocaleDateString(),
+        _localOnly: true });
+    }
+    _recAttach(_recAttachId, folderId, f.name);
+  });
+  saveDocsData();
+  saveRecordsData();
+  _renderRecAttach();
+  renderRecordsComplianceBar();
+  renderRecordsTable();
+  toast(files.length + ' file' + (files.length === 1 ? '' : 's') + ' filed and attached.', 'success');
 }
 
 function setRecordStatus(id, status) {
@@ -17798,12 +18063,15 @@ function setRecordComment(id, comment) {
 
 function exportRecordsCSV() {
   const school = (document.getElementById('inp-school')||{}).value||'School';
-  const headers = ['No.','Record Name','Maintained By','Status','Comments','Last Verified','Audit Domain'];
+  const headers = ['No.','Record Name','Maintained By','Status','Evidence','Comments','Last Verified','Audit Domain'];
   const rows = SCHOOL_RECORDS_MASTER.map(r => {
     const ov = recordsOverrides[r.id]||{};
     const stk = RECORD_STAKEHOLDERS[r.by]||{label:r.by};
     const sc = RECORD_STATUS_CFG[ov.status||'unchecked']||{label:'Not Checked'};
-    return [r.id, r.name, stk.label, sc.label, ov.comment||'', ov.verifiedDate||'', r.auditDomain];
+    const ev = _recEvidence(r.id);
+    return [r.id, r.name, stk.label, sc.label,
+            ev.map(e => e.folderName + '/' + e.name + (e.exists ? '' : ' (MISSING)')).join('; '),
+            ov.comment||'', ov.verifiedDate||'', r.auditDomain];
   });
   _downloadCsv(school.replace(/\s+/g,'-') + '-school-records.csv', _csvFrom(headers, rows));
 }
