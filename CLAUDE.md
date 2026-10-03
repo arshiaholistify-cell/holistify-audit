@@ -536,6 +536,11 @@ scored and what it was out of.** Entries are stored as
 `{name, roll, grade, score}` and nothing else; remarks and section columns are
 ignored.
 
+**Most of these sheets carry only the name and the mark**, so what the file
+does not say is taken from the roster — see **Roll numbers and grades from the
+roster** below. The preview says which of the two is happening before anything
+is imported.
+
 **A `Sl. No` serial is never taken for a roll number.** The roll column is found
 by its heading alone, because by value a roll is indistinguishable from the
 serial in column A — and a serial renumbers whenever a student is added, so
@@ -578,6 +583,61 @@ holding its maxima by column label.
 Everything imports as `ASSESS_TYPE_SCREENING`, and re-uploading matches on name
 and grade so a corrected workbook **updates** rather than doubling every average
 built from it.
+
+### Roll numbers and grades from the roster
+
+A real workbook imported 2,900 marks with **not one roll number**, because the
+sheets did not have a roll column — the office exports names and marks and
+nothing else. The Roll No. and Grade columns of the score table read `—` all
+the way down, and Grade Averages had nothing to group by.
+
+The school's roster already holds both for all 308 of its students, on the
+Students page. So `_fillFromRoster(entries, idx)` fills what the sheet did not
+say, and `_rosterIndex()` builds the lookup:
+
+- **Blanks only.** Whatever the sheet itself stated always wins — the sheet is
+  the record of what was administered, the roster is a lookup.
+- **Exact name match**, on `_rosterKey()` (lower-cased, whitespace collapsed).
+  It never guesses: "Rushda Fatihma" is not matched to "Rushda Fatima",
+  because putting one child's roll number on another child's marks is the same
+  class of mistake as reading a serial column as a roll. On the live data 215
+  of 275 names match; the other 60 stay blank and are counted.
+- **A name two students share identifies nobody** and is dropped from the
+  index.
+- An assessment whose rows all end up in one grade is **filed under that
+  grade**, so a file that never stated a grade still reaches Grade Averages
+  and the grade filter. Same rule `_bulkRow()` applies in the preview.
+
+All three importers call it (`bulkImport`, `siImport`, the wide path), and each
+toast says how many values came from the roster rather than the file.
+
+For data already imported, `_rosterBanner()` + `fillScoresFromRoster()` do it
+in place — the banner appears on the Score-based tab only when `_rosterGaps()`
+finds rows the roster can fill, and says how many it cannot. Same
+banner-and-button shape as `repairTeacherNames()` and `relabelScreening()`, and
+for the same reason. **No re-upload is needed**, which is the point: the
+numbers were imported correctly, only the identity columns were missing.
+
+Rubric responses are deliberately **not** included: they already carry a grade
+and show no roll number.
+
+### Headings: an underscore is a word character
+
+`_hdrNorm()` normalises a heading by reading `_` as the space it stands for,
+and all four header predicates (`_wideIsRollHdr`, `_wideIsNameHdr`,
+`_wideIsGradeHdr`, `_wideIsSerialHdr`) go through it. **Cell values keep their
+underscores** — a child's name is not ours to rewrite.
+
+This is not cosmetic. `\b` is a word boundary and `_` is a word character, so
+`/\broll\b/` **never matches `Roll_No`**. Every one of those predicates read
+straight past an underscored heading, which is a shape every machine-exported
+sheet uses: `Student_Name`, `Roll_No`, `Adm_No`, `Grade_Level`, `Sl_No`. The
+cost was silent — no roll numbers, no grades, and a `Sl_No` column that was
+not even recognised as a serial and so was a candidate for the marks column.
+
+`_wideIsGradeHdr` stays **anchored**, and allows only a qualifier around the
+word (`Student Grade`, `Grade Level`, `Class No`). A sheet with a numeric
+column headed `Class Test` would otherwise lose it to the grade column.
 
 ### Wide skill-profiling sheets
 

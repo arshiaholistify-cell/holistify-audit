@@ -12907,6 +12907,116 @@ function saveAssessmentData() {
   if (typeof queueSave === 'function') queueSave();
 }
 
+// ── Roll numbers and grades from the school's own roster ───────────────
+// A marks sheet very often carries neither. The office exports names and
+// marks and nothing else, and the importer can only read what is in the file —
+// so every row lands with a dash where the roll number and grade should be,
+// and Grade Averages has nothing to group by.
+//
+// The school's roster already holds both for every child, on the Students
+// page. A score row naming a student the roster knows can carry that
+// student's roll number and grade without anyone retyping 300 of them.
+//
+// The match is on the name — normalised for case and spacing, and **exact**.
+// It deliberately never guesses: "Rushda Fatihma" is not matched to "Rushda
+// Fatima", because putting one child's roll number on another child's marks
+// is the same mistake as reading a serial column as a roll. A name two
+// students share is dropped from the index for that same reason. What could
+// not be matched is counted and said out loud rather than assumed away.
+function _rosterKey(name) { return _wideNorm(name).toLowerCase(); }
+
+function _rosterIndex() {
+  loadStudentsData();
+  const idx = {}, shared = {};
+  (studentsData || []).forEach(st => {
+    const k = _rosterKey(st && st.name);
+    if (!k) return;
+    if (idx[k]) { shared[k] = 1; return; }
+    idx[k] = { roll: String(st.roll || '').trim(), grade: String(st.grade || '').trim() };
+  });
+  // A shared name identifies nobody.
+  Object.keys(shared).forEach(k => { delete idx[k]; });
+  return { idx: idx, shared: Object.keys(shared), size: Object.keys(idx).length };
+}
+
+// Fills blanks only — whatever the sheet itself stated always wins, because the
+// sheet is the record of what was administered and the roster is a lookup.
+function _fillFromRoster(entries, idx) {
+  let roll = 0, grade = 0, unmatched = 0;
+  (entries || []).forEach(e => {
+    if (e.roll && e.grade) return;
+    const hit = idx[_rosterKey(e.name)];
+    if (!hit) { unmatched++; return; }
+    if (!e.roll && hit.roll) { e.roll = hit.roll; roll++; }
+    if (!e.grade && hit.grade) { e.grade = hit.grade; grade++; }
+  });
+  return { roll: roll, grade: grade, unmatched: unmatched };
+}
+
+// What a fill would do, without doing it — the banner only appears when there
+// is something to fill.
+function _rosterGaps() {
+  const r = _rosterIndex();
+  let gaps = 0, fillable = 0, unmatched = 0;
+  assessments.forEach(a => (scoreEntries[a.id] || []).forEach(e => {
+    if (e.roll && e.grade) return;
+    gaps++;
+    const hit = r.idx[_rosterKey(e.name)];
+    if (hit && ((!e.roll && hit.roll) || (!e.grade && hit.grade))) fillable++;
+    else unmatched++;
+  }));
+  return { gaps: gaps, fillable: fillable, unmatched: unmatched, roster: r.size, shared: r.shared };
+}
+
+function _rosterBanner() {
+  if (!assessments.length) return '';
+  const g = _rosterGaps();
+  if (!g.fillable) return '';
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;' +
+    'padding:10px 13px;background:var(--sage-p);border:0.5px solid var(--sage);border-radius:var(--r-md)">' +
+    '<span style="font-size:12px;color:var(--sage);flex:1">' + g.gaps +
+    ' score row' + (g.gaps === 1 ? '' : 's') + ' have no roll number or grade — the sheets they came from ' +
+    'did not carry one. The student roster can fill <strong>' + g.fillable + '</strong> of them by name' +
+    (g.unmatched ? '; the other ' + g.unmatched + ' name' + (g.unmatched === 1 ? ' is' : 's are') +
+      ' not in the roster and will be left alone' : '') + '.</span>' +
+    '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="fillScoresFromRoster()">' +
+    'Fill from the roster</button></div>';
+}
+
+function fillScoresFromRoster() {
+  const r = _rosterIndex();
+  if (!r.size) {
+    toast('The student roster is empty — import the students first, on the Students page.', 'warn');
+    return;
+  }
+  let roll = 0, grade = 0, unmatched = 0, regraded = 0;
+  assessments.forEach(a => {
+    const got = _fillFromRoster(scoreEntries[a.id] || [], r.idx);
+    roll += got.roll; grade += got.grade; unmatched += got.unmatched;
+    // An assessment whose students now all share one grade is that grade's —
+    // the same rule the bulk preview uses, so a file that never stated a grade
+    // ends up filed where Grade Averages and the grade filter can find it.
+    if (a.grade === 'all' || !a.grade) {
+      const seen = [...new Set((scoreEntries[a.id] || []).map(e => e.grade).filter(Boolean))];
+      if (seen.length === 1) { a.grade = seen[0]; regraded++; }
+    }
+  });
+  if (!roll && !grade) {
+    toast('Nothing to fill — no score row is missing something the roster holds.', 'warn');
+    return;
+  }
+  saveAssessmentData();
+  renderAssessmentPage();
+  const bits = [];
+  if (roll) bits.push(roll + ' roll number' + (roll === 1 ? '' : 's'));
+  if (grade) bits.push(grade + ' grade' + (grade === 1 ? '' : 's'));
+  toast('Filled ' + bits.join(' and ') + ' from the roster' +
+    (regraded ? ', and filed ' + regraded + ' assessment' + (regraded === 1 ? '' : 's') + ' under a grade' : '') +
+    (unmatched ? '. ' + unmatched + ' row' + (unmatched === 1 ? '' : 's') +
+      ' named a student the roster does not list and ' + (unmatched === 1 ? 'was' : 'were') + ' left alone' : '') +
+    '.', 'success');
+}
+
 function renderAssessmentPage() {
   loadAssessmentData();
   populateAssessFilters();
@@ -12953,6 +13063,11 @@ function populateAssessFilters() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = banner;
   });
+  // The roster banner belongs on the score tab alone: it is the Roll No. and
+  // Grade columns of that table it is offering to fill. Rubric responses carry
+  // their grade already and show no roll number.
+  const rb = document.getElementById('assess-screening-banner');
+  if (rb) rb.innerHTML += _rosterBanner();
 }
 
 function renderAssessmentTable() {
@@ -13273,29 +13388,43 @@ function _wideMax(hdr) {
   return { label: raw, max: null };
 }
 
+// A heading is not always typed by hand. An exported sheet writes `Roll_No`,
+// `Student_Name`, `Grade_Level`, and an underscore is a *word* character — so
+// `\broll\b` never matches `Roll_No` and every predicate below read straight
+// past an underscored heading. One real workbook imported 2,900 marks without
+// a single roll number for exactly that reason. Headings therefore come
+// through `_hdrNorm()`, which reads an underscore as the space it stands for.
+// Cell *values* keep theirs: a child's name is not ours to rewrite.
+function _hdrNorm(v) { return _wideNorm(String(v == null ? '' : v).replace(/_+/g, ' ')); }
+
 // A serial number is not an identity. "Sl. No" renumbers itself the moment a
 // student is added or removed, so it must never be taken for a roll number:
 // re-importing a corrected sheet matches on roll, and matching on a serial
 // would write one child's marks onto another. Roll, admission and enrolment
 // numbers do identify a student; a serial column is ignored outright.
 function _wideIsSerialHdr(v) {
-  const t = _wideNorm(v).replace(/[.:]+$/, '').toLowerCase();
+  const t = _hdrNorm(v).replace(/[.:]+$/, '').toLowerCase();
   return /^(sl|sr|s)\.? ?n[o0]\.?$/.test(t) || /^(no|#|sno|slno|srno|serial|sl)\.?$/.test(t) ||
          /^s\.? ?l\.? ?no/.test(t) || /^serial (no|number)$/.test(t);
 }
 function _wideIsRollHdr(v) {
   return /\b(roll|admission|adm\.? ?no|enrol(?:l)?ment|reg(?:n|istration)?\.? ?no|student id|id ?no)\b/i
-    .test(_wideNorm(v));
+    .test(_hdrNorm(v));
 }
 function _wideIsNameHdr(v) {
-  const t = _wideNorm(v).replace(/[.:*]+$/, '').toLowerCase();
+  const t = _hdrNorm(v).replace(/[.:*]+$/, '').toLowerCase();
   if (!t || _wideIsSerialHdr(t)) return false;
   if (t === 'name' || /^(student|students|pupil|pupils)$/.test(t)) return true;
   return /\bname\b/.test(t) && /\b(student|students|pupil|pupils|child|children)\b/.test(t);
 }
+// Anchored, and deliberately: a sheet with a numeric column headed "Class
+// Test" would otherwise lose it to the grade column. A qualifier around the
+// word is allowed ("Student Grade", "Grade Level", "Class No"), a sentence
+// containing it is not.
 function _wideIsGradeHdr(v) {
-  const t = _wideNorm(v).replace(/[.:]+$/, '').toLowerCase();
-  return /^(grade|class|std|standard|section|division|sec)s?$/.test(t);
+  const t = _hdrNorm(v).replace(/[.:]+$/, '').toLowerCase();
+  return /^(?:student|students|pupil|pupils)? ?(grade|class|std|standard|section|division|sec)s? ?(?:level|lvl|no|name)?$/
+    .test(t);
 }
 
 // The grade of a sheet called "Grade 3", "Class V" or "G4". These sheets carry
@@ -13722,7 +13851,8 @@ function siWideImport() {
   const tag = (document.getElementById('si-wide-tag') || { value: '' }).value.trim();
   const today = new Date().toISOString().split('T')[0];
 
-  let created = 0, updated = 0, marks = 0, skipped = 0;
+  let created = 0, updated = 0, marks = 0, skipped = 0, fromRoster = 0;
+  const roster = _rosterIndex();
   sheets.forEach(n => {
     const sw = _siWideSheets[n];
     const grade = sw.grade || gradeIn || 'all';
@@ -13755,6 +13885,10 @@ function siWideImport() {
                        score: String(m.num), remarks: '' });
         marks++;
       });
+      // A skill-profiling sheet names students and marks and rarely more; the
+      // roster carries the rest. Blanks only, exact name match.
+      fromRoster += (function () { const g = _fillFromRoster(entries, roster.idx);
+                                   return g.roll + g.grade; })();
       scoreEntries[rec.id] = (scoreEntries[rec.id] || []).filter(
         e => !entries.some(x => (x.roll && x.roll === e.roll) || x.name === e.name)).concat(entries);
     });
@@ -13766,19 +13900,27 @@ function siWideImport() {
   toast(marks + ' mark' + (marks === 1 ? '' : 's') + ' imported across ' + created + ' new' +
         (updated ? ' and ' + updated + ' updated' : '') + ' assessment' +
         (created + updated === 1 ? '' : 's') +
-        (skipped ? ', ' + skipped + ' skipped as unusable' : '') + '.', 'success');
+        (skipped ? ', ' + skipped + ' skipped as unusable' : '') +
+        (fromRoster ? ', ' + fromRoster + ' roll number or grade filled in from the roster' : '') +
+        '.', 'success');
 }
 
 // ── Bulk upload: every Holistify assessment at once ───────────
 // The single-file importer asks which assessment, which columns and which
-// sheet. For a term\u2019s worth of screening that is the same five answers over
+// sheet. For a term’s worth of screening that is the same five answers over
 // and over, so this path takes every file at once and asks nothing it can read
 // for itself.
 //
-// It extracts **three things only**: the student\u2019s name, the mark scored and
-// the mark it was out of. Roll numbers, remarks, grades and section columns are
-// deliberately ignored \u2014 they are what makes each of these sheets shaped
-// differently, and none of them is needed to produce a percentage.
+// It extracts **five things**: the student’s name, their roll number, their
+// grade, the mark scored and the mark it was out of. Remarks and section
+// columns are ignored — they are part of what makes each of these sheets
+// shaped differently, and neither is needed to produce a percentage.
+//
+// Most of these sheets carry only the name and the mark. What the file does
+// not say, `_fillFromRoster()` takes from the school’s own student roster by
+// an exact name match, so the roll number and grade columns are filled without
+// anyone retyping three hundred of them — and a name the roster does not list
+// is left blank rather than guessed at.
 //
 // One assessment per marks column per sheet. A sheet with six skill columns
 // becomes six assessments, exactly as the wide importer makes them, because
@@ -13900,9 +14042,9 @@ function _bulkSimpleScan(grid) {
   if (!best) return null;
   const gradeCol = _bulkGradeCol(grid, headerRow, rows, [nameCol, best.idx]);
   // A roll number is found by its heading only. By value it is indistinguishable
-  // from the serial number in column A, and a serial is not an identity \u2014 it
+  // from the serial number in column A, and a serial is not an identity — it
   // renumbers whenever a student is added, so taking one for a roll would write
-  // one child\u2019s marks onto another on the next import.
+  // one child’s marks onto another on the next import.
   let rollCol = -1;
   for (let c = 0; c < width && rollCol < 0; c++) {
     if (c === nameCol || c === best.idx || c === gradeCol) continue;
@@ -14147,12 +14289,26 @@ function _bulkRender() {
   const head = document.getElementById('bulk-head');
   const withRoll = _bulkRows.reduce((n, r) => n + (r.use ? r.rolls : 0), 0);
   const withGrade = _bulkRows.reduce((n, r) => n + (r.use ? r.entries.filter(e => e.grade).length : 0), 0);
+  // A sheet carrying neither is the common case, not a fault, so say what will
+  // happen about it here rather than leaving it to be discovered as a column
+  // of dashes: the roster fills what it can recognise by name.
+  const gapRows = marks - Math.min(withRoll, withGrade);
+  let gapNote = '';
+  if (gapRows > 0) {
+    const roster = _rosterIndex();
+    gapNote = roster.size
+      ? ' Where a sheet carries no roll number or grade, they are filled in from the ' +
+        '<strong>student roster</strong> (' + roster.size + ' students) by an exact name match; ' +
+        'a name the roster does not list is left blank rather than guessed at.'
+      : ' Where a sheet carries no roll number or grade, those stay blank \u2014 import the students ' +
+        'on the <strong>Students</strong> page and they can be filled in from the roster by name.';
+  }
   if (head) head.innerHTML = '<strong>' + _bulkRows.length + '</strong> assessment' +
     (_bulkRows.length === 1 ? '' : 's') + ' found across <strong>' + _bulkFiles + '</strong> file' +
     (_bulkFiles === 1 ? '' : 's') + '. Read from each row: the student\u2019s <strong>name</strong>, ' +
     'their <strong>roll number</strong> (' + withRoll + ' have one), their <strong>grade</strong> (' +
     withGrade + ' have one), the <strong>mark</strong> and <strong>what it is out of</strong>. ' +
-    'Remarks and section columns are ignored.';
+    'Remarks and section columns are ignored.' + gapNote;
   const btn = document.getElementById('bulk-count');
   if (btn) btn.textContent = on.length + ' assessment' + (on.length === 1 ? '' : 's') + ', ' + marks + ' marks';
 }
@@ -14211,7 +14367,8 @@ function bulkImport() {
     return;
   }
   const today = new Date().toISOString().split('T')[0];
-  let created = 0, updated = 0, marks = 0, skipped = 0;
+  let created = 0, updated = 0, marks = 0, skipped = 0, fromRoster = 0;
+  const roster = _rosterIndex();
 
   rows.forEach(r => {
     let rec = assessments.filter(a => _bulkKey(a.name, a.grade) === _bulkKey(r.name, r.grade))[0];
@@ -14236,11 +14393,23 @@ function bulkImport() {
                      score: String(e.score), remarks: '' });
       marks++;
     });
-    // Matched on roll where there is one, name otherwise \u2014 two children can
+    // What the sheet did not say, the roster often knows. Fills blanks only.
+    const got = _fillFromRoster(entries, roster.idx);
+    fromRoster += got.roll + got.grade;
+    // Matched on roll where there is one, name otherwise — two children can
     // share a name, and the roll is what tells them apart.
     scoreEntries[rec.id] = (scoreEntries[rec.id] || []).filter(
       x => !entries.some(n => (n.roll && n.roll === x.roll) || (!n.roll && n.name === x.name))
     ).concat(entries);
+  });
+
+  // A sheet that stated no grade can still be filed under one, once the roster
+  // has told every row which grade it is — same rule the preview uses.
+  rows.forEach(r => {
+    const rec = assessments.filter(a => _bulkKey(a.name, a.grade) === _bulkKey(r.name, r.grade))[0];
+    if (!rec || (rec.grade && rec.grade !== 'all')) return;
+    const seen = [...new Set((scoreEntries[rec.id] || []).map(e => e.grade).filter(Boolean))];
+    if (seen.length === 1) rec.grade = seen[0];
   });
 
   saveAssessmentData();
@@ -14249,7 +14418,10 @@ function bulkImport() {
   toast(marks + ' mark' + (marks === 1 ? '' : 's') + ' imported across ' + created + ' new' +
         (updated ? ' and ' + updated + ' updated' : '') + ' assessment' +
         (created + updated === 1 ? '' : 's') +
-        (skipped ? ', ' + skipped + ' above the maximum skipped' : '') + '.', 'success');
+        (skipped ? ', ' + skipped + ' above the maximum skipped' : '') +
+        (fromRoster ? '. ' + fromRoster + ' roll number' +
+          (fromRoster === 1 ? ' or grade was' : 's and grades were') + ' filled in from the roster' : '') +
+        '.', 'success');
 }
 
 function openScoreImport(assessId) {
@@ -14444,6 +14616,8 @@ function siImport() {
                        maxMarks: max, date: new Date().toISOString().split('T')[0], type: 'Uploaded' });
   }
   const keep = rows.filter(e => e.score !== '' && /^\d+(\.\d+)?$/.test(e.score));
+  // A column the file does not have is one the roster usually does. Blanks only.
+  const fill = _fillFromRoster(keep, _rosterIndex().idx);
   scoreEntries[id] = (scoreEntries[id] || []).filter(
     e => !keep.some(n => (n.roll && n.roll === e.roll) || n.name === e.name)).concat(keep);
   saveAssessmentData();
@@ -14451,7 +14625,9 @@ function siImport() {
   renderAssessmentPage();
   const skipped = rows.length - keep.length;
   toast(keep.length + ' score' + (keep.length === 1 ? '' : 's') + ' imported' +
-        (skipped ? ', ' + skipped + ' skipped with no usable mark' : '') + '.', 'success');
+        (skipped ? ', ' + skipped + ' skipped with no usable mark' : '') +
+        (fill.roll + fill.grade ? ', ' + (fill.roll + fill.grade) +
+          ' roll number or grade filled in from the roster' : '') + '.', 'success');
 }
 
 function handleAssessmentUpload(input) {
