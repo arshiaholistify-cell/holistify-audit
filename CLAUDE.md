@@ -806,6 +806,49 @@ Its hint names the standard the item will report against *before* it is saved,
 including when the link is left to derive itself — a wrong guess should be
 visible in the editor, not discovered later in the analytics.
 
+#### The evidence chip on a standard card
+
+Every standard whose linked assessments carry results shows what they say,
+right on the card it is scored on — `buildSaInlineChip(domainId, stdIdx)`,
+drawn from `_saEvidenceStats()`, beside the CPA chip in the same renderer.
+Linking an assessment to a standard was only half the connection: the numbers
+existed in Analytics and the auditor scoring the standard still had to go and
+look them up.
+
+`_saEvidenceStats()` reads through `_assessItemsForStd()`, so the chip can
+never disagree with what the standard's evidence panel lists, and it takes
+rubric responses through `_rubricRespAvg()` / `_rubricLevel()`, so an
+unresolvable descriptor stays unscored rather than counting as a zero.
+
+It reports **two numbers, and they answer different questions**:
+
+- `mean` — the average percentage across every result;
+- `mastery` — the share of results at 60% or above, i.e. at Level 3 or better.
+
+**The suggested level comes from mastery, not the mean**, because that is what
+these standards are written in terms of: Level 3 reads "51–75% students …",
+Level 4 "76–100%", so the thresholds are 76 / 51 / 26. A cohort averaging 60%
+with everyone bunched at 60 is a different school from one averaging 60% with
+half at 30 and half at 90 — same mean, 100% versus 50% mastery, Level 4 versus
+Level 2. An average alone cannot tell them apart, which is the whole reason the
+standards are phrased as a share of students.
+
+Three properties to preserve:
+
+- **It suggests; it never scores.** `applySaSuggested()` runs only from the
+  button. An auditor's own score stands, and the chip then offers "use 2
+  instead" rather than quietly replacing it — same reasoning as
+  `relabelScreening()` and `repairTeacherNames()`.
+- **The suggestion is offered on `sa` only.** Elsewhere the standards are not
+  cohort bands, so "76% of students" describes nothing the standard asks about.
+  Every domain still gets the counts and the average, because linked evidence
+  is worth seeing wherever it exists; `domainId === 'sa'` gates the rest.
+- **No evidence, no chip.** A standard with nothing linked returns `null` and
+  renders nothing, rather than a 0% that reads as a measured failure.
+
+On Iqra's live data this reads Reading 734 results, avg 49%, 32% at Level 3+ →
+Level 2, and Speaking 343 results, avg 54%, 35% → Level 2.
+
 ### CSV helpers
 
 Every CSV export in the file goes through these — do not hand-roll another:

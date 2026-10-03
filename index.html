@@ -4763,7 +4763,7 @@ function renderAudit(domainId) {
               <span style="font-size:11px;color:var(--ink-f)">${sub}</span>
               ${v ? `<span class="badge ${R_CLS[v]}">${R_LABELS[v]}</span>` : '<span style="font-size:11px;color:var(--ink-f)">Not scored</span>'}
             </div>
-            ${domainId === 'cpa' ? buildCpaInlineChip(i) : ''}
+            ${domainId === 'cpa' ? buildCpaInlineChip(i) : ''}${buildSaInlineChip(domainId, i)}
           </div>
           <div class="std-pill" id="pill-${k}" style="${v?'background:'+R_COLORS[v]+'20;border-color:'+R_COLORS[v]+';color:'+R_COLORS[v]:''}">${v||'—'}</div>
           <span class="std-chev" id="chev-${k}">▾</span>
@@ -4895,6 +4895,84 @@ function tpKeysForCpa(cpaIdx) {
 // Get all LP keys that map to a given CPA standard index
 function lpKeysForCpa(cpaIdx) {
   return Object.entries(LP_CPA_MAP).filter(([k,v]) => v === cpaIdx).map(([k]) => k);
+}
+
+// \u2500\u2500 Assessment evidence inside a standard card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Every skill linked to a standard, averaged, so the auditor scoring
+// "Students demonstrate strong reading and comprehension skills" can see what
+// the school's own reading assessments actually say before picking a level.
+//
+// Two numbers, and they answer different questions:
+//   mean    \u2014 the average percentage across every result. How well the cohort
+//             does on average.
+//   mastery \u2014 the share of results at 60% or above. How many children can
+//             actually do it.
+//
+// **The suggested level comes from mastery, not the mean**, because that is
+// what these standards are written in terms of: Level 3 reads "51-75% students
+// read with minor hesitation", Level 4 "76-100%". A cohort averaging 60% with
+// everyone bunched at 60 is a different school from one averaging 60 with half
+// at 30 and half at 90, and only the mastery share tells them apart.
+function _saEvidenceStats(domainId, stdIdx) {
+  const found = _assessItemsForStd(domainId, stdIdx);
+  const pcts = [];
+  found.assessments.forEach(a => (scoreEntries[a.id] || []).forEach(sc => {
+    if (a.maxMarks) pcts.push(Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100));
+  }));
+  found.rubrics.forEach(r => (rubricScores[r.id] || []).forEach(resp => {
+    const avg = _rubricRespAvg(resp, r);
+    if (avg !== null) pcts.push(Math.round(avg / (r.scale || 4) * 100));
+  }));
+  if (!pcts.length) return null;
+  const mean = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+  const mastery = Math.round(pcts.filter(x => x >= 60).length / pcts.length * 100);
+  // The thresholds the standards themselves state.
+  const level = mastery >= 76 ? 4 : mastery >= 51 ? 3 : mastery >= 26 ? 2 : 1;
+  return { n: pcts.length, mean: mean, mastery: mastery, level: level,
+           items: found.assessments.length + found.rubrics.length };
+}
+
+// Shown on every domain that has linked evidence. The suggested level is
+// offered only where the standards are written as cohort bands — Student
+// Attainment — because elsewhere "76% of students" describes nothing the
+// standard is asking about.
+function buildSaInlineChip(domainId, stdIdx) {
+  const st = _saEvidenceStats(domainId, stdIdx);
+  if (!st) return '';
+  const c = _RPT_LV_COLOR[st.level] || '#777';
+  const cur = scores[domainId + '-' + stdIdx];
+  const suggests = domainId === 'sa';
+  let h = '<div style="margin-top:3px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">' +
+    '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;' +
+    'font-size:10px;font-weight:600;background:' + c + '18;color:' + c + ';border:0.5px solid ' + c + '40">' +
+    '📊 ' + st.items + ' assessment' + (st.items === 1 ? '' : 's') + ' \u00b7 ' + st.n +
+    ' results \u00b7 avg <strong>' + st.mean + '%</strong>';
+  if (suggests) h += ' \u00b7 <strong>' + st.mastery + '%</strong> at Level 3+';
+  h += '</span>';
+  if (suggests) {
+    h += '<span style="font-size:10px;color:' + c + ';font-weight:600">\u2192 suggests Level ' + st.level + '</span>';
+    if (cur !== st.level) {
+      h += '<button onclick="event.stopPropagation();applySaSuggested(\'' + domainId + '\',' + stdIdx + ')" ' +
+        'title="Score this standard Level ' + st.level + ', from the linked assessments" ' +
+        'style="font-size:10px;padding:1px 8px;border-radius:20px;border:0.5px solid ' + c + ';' +
+        'background:var(--sur-r);color:' + c + ';cursor:pointer;font-family:inherit">' +
+        (cur ? 'use ' + st.level + ' instead' : 'use Level ' + st.level) + '</button>';
+    } else {
+      h += '<span style="font-size:10px;color:var(--ink-f)">\u2713 matches the score</span>';
+    }
+  }
+  return h + '</div>';
+}
+
+// Applied on request, never automatically. The evidence informs the judgement;
+// it does not replace the auditor making it.
+function applySaSuggested(domainId, stdIdx) {
+  const st = _saEvidenceStats(domainId, stdIdx);
+  if (!st) return;
+  setScore(domainId + '-' + stdIdx, st.level, domainId);
+  renderAudit(domainId);
+  toast('Scored Level ' + st.level + ' from ' + st.n + ' assessment results (' +
+        st.mastery + '% at Level 3 or above).', 'success');
 }
 
 // Build the inline TP/LP average chip shown inside each CPA standard card
