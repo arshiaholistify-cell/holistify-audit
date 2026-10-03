@@ -525,6 +525,41 @@ else, so students scored in the app through `saveRubricScoresManual()`
 as the whole truth would delete that work without saying so. The radio's note
 counts both before you choose.
 
+### Bulk upload
+
+**⬆⬆ Bulk upload** on the Score-based tab takes every workbook at once and asks
+nothing it can read for itself. `openBulkImport()` → `bulkUploadFiles()` →
+`_bulkIngest()` per file → `_bulkScanSheet()` per sheet, into one preview.
+
+It extracts **three things only: the student's name, the mark scored and what
+it was out of.** Roll numbers, remarks, section and grade columns are ignored
+— they are what makes each of these sheets a different shape, and none of them
+is needed to produce a percentage. Entries are stored as `{name, score}`
+and nothing else.
+
+`_bulkScanSheet()` tries `_wideScan()` first, so a sheet of six skill columns
+becomes six assessments exactly as the wide importer makes them; otherwise
+`_bulkSimpleScan()` finds one name column and one marks column, choosing the
+marks column **by its values** (mostly numeric) with a nudge for a heading
+saying mark/score/obtained, never by heading alone.
+
+The maximum is taken in the order worth trusting and the preview says which was
+used: the column heading (`Oral Test - 15 Marks`), then a `Max Marks` / `Out of`
+column, then **nothing**. A sheet that never states its maximum is left blank
+and the import is refused until it is answered — the highest mark is only ever
+a lower bound, and guessing from it silently inflates every percentage.
+
+**A maximum corrected on one row is corrected on every row of the same
+assessment.** The workbook that prompted this repeats each test once per grade,
+so fixing the same wrong heading three times is three chances to fix it
+differently; `_bulkSetMax()` applies by name and says how many rows it set, and
+the preview marks those rows "all 3". Same reasoning as the wide importer
+holding its maxima by column label.
+
+Everything imports as `ASSESS_TYPE_SCREENING`, and re-uploading matches on name
+and grade so a corrected workbook **updates** rather than doubling every average
+built from it.
+
 ### Wide skill-profiling sheets
 
 A sheet with one row per student and one column per skill, each column stating

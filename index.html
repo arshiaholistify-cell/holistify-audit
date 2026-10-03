@@ -1308,7 +1308,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="sip-modal-title">Add School to Hub</div>
     <div class="sip-field"><label>School name *</label><input id="hub-new-school-name" placeholder="e.g. Greenwood International School" oninput="_hubBranchHint()"></div>
     <div class="sip-field"><label>Branch / Campus</label>
-      <input id="hub-new-school-branch" placeholder="e.g. Golekhana English Medium \u2014 leave blank if the school has one campus" oninput="_hubBranchHint()">
+      <input id="hub-new-school-branch" placeholder="e.g. Golekhana English Medium — leave blank if the school has one campus" oninput="_hubBranchHint()">
       <div id="hub-branch-hint" style="font-size:11px;color:var(--ink-f);margin-top:4px;line-height:1.5"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -1632,7 +1632,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <!-- Formal reports: the four documents Holistify issues -->
   <div id="rpt-panel-docs" style="display:none">
     <div class="info-ban">Each report opens as a paginated A4 document in a new tab. Use your browser's
-      <strong>Print \u2192 Save as PDF</strong> to produce the file, and turn on background graphics so the
+      <strong>Print → Save as PDF</strong> to produce the file, and turn on background graphics so the
       cover prints.</div>
     <div id="rpt-docs-body"></div>
   </div>
@@ -2309,6 +2309,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-p" onclick="openAddAssessment()">+ Add assessment</button>
       <button class="btn btn-s" onclick="openAddScore()">+ Add scores</button>
       <button class="btn btn-s" onclick="openScoreImport()">⬆ Upload scores</button>
+      <button class="btn btn-s" onclick="openBulkImport()" title="Upload every Holistify assessment workbook at once">⬆⬆ Bulk upload</button>
       <input type="file" id="assess-csv-input" accept=".csv,.xlsx" style="display:none" onchange="handleAssessmentUpload(this)">
     </div>
   </div>
@@ -2545,6 +2546,46 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
 <!-- Upload marks for a score-based assessment. Mirrors the rubric importer:
      same three sources, same real CSV parser, same preview before committing. -->
+<!-- Bulk upload: every assessment workbook at once -->
+<div class="sip-modal-overlay" id="bulk-import-modal">
+  <div class="sip-modal" style="max-width:860px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('bulk-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
+    <div class="sip-modal-title">⬆⬆ Bulk upload assessments</div>
+
+    <div id="bulk-step1">
+      <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.65">
+        Pick <strong>every workbook at once</strong> — one term’s screening, one grade per sheet, as many
+        files as you have. Each sheet becomes an assessment and each marks column within it becomes its own.<br><br>
+        Only three things are read: the <strong>student’s name</strong>, the <strong>mark scored</strong> and
+        <strong>what it was out of</strong>. Roll numbers, remarks, section and grade columns are ignored — they
+        are what makes every one of these sheets a different shape, and none is needed to produce a percentage.
+      </div>
+      <div id="bulk-err" style="display:none;background:var(--red-p);color:var(--red);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:12px;line-height:1.6"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-p" onclick="document.getElementById('bulk-files').click()">⬆ Choose files…</button>
+        <input type="file" id="bulk-files" multiple accept=".xlsx,.xlsm,.xls,.ods,.csv,text/csv,text/plain" style="display:none" onchange="bulkUploadFiles(this)">
+        <button class="btn btn-s" onclick="document.getElementById('bulk-import-modal').classList.remove('open')">Cancel</button>
+      </div>
+    </div>
+
+    <div id="bulk-step2" style="display:none">
+      <div id="bulk-head" style="font-size:12px;color:var(--ink-l);margin-bottom:10px;line-height:1.6"></div>
+      <div id="bulk-warn" style="display:none;background:var(--amb-p);color:var(--amb);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px;line-height:1.7"></div>
+      <div style="overflow-x:auto;max-height:46vh;overflow-y:auto;margin-bottom:14px">
+        <table class="data-table" style="font-size:12px"><thead><tr>
+          <th style="width:28px"></th><th>Assessment</th><th>From</th><th>Grade</th>
+          <th>Students</th><th>Highest</th><th style="width:86px">Out of</th>
+        </tr></thead><tbody id="bulk-rows"></tbody></table>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-p" onclick="bulkImport()">Import <span id="bulk-count"></span></button>
+        <button class="btn btn-s" onclick="document.getElementById('bulk-files').click()">⬆ Add more files</button>
+        <button class="btn btn-s" onclick="document.getElementById('bulk-import-modal').classList.remove('open')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="sip-modal-overlay" id="score-import-modal">
   <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
     <button onclick="document.getElementById('score-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
@@ -13646,6 +13687,365 @@ function siWideImport() {
         (updated ? ' and ' + updated + ' updated' : '') + ' assessment' +
         (created + updated === 1 ? '' : 's') +
         (skipped ? ', ' + skipped + ' skipped as unusable' : '') + '.', 'success');
+}
+
+// ── Bulk upload: every Holistify assessment at once ───────────
+// The single-file importer asks which assessment, which columns and which
+// sheet. For a term\u2019s worth of screening that is the same five answers over
+// and over, so this path takes every file at once and asks nothing it can read
+// for itself.
+//
+// It extracts **three things only**: the student\u2019s name, the mark scored and
+// the mark it was out of. Roll numbers, remarks, grades and section columns are
+// deliberately ignored \u2014 they are what makes each of these sheets shaped
+// differently, and none of them is needed to produce a percentage.
+//
+// One assessment per marks column per sheet. A sheet with six skill columns
+// becomes six assessments, exactly as the wide importer makes them, because
+// that is what they are.
+
+var _bulkRows = [], _bulkFiles = 0, _bulkSkipped = [];
+
+// Where this sheet states what the marks are out of, in the order worth
+// trusting: the column heading, then a "Max Marks" column, then nothing \u2014
+// never a guess from the highest mark, which is only ever a lower bound.
+function _bulkMaxFromHeader(label) { return _wideMax(label).max; }
+
+function _bulkMaxColumn(grid, headerRow, nameCol) {
+  const w = grid.reduce((n, r) => Math.max(n, (r || []).length), 0);
+  for (let c = 0; c < w; c++) {
+    if (c === nameCol) continue;
+    const h = _wideNorm((grid[headerRow] || [])[c]).toLowerCase();
+    if (!/^(max|max marks|maximum|maximum marks|out of|total marks|total)$/.test(h)) continue;
+    for (let r = headerRow + 1; r < grid.length; r++) {
+      const v = _wideNorm((grid[r] || [])[c]);
+      if (/^\d+(\.\d+)?$/.test(v)) return parseFloat(v);
+    }
+  }
+  return null;
+}
+
+// A plain sheet: one column of names, one of marks. Used when _wideScan finds
+// no wide layout, which is the ordinary single-assessment file.
+function _bulkSimpleScan(grid) {
+  const width = grid.reduce((n, r) => Math.max(n, (r || []).length), 0);
+  const cell = (r, c) => _wideNorm((grid[r] || [])[c]);
+  let headerRow = -1, nameCol = -1;
+  for (let r = 0; r < Math.min(grid.length, 12) && headerRow < 0; r++) {
+    for (let c = 0; c < width; c++) {
+      if (_wideIsNameHdr(cell(r, c))) { headerRow = r; nameCol = c; break; }
+    }
+  }
+  if (headerRow < 0) return null;
+
+  // Rows first: a marks column is decided by its values, not its heading.
+  const rows = [];
+  for (let r = headerRow + 1; r < grid.length; r++) {
+    const nm = cell(r, nameCol);
+    if (!nm || _wideIsNameHdr(nm) || _isInvalidName(nm)) continue;
+    rows.push({ r: r, name: nm });
+  }
+  if (!rows.length) return null;
+
+  let best = null;
+  for (let c = 0; c < width; c++) {
+    if (c === nameCol) continue;
+    const raw = cell(headerRow, c);
+    if (_wideIsSerialHdr(raw) || _wideIsRollHdr(raw) || _wideIsGradeHdr(raw) || _wideIsNameHdr(raw)) continue;
+    if (/^(max|max marks|maximum|maximum marks|out of|total marks)$/i.test(raw)) continue;
+    let filled = 0, numeric = 0;
+    rows.forEach(row => {
+      const v = cell(row.r, c);
+      if (v === '') return;
+      filled++;
+      if (/^\d+(\.\d+)?$/.test(v)) numeric++;
+    });
+    if (!numeric || numeric * 2 < filled) continue;
+    const score = numeric + (/mark|score|obtained|total/i.test(raw) ? 1000 : 0);
+    if (!best || score > best.score) best = { idx: c, label: raw, score: score };
+  }
+  if (!best) return null;
+  return { headerRow: headerRow, nameCol: nameCol, rows: rows, col: best, grid: grid };
+}
+
+// One sheet in, zero or more assessments out.
+function _bulkScanSheet(grid, sheetName, fileName) {
+  const out = [];
+  const stem = String(fileName || '').replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const grade = _wideGradeFromName(sheetName) || _wideGradeFromName(stem) || '';
+
+  const wide = _wideScan(grid, sheetName);
+  if (wide) {
+    wide.cols.forEach(col => {
+      const marks = _wideColumnMarks(wide, col).filter(m => m.num !== null);
+      if (!marks.length) return;
+      out.push({
+        file: fileName, sheet: sheetName,
+        name: col.label + (wide.tag ? ' \u2014 ' + wide.tag : ''),
+        subject: col.band || '', grade: grade || 'all',
+        max: col.headerMax, maxFrom: col.headerMax === null ? '' : 'heading',
+        entries: marks.map(m => ({ name: m.row.name, score: m.num })),
+        use: true,
+      });
+    });
+    return out;
+  }
+
+  const simple = _bulkSimpleScan(grid);
+  if (!simple) return out;
+  const marks = simple.rows.map(row => {
+    const v = _wideNorm((grid[row.r] || [])[simple.col.idx]);
+    return { name: row.name, score: /^\d+(\.\d+)?$/.test(v) ? parseFloat(v) : null };
+  }).filter(m => m.score !== null);
+  if (!marks.length) return out;
+
+  let max = _bulkMaxFromHeader(simple.col.label);
+  let from = max === null ? '' : 'heading';
+  if (max === null) {
+    max = _bulkMaxColumn(grid, simple.headerRow, simple.nameCol);
+    if (max !== null) from = 'column';
+  }
+  // The sheet name is the assessment unless the workbook has only this one,
+  // in which case the file name is what the person recognises.
+  const label = _wideMax(simple.col.label).label;
+  out.push({
+    file: fileName, sheet: sheetName,
+    name: (sheetName && !/^sheet\d*$/i.test(sheetName) ? sheetName : stem) ||
+          label || 'Uploaded assessment',
+    subject: /^(marks|score|total|obtained)$/i.test(label) ? '' : label,
+    grade: grade || 'all',
+    max: max, maxFrom: from,
+    entries: marks, use: true,
+  });
+  return out;
+}
+
+function openBulkImport() {
+  loadAssessmentData();
+  _bulkRows = []; _bulkFiles = 0; _bulkSkipped = [];
+  document.getElementById('bulk-step1').style.display = '';
+  document.getElementById('bulk-step2').style.display = 'none';
+  const err = document.getElementById('bulk-err'); if (err) err.style.display = 'none';
+  document.getElementById('bulk-import-modal').classList.add('open');
+}
+
+function _bulkError(msg) {
+  const el = document.getElementById('bulk-err');
+  if (!el) return;
+  el.innerHTML = msg; el.style.display = '';
+}
+
+function bulkUploadFiles(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  _bulkRows = []; _bulkFiles = files.length; _bulkSkipped = [];
+  const err = document.getElementById('bulk-err'); if (err) err.style.display = 'none';
+
+  let pending = files.length;
+  files.forEach(file => {
+    const r = new FileReader();
+    r.onerror = () => { _bulkSkipped.push(file.name + ' \u2014 could not be read'); if (!--pending) _bulkShow(); };
+    r.onload = e => {
+      try { _bulkIngest(e.target.result, file.name); }
+      catch (err2) { _bulkSkipped.push(file.name + ' \u2014 ' + err2.message); }
+      if (!--pending) _bulkShow();
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function _bulkIngest(buf, fileName) {
+  const src = _sniffBytes(buf);
+  if (src.kind === 'workbook') {
+    const names = _sheetsWithRows(src.workbook);
+    if (!names.length) { _bulkSkipped.push(fileName + ' \u2014 no sheet has rows'); return; }
+    let found = 0;
+    names.forEach(n => {
+      const grid = _csvGrid(XLSX.utils.sheet_to_csv(src.workbook.Sheets[n], { blankrows: false }));
+      const rows = _bulkScanSheet(grid, n, fileName);
+      rows.forEach(x => _bulkRows.push(x));
+      found += rows.length;
+    });
+    if (!found) _bulkSkipped.push(fileName + ' \u2014 no column of names and marks found');
+    return;
+  }
+  if (/^\s*</.test(src.text) || /<html|<!doctype/i.test(src.text.slice(0, 500))) {
+    _bulkSkipped.push(fileName + ' \u2014 looks like a web page, not data');
+    return;
+  }
+  const rows = _bulkScanSheet(_csvGrid(src.text), '', fileName);
+  rows.forEach(x => _bulkRows.push(x));
+  if (!rows.length) _bulkSkipped.push(fileName + ' \u2014 no column of names and marks found');
+}
+
+function _bulkTop(row) {
+  return row.entries.length ? Math.max.apply(null, row.entries.map(e => e.score)) : null;
+}
+
+// A maximum corrected on one row is corrected on every row of the same
+// assessment. One test has one maximum however many grades sat it, and the
+// workbook that prompted this repeats each test once per grade \u2014 fixing the
+// same wrong heading three times is three chances to fix it differently.
+function _bulkSetMax(i, v) {
+  const row = _bulkRows[i];
+  if (!row) return;
+  const n = parseFloat(v);
+  const max = isNaN(n) || n <= 0 ? null : n;
+  const key = String(row.name || '').trim().toLowerCase();
+  let applied = 0;
+  _bulkRows.forEach(r => {
+    if (String(r.name || '').trim().toLowerCase() !== key) return;
+    r.max = max; r.maxFrom = 'typed'; applied++;
+  });
+  if (applied > 1) toast('Set to ' + (max === null ? 'blank' : max) + ' on all ' + applied +
+    ' \u201c' + row.name + '\u201d rows.', 'success');
+  _bulkShow();
+}
+function _bulkToggle(i, on) { if (_bulkRows[i]) _bulkRows[i].use = !!on; _bulkShow(); }
+function _bulkSetName(i, v) { if (_bulkRows[i]) _bulkRows[i].name = v; }
+
+function _bulkShow() {
+  document.getElementById('bulk-step1').style.display = 'none';
+  document.getElementById('bulk-step2').style.display = '';
+  _bulkRender();
+}
+
+function _bulkRender() {
+  const body = document.getElementById('bulk-rows');
+  if (!body) return;
+  if (!_bulkRows.length) {
+    document.getElementById('bulk-step2').style.display = 'none';
+    document.getElementById('bulk-step1').style.display = '';
+    _bulkError('Nothing could be read from ' + _bulkFiles + ' file' + (_bulkFiles === 1 ? '' : 's') +
+      '. Each sheet needs a column of student names and a column of marks.' +
+      (_bulkSkipped.length ? '<br>' + _bulkSkipped.map(_escHtml).join('<br>') : ''));
+    return;
+  }
+
+  const warn = [];
+  body.innerHTML = _bulkRows.map((r, i) => {
+    const top = _bulkTop(r);
+    const over = r.max === null ? 0 : r.entries.filter(e => e.score > r.max).length;
+    if (r.use && r.max === null)
+      warn.push('<strong>' + _escHtml(r.name) + '</strong> does not say what it is out of \u2014 ' +
+        'type the maximum, or it cannot become a percentage.');
+    else if (r.use && over)
+      warn.push(over + ' mark' + (over === 1 ? '' : 's') + ' in <strong>' + _escHtml(r.name) +
+        '</strong> ' + (over === 1 ? 'is' : 'are') + ' above ' + r.max + ' and will be skipped.');
+    else if (r.use && top !== null && top > 0 && r.max !== null && r.max >= top * 2)
+      warn.push('<strong>' + _escHtml(r.name) + '</strong> is out of ' + r.max +
+        ', but the highest mark is ' + top + '. ' +
+        '<button onclick="_bulkSetMax(' + i + ',' + top + ')" style="font-size:11px;padding:1px 8px;' +
+        'border-radius:20px;border:0.5px solid var(--amb);background:var(--sur-r);color:var(--amb);' +
+        'cursor:pointer;font-family:inherit">use ' + top + '</button>');
+
+    return '<tr style="opacity:' + (r.use ? '1' : '0.45') + '">' +
+      '<td><input type="checkbox"' + (r.use ? ' checked' : '') +
+        ' onchange="_bulkToggle(' + i + ',this.checked)"></td>' +
+      '<td><input value="' + _escHtml(r.name) + '" onchange="_bulkSetName(' + i + ',this.value)" ' +
+        'style="width:100%;min-width:150px;padding:3px 6px;border:0.5px solid var(--bdr-s);' +
+        'border-radius:4px;font-size:12px;font-family:\'DM Sans\',sans-serif"></td>' +
+      '<td style="font-size:11px;color:var(--ink-f)">' + _escHtml(r.file) +
+        (r.sheet ? '<br>' + _escHtml(r.sheet) : '') + '</td>' +
+      '<td>' + _escHtml(r.grade === 'all' ? '\u2014' : r.grade) + '</td>' +
+      '<td>' + r.entries.length + '</td>' +
+      '<td>' + (top === null ? '\u2014' : top) + '</td>' +
+      '<td><input type="number" min="0.5" step="0.5" value="' + (r.max === null ? '' : r.max) + '" ' +
+        'onchange="_bulkSetMax(' + i + ',this.value)" style="width:62px;padding:3px 5px;border:0.5px solid ' +
+        (r.max === null ? 'var(--red)' : 'var(--bdr-s)') + ';border-radius:4px;font-size:12px;' +
+        'font-family:\'DM Sans\',sans-serif">' +
+        (r.maxFrom && r.max !== null ? '<div style="font-size:9px;color:var(--ink-f)">from the ' +
+          _escHtml(r.maxFrom) + (_bulkSameName(r.name) > 1 ? ' \u00b7 all ' + _bulkSameName(r.name) : '') +
+          '</div>' : '') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  if (_bulkSkipped.length) {
+    warn.push(_bulkSkipped.length + ' file' + (_bulkSkipped.length === 1 ? '' : 's') +
+      ' could not be read: ' + _bulkSkipped.map(_escHtml).join('; ') + '.');
+  }
+  const dupes = _bulkDuplicates();
+  if (dupes.length) warn.push(dupes.length + ' of these already exist and will be <strong>updated</strong> ' +
+    'rather than added again: ' + dupes.slice(0, 4).map(d => _escHtml(d)).join(', ') +
+    (dupes.length > 4 ? ' and ' + (dupes.length - 4) + ' more' : '') + '.');
+
+  const wEl = document.getElementById('bulk-warn');
+  if (wEl) { wEl.style.display = warn.length ? '' : 'none'; wEl.innerHTML = warn.map(x => '\u26a0 ' + x).join('<br>'); }
+
+  const on = _bulkRows.filter(r => r.use);
+  const marks = on.reduce((n, r) => n + r.entries.filter(e => r.max === null || e.score <= r.max).length, 0);
+  const head = document.getElementById('bulk-head');
+  if (head) head.innerHTML = '<strong>' + _bulkRows.length + '</strong> assessment' +
+    (_bulkRows.length === 1 ? '' : 's') + ' found across <strong>' + _bulkFiles + '</strong> file' +
+    (_bulkFiles === 1 ? '' : 's') + '. Only the student name, the mark and what it is out of are read \u2014 ' +
+    'roll numbers, remarks and section columns are ignored.';
+  const btn = document.getElementById('bulk-count');
+  if (btn) btn.textContent = on.length + ' assessment' + (on.length === 1 ? '' : 's') + ', ' + marks + ' marks';
+}
+
+function _bulkSameName(name) {
+  const k = String(name || '').trim().toLowerCase();
+  return _bulkRows.filter(r => String(r.name || '').trim().toLowerCase() === k).length;
+}
+
+function _bulkKey(name, grade) {
+  return String(name || '').trim().toLowerCase() + '|' + String(grade || 'all');
+}
+function _bulkDuplicates() {
+  const out = [];
+  _bulkRows.filter(r => r.use).forEach(r => {
+    if (assessments.some(a => _bulkKey(a.name, a.grade) === _bulkKey(r.name, r.grade))) out.push(r.name);
+  });
+  return out;
+}
+
+function bulkImport() {
+  const rows = _bulkRows.filter(r => r.use);
+  if (!rows.length) { _bulkError('Nothing selected to import.'); return; }
+  const missing = rows.filter(r => r.max === null);
+  if (missing.length) {
+    toast('Set what ' + missing.length + ' assessment' + (missing.length === 1 ? '' : 's') +
+          ' are out of first.', 'warn');
+    return;
+  }
+  const today = new Date().toISOString().split('T')[0];
+  let created = 0, updated = 0, marks = 0, skipped = 0;
+
+  rows.forEach(r => {
+    let rec = assessments.filter(a => _bulkKey(a.name, a.grade) === _bulkKey(r.name, r.grade))[0];
+    if (rec) {
+      rec.maxMarks = r.max;
+      if (r.subject) rec.subject = r.subject;
+      updated++;
+    } else {
+      rec = { id: 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+              name: r.name, subject: r.subject || '',
+              skill: _deriveSkill({ name: r.name, subject: r.subject }) || '',
+              grade: r.grade || 'all', term: 'Term 1', maxMarks: r.max, date: today,
+              type: ASSESS_TYPE_SCREENING };
+      assessments.push(rec);
+      created++;
+    }
+    const entries = [];
+    r.entries.forEach(e => {
+      if (e.score > r.max) { skipped++; return; }
+      entries.push({ name: e.name, roll: '', grade: r.grade === 'all' ? '' : r.grade,
+                     score: String(e.score), remarks: '' });
+      marks++;
+    });
+    scoreEntries[rec.id] = (scoreEntries[rec.id] || [])
+      .filter(x => !entries.some(n => n.name === x.name)).concat(entries);
+  });
+
+  saveAssessmentData();
+  document.getElementById('bulk-import-modal').classList.remove('open');
+  renderAssessmentPage();
+  toast(marks + ' mark' + (marks === 1 ? '' : 's') + ' imported across ' + created + ' new' +
+        (updated ? ' and ' + updated + ' updated' : '') + ' assessment' +
+        (created + updated === 1 ? '' : 's') +
+        (skipped ? ', ' + skipped + ' above the maximum skipped' : '') + '.', 'success');
 }
 
 function openScoreImport(assessId) {
