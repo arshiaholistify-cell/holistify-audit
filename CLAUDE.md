@@ -1065,7 +1065,7 @@ Two reports sit beside it:
 
 | Report | What it is |
 |---|---|
-| Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix**, the same matrix per skill **with the children's names in the cells**, and a roster of one row per student |
+| Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix**, then **one grid per grade** with skills across the top, their four levels beneath and the children listed down each column, and a roster of one row per student |
 | Student Screening Profile | one child in full — level per skill, what that level means, the mark behind it, and which skills need support |
 
 Both read `_rptStudentIndex(scope)`, which walks **the same assessments and
@@ -1090,14 +1090,31 @@ Things decided here that are easy to get wrong:
 - A child's **overall level** is the rounded average of the skills they were
   screened on — the same rule a domain score uses — not a mark total.
 
-**The names go in table cells, not in a sentence.** The first cut printed each
+**The names go in a grid, not in a sentence.** The first cut printed each
 level's students as one semicolon-separated run; on real data that was a
-paragraph of 417 names, which is a wall rather than a list. Everything a school
-does with this is "which grade, at which level", so that is the shape: grade
-down the side, the four levels across the top, the children in the cell, each
-with the roll number the roster knows them by. `_rptStudentGrades()` orders the
-grades as `GRADES_ORDER` does and puts anything ungraded last rather than
-dropping it.
+paragraph of 417 names, which is a wall rather than a list.
+
+Section 3 is now the shape the school already keeps this in by hand — a
+spreadsheet with **a sheet per class**, each skill split into its four levels,
+the children listed down the column. So: one grid per grade, the skill as a
+banner across four columns, `Level 1`…`Level 4` beneath it with a count, and
+the names stacked down each column. Reading "who in my class needs reading
+support" is then one column rather than a search.
+
+- **Two skills per table** (`CHUNK = 2`), which gives eight columns of about
+  21mm on A4 portrait. Three gives 14mm, and `MOHIUDDIN` does not fit in 14mm
+  at any readable size — it broke mid-word as `MOHIUDDI / N`. The cells wrap on
+  `overflow-wrap`, not `word-break`, so a name breaks between its words and
+  only splits one if it cannot fit a line alone.
+- **Every grade gets the same chunks in the same order**, so a skill is in the
+  same place on every page.
+- **Each grade starts a new page**, as each class is its own sheet in the
+  original.
+
+Section 2 keeps the compact grade × level matrix — each child counted once at
+their overall level — as the summary that sits above the grids.
+`_rptStudentGrades()` orders the grades as `GRADES_ORDER` does and puts
+anything ungraded last rather than dropping it.
 
 The roster report **says on its first page that it names identifiable
 children** and points at the summary as the version for wider circulation. The

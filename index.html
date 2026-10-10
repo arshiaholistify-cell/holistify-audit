@@ -7127,6 +7127,18 @@ const _RPT_CSS = `
   .bar .val { width:16mm; flex:0 0 16mm; text-align:right; font-weight:600; }
   .foot { margin-top:8mm; padding-top:3mm; border-top:0.5pt solid #ccc; font-size:8.5pt;
           color:#777; text-align:center; }
+  table.grid { table-layout:fixed; width:100%; font-size:7pt; margin:1mm 0 5mm;
+               page-break-inside:auto; }
+  table.grid th.gsk { background:#1E3A35; color:#fff; font-size:7.5pt; padding:1.2mm 1mm;
+                      text-align:center; border:0.5pt solid #1E3A35; }
+  table.grid th.glv { background:#F2F6F4; color:#1E3A35; font-size:7pt; padding:0.8mm 0.5mm;
+                      text-align:center; border:0.5pt solid #C7D5CF; border-top-width:1.2pt;
+                      border-top-style:solid; }
+  table.grid th.glv .gn { font-weight:400; font-size:6pt; color:#6b7672; }
+  table.grid td.gnm { padding:0.6mm 1mm; border:0.5pt solid #E1E8E5; vertical-align:top;
+                      word-break:normal; overflow-wrap:break-word; hyphens:none;
+                      line-height:1.25; }
+  table.grid tr:nth-child(even) td.gnm { background:#FAFBFB; }
   .finding { margin:0 0 3mm; page-break-inside:avoid; }
   .finding .ft { font-weight:600; color:#1E3A35; }
   .finding .fb { display:block; }
@@ -8332,39 +8344,57 @@ function buildStudentScreeningReport() {
     '<td class="num"><strong>' + _rptPct(tAt(1) + tAt(2), rows.length) + '%</strong></td></tr></table>';
 
   // \u2500\u2500 3. The same thing per skill, with the names in the cells \u2500\u2500
-  h += '<div class="pb"></div><h2>3. Students by skill, grade and level</h2>' +
-    '<p>One table per skill: the grade down the side, the level across the top, and the children ' +
-    'in each cell. <strong>Level 1</strong> is a child who cannot yet perform the skill; ' +
-    '<strong>Level 2</strong> is one who can, with frequent errors. Those two columns are the ' +
-    'lists to plan from.</p>';
-  skills.forEach(sk => {
-    const inSk = rows.filter(st => st.skills[sk]);
-    if (!inSk.length) return;
-    const gs = _rptStudentGrades(inSk);
-    const low = inSk.filter(st => st.skills[sk].lv <= 2).length;
-    h += '<h3>' + _escHtml(sk) + '</h3>' +
-      '<p class="lede">' + inSk.length + ' screened \u00b7 ' + low + ' at Level 1\u20132 (' +
-      _rptPct(low, inSk.length) + '%)</p>' +
-      '<table style="font-size:8pt"><tr><th style="width:17mm">Grade</th>' +
-      [1,2,3,4].map(lv => '<th style="width:40mm">Level ' + lv + '<div style="font-weight:400;' +
-        'font-size:7pt;color:#4a5a55">' + _RPT_SCREEN_LEVELS[lv] + '</div></th>').join('') +
-      '</tr>';
-    gs.forEach(g => {
-      const inG = inSk.filter(st => (st.grade || '\u2014') === g);
-      h += '<tr><td><strong>' + _escHtml(g) + '</strong><div style="font-size:7pt;color:#6b7672">' +
-        inG.length + ' screened</div></td>' +
-        [1,2,3,4].map(lv => {
-          const list = inG.filter(st => st.skills[sk].lv === lv);
-          if (!list.length) return '<td style="color:#9aa5a1">\u2014</td>';
-          return '<td><strong style="color:' + _RPT_LV_COLOR[lv] + '">' + list.length + '</strong> ' +
-            _rptNameList(list) + '</td>';
-        }).join('') + '</tr>';
+  // \u2500\u2500 3. A grid per grade: skills across, levels beneath, names stacked \u2500\u2500
+  // The shape the school already keeps this in by hand \u2014 a sheet per class,
+  // each skill split into its four levels, the children listed down the
+  // column. Reading "who in my class needs reading support" is then one
+  // column, not a search through a paragraph.
+  //
+  // Skills are taken a few at a time so the columns stay wide enough for a
+  // name on an A4 page; every grade gets the same chunks, so the same skill
+  // is in the same place on every page.
+  h += '<div class="pb"></div><h2>3. Students by grade and level</h2>' +
+    '<p>One grid per grade, in the shape the school keeps these in: the skill across the top, ' +
+    'its four levels beneath, and the children listed down each column. <strong>Level 1</strong> is ' +
+    'a child who cannot yet perform the skill; <strong>Level 4</strong> is secure mastery.</p>';
+
+  const CHUNK = 2;
+  const chunks = [];
+  for (let i = 0; i < skills.length; i += CHUNK) chunks.push(skills.slice(i, i + CHUNK));
+
+  grades.forEach((g, gi) => {
+    const inG = rows.filter(st => (st.grade || '\u2014') === g);
+    if (!inG.length) return;
+    h += (gi ? '<div class="pb"></div>' : '') +
+      '<h3>' + _escHtml(g) + '</h3>' +
+      '<p class="lede">' + inG.length + ' student' + (inG.length === 1 ? '' : 's') + ' screened \u00b7 ' +
+      skills.filter(sk => inG.some(st => st.skills[sk])).length + ' skill' +
+      (skills.filter(sk => inG.some(st => st.skills[sk])).length === 1 ? '' : 's') + '</p>';
+
+    chunks.forEach(group => {
+      const cols = [];
+      group.forEach(sk => [1, 2, 3, 4].forEach(lv => {
+        cols.push({ sk: sk, lv: lv,
+          names: inG.filter(st => st.skills[sk] && st.skills[sk].lv === lv)
+                    .map(st => st.name) });
+      }));
+      if (!cols.some(c => c.names.length)) return;
+      const depth = cols.reduce((n, c) => Math.max(n, c.names.length), 0);
+      const w = (170 / cols.length).toFixed(1);
+
+      h += '<table class="grid"><thead><tr>' +
+        group.map(sk => '<th colspan="4" class="gsk">' + _escHtml(sk) + '</th>').join('') +
+        '</tr><tr>' +
+        cols.map(c => '<th class="glv" style="width:' + w + 'mm;border-top-color:' +
+          _RPT_LV_COLOR[c.lv] + '">Level ' + c.lv +
+          '<div class="gn">' + (c.names.length || '\u2013') + '</div></th>').join('') +
+        '</tr></thead><tbody>';
+      for (let r = 0; r < depth; r++) {
+        h += '<tr>' + cols.map(c => '<td class="gnm">' +
+          (c.names[r] ? _escHtml(c.names[r]) : '') + '</td>').join('') + '</tr>';
+      }
+      h += '</tbody></table>';
     });
-    h += '<tr><td><strong>All grades</strong></td>' +
-      [1,2,3,4].map(lv => {
-        const n = inSk.filter(st => st.skills[sk].lv === lv).length;
-        return '<td class="num"><strong>' + n + '</strong> (' + _rptPct(n, inSk.length) + '%)</td>';
-      }).join('') + '</tr></table>';
   });
 
   // ── 4. The roster ──
