@@ -8063,6 +8063,27 @@ function _rptStudentList(scope, grade) {
   return rows;
 }
 
+// A child's name as it should be read, not as the office happened to type it.
+// One sheet arrives shouting — `AARHAN PASHA` — and the next whispering
+// — `Arfa firdous`; printed side by side in a document about children, both
+// look careless.
+//
+// It re-cases a word only when that word is **entirely upper or entirely
+// lower case**. A word that already mixes them was spelled that way on
+// purpose: `McDonald` and `DeSouza` are left exactly as written, where a
+// blanket lower-case-then-capitalise would flatten them to `Mcdonald`.
+//
+// This is presentation only. The stored name is never rewritten — it is the
+// key that matches a child to the roster and reconciles this report with the
+// summary, and a name is not ours to edit in the record.
+function _rptName(n) {
+  return String(n == null ? '' : n).replace(/\S+/g, w =>
+    (w === w.toUpperCase() || w === w.toLowerCase())
+      ? w.toLowerCase().replace(/(^|[-'’.])([a-zà-ÿ])/g,
+          (m, a, b) => a + b.toUpperCase())
+      : w);
+}
+
 // The grades present, in the order the rest of the app uses, with anything
 // ungraded last rather than dropped — a child with no grade is still a child
 // the school has to teach.
@@ -8072,15 +8093,6 @@ function _rptStudentGrades(rows) {
   const out = GRADES_ORDER.filter(g => seen[g]);
   Object.keys(seen).forEach(g => { if (out.indexOf(g) < 0) out.push(g); });
   return out;
-}
-
-// Names for a table cell: the roll number where the roster knows it, because
-// two children in a class can share a first name and the roll is what a
-// teacher looks them up by.
-function _rptNameList(list) {
-  return list.map(st => _escHtml(st.name) +
-    (st.roll ? ' <span style="color:#8a9793">' + _escHtml(st.roll) + '</span>' : ''))
-    .join(', ');
 }
 
 // Every skill any of these students was screened on, in a stable order.
@@ -8391,7 +8403,7 @@ function buildStudentScreeningReport() {
         '</tr></thead><tbody>';
       for (let r = 0; r < depth; r++) {
         h += '<tr>' + cols.map(c => '<td class="gnm">' +
-          (c.names[r] ? _escHtml(c.names[r]) : '') + '</td>').join('') + '</tr>';
+          (c.names[r] ? _escHtml(_rptName(c.names[r])) : '') + '</td>').join('') + '</tr>';
       }
       h += '</tbody></table>';
     });
@@ -8406,7 +8418,7 @@ function buildStudentScreeningReport() {
     skills.map(sk => '<th class="num">' + _escHtml(sk) + '</th>').join('') +
     '<th class="num">Overall</th></tr>';
   rows.forEach(st => {
-    h += '<tr><td>' + _escHtml(st.roll || '—') + '</td><td>' + _escHtml(st.name) +
+    h += '<tr><td>' + _escHtml(st.roll || '—') + '</td><td>' + _escHtml(_rptName(st.name)) +
       '</td><td>' + _escHtml(st.grade || '—') + '</td>' +
       skills.map(sk => {
         const v = st.skills[sk];
@@ -8431,16 +8443,16 @@ function buildStudentIndivReport(key) {
   if (!st) { toast('That student has no screening results in this scope.', 'warn'); return; }
   const skills = Object.keys(st.skills).sort();
 
-  let h = _rptCover('Holistify.ai', 'Student Screening Profile', st.name,
+  let h = _rptCover('Holistify.ai', 'Student Screening Profile', _rptName(st.name),
                     [st.grade, st.roll ? 'Roll ' + st.roll : ''].filter(Boolean).join(' · '));
 
-  h += '<div class="sheet"><h1>' + _escHtml(st.name) + '</h1>' +
+  h += '<div class="sheet"><h1>' + _escHtml(_rptName(st.name)) + '</h1>' +
     '<p class="lede">' + _escHtml(_rptSchoolFull()) +
     (st.grade ? ' · ' + _escHtml(st.grade) : '') +
     (st.roll ? ' · Roll ' + _escHtml(st.roll) : '') + '</p>';
 
   h += '<h2>1. Profile</h2><table><tr><th>Indicator</th><th>Value</th></tr>' +
-    '<tr><td>Student</td><td>' + _escHtml(st.name) + '</td></tr>' +
+    '<tr><td>Student</td><td>' + _escHtml(_rptName(st.name)) + '</td></tr>' +
     (st.roll ? '<tr><td>Roll number</td><td>' + _escHtml(st.roll) + '</td></tr>' : '') +
     (st.grade ? '<tr><td>Grade</td><td>' + _escHtml(st.grade) + '</td></tr>' : '') +
     '<tr><td>Skills screened</td><td>' + skills.length + '</td></tr>' +
@@ -8462,7 +8474,7 @@ function buildStudentIndivReport(key) {
   const weak = skills.filter(sk => st.skills[sk].lv <= 2);
   const strong = skills.filter(sk => st.skills[sk].lv >= 3);
   h += '<h2>3. What this says</h2>';
-  h += '<p>' + _escHtml(st.name) + ' was screened on ' + skills.length + ' skill' +
+  h += '<p>' + _escHtml(_rptName(st.name)) + ' was screened on ' + skills.length + ' skill' +
     (skills.length === 1 ? '' : 's') + ' and averages <strong>' + st.avg.toFixed(1) +
     ' of 4</strong>, placing ' + (st.level >= 3 ? 'them at a competent level overall'
       : 'them where targeted support is needed') + '. ' +
@@ -8487,7 +8499,7 @@ function buildStudentIndivReport(key) {
     'It is a starting point for teaching, not a judgement of the child.</div>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen(st.name + ' — Student Screening Profile', h, false,
+  _rptOpen(_rptName(st.name) + ' — Student Screening Profile', h, false,
            'Holistify Student Screening Profile');
 }
 
@@ -8595,7 +8607,7 @@ function renderFormalReports() {
 function _rptStuOptions(rows) {
   return rows.map(st => '<option value="' +
     _escHtml(st.name.toLowerCase() + '|' + st.grade.toLowerCase()) + '">' +
-    _escHtml(st.name) + (st.grade ? ' \u2014 ' + _escHtml(st.grade) : '') +
+    _escHtml(_rptName(st.name)) + (st.grade ? ' \u2014 ' + _escHtml(st.grade) : '') +
     (st.roll ? ' (roll ' + _escHtml(st.roll) + ')' : '') + '</option>').join('');
 }
 

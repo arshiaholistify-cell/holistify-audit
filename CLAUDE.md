@@ -1111,6 +1111,19 @@ support" is then one column rather than a search.
 - **Each grade starts a new page**, as each class is its own sheet in the
   original.
 
+**Names are printed in sentence case, and only printed that way.**
+`_rptName()` re-cases a word only when that word is **entirely upper or
+entirely lower case** — the sheets arrive with `AARHAN PASHA` on one row and
+`Arfa firdous` on the next, and side by side in a document about children both
+look careless. A word that already mixes cases was spelled that way on purpose,
+so `McDonald` and `DeSouza` are left exactly as written where a blanket
+lower-case-then-capitalise would flatten them to `Mcdonald`.
+
+It is presentation only: **the stored name is never rewritten**, because it is
+the key that matches a child to the roster and reconciles this report with the
+summary. The grid cells carry the name alone — the roll number belongs in the
+roster's own column, where there is room for it.
+
 Section 2 keeps the compact grade × level matrix — each child counted once at
 their overall level — as the summary that sits above the grids.
 `_rptStudentGrades()` orders the grades as `GRADES_ORDER` does and puts
