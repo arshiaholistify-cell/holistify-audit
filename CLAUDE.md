@@ -220,6 +220,87 @@ topbar shows the branch as a chip rather than one long string, and the reports
 print it as the **Campus** row of the School Information table and on the cover,
 as the published format does.
 
+## How a score is built, and where the weightage is shown
+
+Two steps, and `_wtStats(domainId)` is the only place either is computed, so no
+card, panel or report can disagree with another about them:
+
+1. **A domain's percentage** is the average of the standards you have *scored*,
+   out of 4. An unscored standard is **not a zero** — it is not counted yet.
+   This is what `domainScore()` has always done; it was just never explained.
+2. **The Quality Score out of 100** is each domain's percentage times that
+   domain's weight. The seven weights sum to 100: **CPA carries 40**, the other
+   six carry 10 each.
+
+The pages used to print the percentage and the weight and leave the reader to
+infer the rest. Two things follow from the arithmetic that nobody could guess
+from a bare percentage, and both are now stated on screen:
+
+- **One level, on one standard, is worth a knowable amount** — `25/scored` of
+  the domain percentage, and `weight/(4 × scored)` of the Quality Score. That
+  second figure is *inverse to the number of standards*, so among the six
+  10-point domains it ranges from **0.36 pts** on External Development (7
+  standards) to **0.069 pts** on Vision & Culture (36). CPA carries the most
+  weight overall and is still only 0.13 pts a level, because its 40 points are
+  spread across 75 standards. `_wtTotalPanel()` ranks this explicitly, because
+  "where does an hour of work buy the most?" is not answerable from a weight
+  column alone.
+- **Scoring more standards can push the percentage down while pushing the
+  points up**, since the denominator grows. One standard at Level 4 reads 100%.
+  `_wtPanel()` says so wherever a domain has unscored standards left.
+
+`_wtStats()` returns `earned` (points contributed now), `headroom` (points
+still available here), `perLevelPct` / `perLevelPts`, and `steps` / `stepsPts`
+(the level-steps still open on what is already scored, and what they are worth).
+
+Where it appears:
+
+| Place | What it shows |
+|---|---|
+| Audit page header | `worth 10 of the 100 points · 12 scored · 58% · contributing 5.8 pts` |
+| Audit page, `_wtPanel()` | the five figures, then how to raise them, in this domain's own numbers |
+| Overview metric card | the Quality Score, plus **points still available** |
+| Overview domain card | `58% × 10 pts = 5.8 pts` and `0.21 pts / level` |
+| Overview domain bars | each domain's contribution beside its percentage |
+| Overview + Score Report | `_wtTotalPanel()` — every domain's weightage in one table, with a total row |
+| SIP domain tile and detail | the same figures, so the plan and the audit agree |
+
+## The SIP, read by domain
+
+The plan is organised by **phase**, which is the right shape for "what do we do
+this term" and the wrong shape for "what does the plan say about our
+curriculum?" — whose answer was scattered across six collapsed phase cards.
+
+So the same plan is also reachable by domain. `renderSipDomainNav()` draws a
+tile per domain (score, contribution, a bar and an action count);
+`showSipDomain(id)` opens one, and `renderSipDomainDetail()` shows that
+domain's whole three-year thread in phase order, with its weightage explainer,
+the standards scored Level 1–2 that the plan is built from (each with what the
+next level reads like), and a button through to the audit page.
+
+Three properties to preserve:
+
+- **Nothing is recomputed.** `_sipDomainThread()` reads the same
+  `sipData.phases` the phase cards read, down a column instead of across a row,
+  so the two views cannot disagree and the focus/density filters apply to both.
+- **The progress keys are the same.** `_sipActionHtml()` is the one action-card
+  builder, and both views derive `globalIdx` identically — by counting actions
+  across a phase's domain groups in order — so an action ticked in one view is
+  ticked in the other. Rendering the domain view with its own index would
+  silently split `sipProgress` in two.
+- **One view at a time.** `showSipDomain()` hides `#sip-timeline-card` and
+  `#sip-phases` while a domain is open, and `generateSIP()` rebuilds the nav
+  and detail, so a regenerate cannot leave the tiles counting the previous
+  plan's actions. Its zero-score branch now also clears `sipData`, which it
+  used to leave stale.
+
+A domain with no actions says *why* — nothing scored yet, already averaging
+Level 3.5+, or excluded by the filter — rather than rendering an empty list.
+
+`buildSipActions()` set `domainColor: dom.color`, but a DOMAIN carries `ic`,
+not `color`. Every `color:${dg.color}` in the plan was rendering
+`color:undefined`.
+
 ## Teachers imported with numbers for names
 
 An early staff import took a serial-number column as the name, so teachers were

@@ -1184,7 +1184,6 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div id="coaches-list"></div>
   </div>
 </div>
- -->
 <div id="school-setup-screen">
   <div style="width:100%">
     <button class="setup-back" onclick="backToHome()">← Back</button>
@@ -1582,7 +1581,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="pg-sub" id="ov-sub">Enter the school name above to begin. Score standards in each domain using the sidebar.</div>
   <div class="metrics" id="ov-metrics"></div>
   <div class="domain-grid" id="ov-grid"></div>
-  <div class="card"><div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:12px">Domain scores</div><div id="ov-bars"></div></div>
+  <div class="card" style="margin-bottom:20px"><div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:12px">Domain scores</div><div id="ov-bars"></div></div>
+  <div id="ov-weightage"></div>
 </div>
 
 <!-- SCORE REPORT + STAKEHOLDERS -->
@@ -2006,6 +2006,10 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
 
   <!-- Score summary -->
   <div id="sip-score-summary" style="margin-bottom:20px"></div>
+
+  <!-- Domain access buttons, and the detail of whichever is open -->
+  <div id="sip-domain-nav" style="margin-bottom:20px"></div>
+  <div id="sip-domain-detail"></div>
 
   <!-- Timeline overview -->
   <div class="card" style="margin-bottom:20px" id="sip-timeline-card">
@@ -2675,7 +2679,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
- to score, when "+ Add scores" is pressed from the
+<!-- Which assessment to score, when "+ Add scores" is pressed from the
      page header rather than from one assessment's own card. -->
 <div class="sip-modal-overlay" id="pick-assessment-modal">
   <div class="sip-modal" style="max-width:520px;max-height:80vh;overflow-y:auto">
@@ -4503,6 +4507,177 @@ function rColor(pct) {
 }
 
 // ═══════════════════════════════════════════
+// WEIGHTAGE: how a score is built, and how to move it
+// ═══════════════════════════════════════════
+// Every score on screen comes out of two steps, and neither is guessable from
+// the bare percentage the pages used to print:
+//
+//   1. A domain's percentage is the average of the standards you have scored,
+//      out of 4. An unscored standard is **not a zero** — it is simply not
+//      counted yet.
+//   2. The Quality Score out of 100 is each domain's percentage times that
+//      domain's share of the 100 points. CPA carries 40 of them; the other
+//      six carry 10 each.
+//
+// Which means an auditor asking "how do we raise this?" has a precise answer
+// available, and it is not the same answer in every domain:
+//
+//   - One level, on one standard, is worth `25/scored` of the domain
+//     percentage and `weight/(4*scored)` of the Quality Score. On CPA at 75
+//     standards that is 0.13 pts; on External Development at 7 it is 0.36 —
+//     nearly three times the Quality Score for the same piece of work.
+//   - Scoring *more* standards can push the percentage **down** while pushing
+//     the points **up**, because the denominator grows. A domain with one
+//     standard at Level 4 reads 100%.
+//
+// `_wtStats()` is the only place any of this is computed, so no panel, card or
+// report can disagree with another about it.
+function _wtStats(domainId) {
+  const d = DOMAINS.find(x => x.id === domainId);
+  if (!d) return null;
+  const n = d.standards.length;
+  let sum = 0, scored = 0, steps = 0;
+  d.standards.forEach((_, i) => {
+    const v = scores[domainId + '-' + i];
+    if (v) { sum += v; scored++; steps += (4 - v); }
+  });
+  const pct = scored ? Math.round(sum / scored / 4 * 100) : 0;
+  const earned = pct / 100 * d.weight;
+  return {
+    d: d, n: n, scored: scored, unscored: n - scored, sum: sum, pct: pct,
+    weight: d.weight,
+    avgLevel: scored ? sum / scored : 0,
+    earned: earned,
+    // What is still on the table in this domain, if every standard reached 4.
+    headroom: d.weight - earned,
+    // One level on one standard, as domain % and as Quality Score points.
+    perLevelPct: scored ? 25 / scored : 0,
+    perLevelPts: scored ? d.weight / (4 * scored) : 0,
+    // Level-steps left on the standards already scored, and what they are worth.
+    steps: steps,
+    stepsPts: scored ? steps * (d.weight / (4 * scored)) : 0,
+  };
+}
+
+function _wt1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+function _wt2(x) { return (Math.round(x * 100) / 100).toFixed(2); }
+
+// The one-line version, for a page sub-heading or a card: what this domain is
+// worth, what it is contributing, and what one level buys.
+function _wtLine(domainId) {
+  const w = _wtStats(domainId);
+  if (!w) return '';
+  if (!w.scored) return w.n + ' standards · worth ' + w.weight + ' of the 100 points · nothing scored yet';
+  return w.scored + ' of ' + w.n + ' scored, averaging ' + _wt1(w.avgLevel) + '/4 → ' +
+    w.pct + '% → contributing <strong>' + _wt1(w.earned) + ' of ' + w.weight + ' pts</strong>';
+}
+
+// The explainer shown on a domain's own audit page. It states the arithmetic
+// with this domain's real numbers rather than describing it in the abstract,
+// because "one level is worth 0.36 points here" is the sentence that changes
+// what someone does next.
+function _wtPanel(domainId) {
+  const w = _wtStats(domainId);
+  if (!w) return '';
+  const c = w.pct ? rColor(w.pct) : '#8A7F6E';
+  const row = (lbl, val, sub) =>
+    '<div style="flex:1;min-width:130px"><div style="font-size:10px;color:var(--ink-f);text-transform:uppercase;' +
+    'letter-spacing:0.6px;font-weight:600;margin-bottom:3px">' + lbl + '</div>' +
+    '<div style="font-size:15px;font-weight:600;color:' + c + '">' + val + '</div>' +
+    '<div style="font-size:10px;color:var(--ink-f);margin-top:1px">' + sub + '</div></div>';
+
+  let how;
+  if (!w.scored) {
+    how = 'Nothing is scored here yet, so this domain is contributing <strong>0 of its ' + w.weight +
+      ' points</strong>. Score a standard and the arithmetic below fills in.';
+  } else {
+    how = 'Raising <strong>one standard by one level</strong> adds <strong>' + _wt1(w.perLevelPct) +
+      '%</strong> to this domain and <strong>' + _wt2(w.perLevelPts) +
+      ' pts</strong> to the Quality Score. The ' + w.steps + ' level-step' + (w.steps === 1 ? '' : 's') +
+      ' still open on the ' + w.scored + ' standard' + (w.scored === 1 ? '' : 's') + ' you have scored ' +
+      (w.steps === 1 ? 'is' : 'are') + ' worth <strong>' + _wt1(w.stepsPts) + ' pts</strong>.';
+    if (w.unscored) {
+      how += ' The ' + w.unscored + ' unscored standard' + (w.unscored === 1 ? '' : 's') +
+        ' count for nothing either way yet — scoring ' + (w.unscored === 1 ? 'it' : 'them') +
+        ' moves the percentage ' + (w.avgLevel >= 3 ? 'down' : 'either way') +
+        ', since the average is taken over what is scored.';
+    }
+  }
+
+  return '<div class="card" style="margin-bottom:14px;border-left:3px solid ' + c + '">' +
+    '<div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:10px">' +
+    'How this score is built, and how to raise it</div>' +
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">' +
+      row('Average level', w.scored ? _wt1(w.avgLevel) + ' <span style="font-size:11px;font-weight:400;color:var(--ink-f)">/ 4</span>' : '—',
+          w.scored + ' of ' + w.n + ' standards scored') +
+      row('Domain score', w.pct + '%', 'average ÷ 4') +
+      row('Weightage', w.weight + ' pts', 'of the 100-point score') +
+      row('Contributing now', _wt1(w.earned) + ' pts', _wt1(w.headroom) + ' pts still available') +
+      row('One level is worth', _wt2(w.perLevelPts) + ' pts', _wt1(w.perLevelPct) + '% of this domain') +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--ink-m);line-height:1.55">' + how + '</div></div>';
+}
+
+// The whole-school version: every domain's weightage side by side, so the
+// question "where does an hour of work buy the most?" is answerable by
+// reading one column rather than by guessing from seven percentages.
+function _wtTotalPanel() {
+  const rows = DOMAINS.map(d => _wtStats(d.id)).filter(Boolean);
+  const total = rows.reduce((a, w) => a + w.earned, 0);
+  const anyScored = rows.some(w => w.scored);
+  // Ranked by what one level buys, which is the actual lever and is inverse to
+  // the number of standards — not something a weight column alone shows.
+  const lever = rows.filter(w => w.scored && w.steps > 0)
+                    .sort((a, b) => b.perLevelPts - a.perLevelPts).slice(0, 3);
+
+  const head = ['Domain', 'Weightage', 'Scored', 'Avg level', 'Domain %', 'Contributing', 'Still available', 'One level'];
+  return '<div class="card" style="margin-bottom:20px">' +
+    '<div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:4px">' +
+    'How the Quality Score is built</div>' +
+    '<div style="font-size:12px;color:var(--ink-l);line-height:1.55;margin-bottom:12px">' +
+    'Each standard is scored <strong>1–4</strong>. A domain’s percentage is the average of the ' +
+    'standards you have <em>scored</em>, divided by 4 — an unscored standard is not a zero, it is ' +
+    'not counted yet. The Quality Score out of 100 is each domain’s percentage times its share of ' +
+    'the 100 points: <strong>Curriculum, Pedagogy &amp; Assessment carries 40</strong>, the other six ' +
+    'carry 10 each.</div>' +
+    '<div style="overflow-x:auto"><table class="tbl" style="font-size:12px"><thead><tr>' +
+    head.map((h, i) => '<th' + (i ? ' style="text-align:right"' : '') + '>' + h + '</th>').join('') +
+    '</tr></thead><tbody>' +
+    rows.map(w => {
+      const c = w.pct ? rColor(w.pct) : '#9A8F82';
+      const td = v => '<td style="text-align:right">' + v + '</td>';
+      return '<tr><td>' + w.d.emoji + ' ' + w.d.label + '</td>' +
+        td('<strong>' + w.weight + ' pts</strong>') +
+        td(w.scored + '/' + w.n) +
+        td(w.scored ? _wt1(w.avgLevel) + '/4' : '—') +
+        td('<span style="color:' + c + ';font-weight:600">' + (w.scored ? w.pct + '%' : '—') + '</span>') +
+        td('<strong>' + _wt1(w.earned) + '</strong> of ' + w.weight) +
+        td(_wt1(w.headroom) + ' pts') +
+        td(w.scored ? _wt2(w.perLevelPts) + ' pts' : '—') + '</tr>';
+    }).join('') +
+    '</tbody><tfoot><tr><td>Quality Score</td>' +
+    '<td style="text-align:right">100 pts</td>' +
+    '<td style="text-align:right">' + rows.reduce((a, w) => a + w.scored, 0) + '/' +
+      rows.reduce((a, w) => a + w.n, 0) + '</td>' +
+    '<td style="text-align:right">—</td><td style="text-align:right">—</td>' +
+    '<td style="text-align:right">' + Math.round(total) + ' of 100</td>' +
+    '<td style="text-align:right">' + Math.round(100 - total) + ' pts</td>' +
+    '<td style="text-align:right">—</td></tr></tfoot></table></div>' +
+    (lever.length
+      ? '<div style="font-size:12px;color:var(--ink-m);line-height:1.55;margin-top:12px;padding:9px 12px;' +
+        'background:var(--sage-p);border-radius:var(--r-sm)">' +
+        '<strong>Where one level buys the most.</strong> A domain’s points are divided across its ' +
+        'standards, so the fewer standards it has, the more each level is worth: ' +
+        lever.map(w => w.d.emoji + ' <strong>' + w.d.label + '</strong> ' + _wt2(w.perLevelPts) + ' pts').join(' · ') +
+        '. The same single level on Curriculum, Pedagogy &amp; Assessment is worth ' +
+        _wt2((_wtStats('cpa') || {}).perLevelPts || 0) + ' pts — it carries the most weight overall, ' +
+        'but spread across ' + (_wtStats('cpa') || {}).n + ' standards.</div>'
+      : (anyScored ? '' : '<div style="font-size:12px;color:var(--ink-f);margin-top:10px;font-style:italic">' +
+         'Score some standards and this table will show what each one is worth.</div>')) +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════
 // TOPBAR + SIDEBAR
 // ═══════════════════════════════════════════
 function updateTopbar() {
@@ -4617,8 +4792,9 @@ function renderOverview() {
   const done = Object.values(planDone).filter(Boolean).length;
 
   const m = document.getElementById('ov-metrics');
+  const _avail = 100 - DOMAINS.reduce((a, d) => a + (_wtStats(d.id) || {}).earned, 0);
   if (m) m.innerHTML = [
-    ['Quality Score', sc, 'out of 100', ''],
+    ['Quality Score', sc, 'out of 100 · ' + Math.round(_avail) + ' pts still available', ''],
     ['Scored', scoredN, 'of '+allStds+' standards', ''],
     ['Overall Rating', '', rLabel(sc), 'font-size:18px;margin-top:4px;color:'+rColor(sc)],
     ['Plan Progress', done, 'of '+PLAN.length+' complete', ''],
@@ -4633,11 +4809,11 @@ function renderOverview() {
       grid.innerHTML += `<div class="dc" onclick="goPage('audit-${d.id}', document.querySelector('[data-page=audit-${d.id}]'))">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div style="width:36px;height:36px;border-radius:var(--r-md);background:${d.bg};display:flex;align-items:center;justify-content:center;font-size:18px">${d.emoji}</div>
-          <div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--ink)">${d.label}</div><div style="font-size:11px;color:var(--ink-f)">${sc2}/${d.standards.length} scored · ${d.weight} pts</div></div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--ink)">${d.label}</div><div style="font-size:11px;color:var(--ink-f)">${sc2}/${d.standards.length} scored · worth ${d.weight} pts</div></div>
           <span class="badge ${rClass(p)}">${rLabel(p)}</span>
         </div>
         <div class="pb"><div class="pf" style="width:${p}%;background:${rColor(p)}"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-f);margin-top:4px"><span>${d.stds} standards</span><span>${p}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-f);margin-top:4px"><span>${p}% × ${d.weight} pts = <strong style="color:${rColor(p)}">${_wt1((_wtStats(d.id)||{}).earned)} pts</strong></span><span>${_wt2((_wtStats(d.id)||{}).perLevelPts)} pts / level</span></div>
       </div>`;
     });
   }
@@ -4646,13 +4822,17 @@ function renderOverview() {
   if (bars) {
     bars.innerHTML = DOMAINS.map(d => {
       const p = domainScore(d.id);
+      const w = _wtStats(d.id) || {};
       return `<div class="bar-row">
         <div class="bar-lbl">${d.emoji} ${d.label}</div>
         <div class="bar-bg"><div class="bar-f" style="width:${p}%;background:${rColor(p)}"></div></div>
         <div class="bar-val">${p}%</div>
+        <div style="font-size:11px;color:var(--ink-f);width:92px;text-align:right;flex-shrink:0">${_wt1(w.earned)} of ${w.weight} pts</div>
       </div>`;
     }).join('');
   }
+  const wt = document.getElementById('ov-weightage');
+  if (wt) wt.innerHTML = _wtTotalPanel();
 }
 
 // ═══════════════════════════════════════════
@@ -4671,15 +4851,18 @@ function renderReport() {
     ${DOMAINS.map(d => {
       const p = domainScore(d.id);
       const sc2 = d.standards.filter((_,i) => scores[d.id+'-'+i]).length;
+      const w = _wtStats(d.id) || {};
       return `<div class="bar-row">
         <div class="bar-lbl">${d.emoji} ${d.label}</div>
         <div class="bar-bg"><div class="bar-f" style="width:${p}%;background:${rColor(p)}"></div></div>
         <div class="bar-val">${p}%</div>
         <span class="badge ${rClass(p)}" style="margin-left:8px">${rLabel(p)}</span>
         <span style="font-size:11px;color:var(--ink-f);margin-left:6px">${sc2}/${d.standards.length}</span>
+        <span style="font-size:11px;color:var(--ink-l);margin-left:6px;white-space:nowrap">→ ${_wt1(w.earned)} of ${w.weight} pts</span>
       </div>`;
     }).join('')}
-  </div>`;
+  </div>
+  ${_wtTotalPanel()}`;
 
   DOMAINS.forEach(d => {
     const stds = d.standards.filter((_,i) => scores[d.id+'-'+i]);
@@ -4723,9 +4906,11 @@ function renderAudit(domainId) {
     groups[s.sub].push({s, i});
   });
 
+  const _w = _wtStats(domainId);
   let html = `<div class="pg-title">${d.emoji} ${d.label}</div>
-  <div class="pg-sub" id="audit-sub-${domainId}">${d.standards.length} standards · ${d.weight} pts · <span id="audit-scored-${domainId}">${scoredN} scored · ${p}%</span> · <span class="badge ${rClass(p)}" id="audit-badge-${domainId}">${rLabel(p)}</span></div>
-  <div class="info-ban">Click any standard to expand its rubric. Select the level that matches your observation.</div>`;
+  <div class="pg-sub" id="audit-sub-${domainId}">${d.standards.length} standards · worth ${d.weight} of the 100 points · <span id="audit-scored-${domainId}">${scoredN} scored · ${p}% · contributing ${_wt1(_w.earned)} pts</span> · <span class="badge ${rClass(p)}" id="audit-badge-${domainId}">${rLabel(p)}</span></div>
+  <div class="info-ban">Click any standard to expand its rubric. Select the level that matches your observation.</div>
+  ${_wtPanel(domainId)}`;
 
   // Inject merge panels for CPA domain
   if (domainId === 'cpa') {
@@ -4897,15 +5082,15 @@ function lpKeysForCpa(cpaIdx) {
   return Object.entries(LP_CPA_MAP).filter(([k,v]) => v === cpaIdx).map(([k]) => k);
 }
 
-// \u2500\u2500 Assessment evidence inside a standard card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// ── Assessment evidence inside a standard card ──────────────────
 // Every skill linked to a standard, averaged, so the auditor scoring
 // "Students demonstrate strong reading and comprehension skills" can see what
 // the school's own reading assessments actually say before picking a level.
 //
 // Two numbers, and they answer different questions:
-//   mean    \u2014 the average percentage across every result. How well the cohort
+//   mean    — the average percentage across every result. How well the cohort
 //             does on average.
-//   mastery \u2014 the share of results at 60% or above. How many children can
+//   mastery — the share of results at 60% or above. How many children can
 //             actually do it.
 //
 // **The suggested level comes from mastery, not the mean**, because that is
@@ -7556,9 +7741,9 @@ function buildTeacherIndivReport(tid) {
   _rptOpen((t.name || 'Teacher') + ' \u2014 Performance Report', h, true);
 }
 
-// ── Report 4: Students\u2019 Screening Report Summary ────────────────
+// ── Report 4: Students’ Screening Report Summary ────────────────
 
-// Every screened child\u2019s result, bucketed to levels 1-4 per skill. A
+// Every screened child’s result, bucketed to levels 1-4 per skill. A
 // score-based assessment is banded by percentage; a rubric response keeps the
 // level it was actually scored at, because that is the number the teacher
 // recorded and re-deriving it from a percentage would lose it.
@@ -7979,7 +8164,7 @@ function buildSipActions() {
         domain: dom.id,
         domainLabel: dom.label,
         domainEmoji: dom.emoji,
-        domainColor: dom.color,
+        domainColor: dom.ic,
         domainBg: dom.bg,
         sub: group.sub,
         priority,
@@ -8122,6 +8307,16 @@ function generateSIP() {
       </div>`;
     document.getElementById('sip-timeline').innerHTML = '';
     document.getElementById('sip-score-summary').innerHTML = '';
+    // Drop the previous plan rather than leaving it behind: anything still
+    // reading sipData would otherwise describe scores that are gone.
+    sipData = null;
+    _sipDomain = null;
+    renderSipDomainNav();
+    renderSipDomainDetail();
+    const _tl = document.getElementById('sip-timeline-card');
+    const _ph = document.getElementById('sip-phases');
+    if (_tl) _tl.style.display = '';
+    if (_ph) _ph.style.display = '';
     return;
   }
 
@@ -8132,6 +8327,10 @@ function generateSIP() {
   renderSipScoreSummary(totalSc);
   renderSipTimeline(phases, startYear);
   renderSipPhases(phases);
+  // The domain view reads the plan that was just built, so it is rebuilt here
+  // too — otherwise a regenerate leaves the tiles counting the old actions.
+  renderSipDomainNav();
+  renderSipDomainDetail();
   document.getElementById('ns-sip').textContent = actions.length;
 }
 
@@ -8202,6 +8401,195 @@ function renderSipScoreSummary(totalSc) {
     </div>`;
 }
 
+// ── The SIP by domain ──────────────────────────────────────────
+// The plan is organised by phase, which is the right shape for "what do we do
+// this term". It is the wrong shape for the other question a school asks of
+// it — "what does the plan say about our curriculum?" — whose answer is
+// scattered across six collapsed phase cards.
+//
+// So the same plan is also reachable by domain: a tile per domain carrying its
+// score, its weightage and its action count, and clicking one shows that
+// domain's whole three-year thread in phase order. Nothing is recomputed; it
+// is the same `sipData.phases` read down a column instead of across a row, so
+// the two views cannot disagree, and ticking an action off in one ticks it in
+// the other because `_sipActionHtml()` derives the same key for both.
+let _sipDomain = null;
+
+// Every action the plan holds for one domain, with the phase it sits in and
+// the progress key it already has.
+function _sipDomainThread(domId) {
+  if (!sipData || !sipData.phases) return [];
+  const out = [];
+  sipData.phases.forEach((ph, pi) => {
+    let actIdx = 0;
+    Object.values(ph.domainGroups || {}).forEach(dg => {
+      dg.items.forEach(item => {
+        const globalIdx = pi + '-' + (actIdx++);
+        if (dg.domain === domId) out.push({ ph: ph, pi: pi, dg: dg, item: item, idx: globalIdx });
+      });
+    });
+  });
+  return out;
+}
+
+function renderSipDomainNav() {
+  const el = document.getElementById('sip-domain-nav');
+  if (!el) return;
+  const counts = {};
+  DOMAINS.forEach(d => { counts[d.id] = _sipDomainThread(d.id).length; });
+
+  const tile = d => {
+    const w = _wtStats(d.id) || {};
+    const p = w.pct || 0;
+    const c = p ? rColor(p) : '#9A8F82';
+    const n = counts[d.id] || 0;
+    const on = _sipDomain === d.id;
+    return '<button onclick="showSipDomain(\'' + d.id + '\')" ' +
+      'title="' + _escHtml(d.label) + ' — ' + n + ' action' + (n === 1 ? '' : 's') + ' in the plan" ' +
+      'style="text-align:left;cursor:pointer;font-family:inherit;padding:11px 12px;border-radius:var(--r-md);' +
+      'background:' + (on ? c + '14' : 'var(--sur-r)') + ';border:' + (on ? '1.5px' : '0.5px') + ' solid ' +
+      (on ? c : 'var(--bdr-s)') + ';transition:all 0.15s">' +
+      '<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">' +
+        '<span style="width:28px;height:28px;border-radius:var(--r-sm);background:' + d.bg +
+        ';display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">' + d.emoji + '</span>' +
+        '<span style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25">' + _escHtml(d.label) + '</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:baseline;gap:4px;margin-bottom:5px">' +
+        '<span style="font-size:19px;font-weight:600;color:' + c + '">' + (p ? p + '%' : '—') + '</span>' +
+        '<span style="font-size:10px;color:var(--ink-f)">' + _wt1(w.earned) + ' of ' + w.weight + ' pts</span>' +
+      '</div>' +
+      '<div style="background:var(--sur);border-radius:3px;height:4px;margin-bottom:6px">' +
+        '<div style="height:4px;border-radius:3px;width:' + p + '%;background:' + c + '"></div></div>' +
+      '<div style="font-size:10px;color:' + (n ? c : 'var(--ink-f)') + ';font-weight:' + (n ? '600' : '400') + '">' +
+        (n ? n + ' action' + (n === 1 ? '' : 's') + ' →' : 'no actions') + '</div>' +
+      '</button>';
+  };
+
+  el.innerHTML = '<div class="card">' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">' +
+      '<div style="font-size:14px;font-weight:500;color:var(--ink);flex:1">Open the plan by domain</div>' +
+      (_sipDomain ? '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" ' +
+        'onclick="showSipDomain(null)">← Back to all six phases</button>' : '') +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--ink-l);margin-bottom:12px">' +
+      'The phase cards below answer “what do we do this term”. Click a domain to read its ' +
+      'whole three-year thread instead — its score, its weightage, and every action the plan ' +
+      'holds for it, in phase order.</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:8px">' +
+      DOMAINS.map(tile).join('') + '</div></div>';
+}
+
+function showSipDomain(domId) {
+  _sipDomain = _sipDomain === domId ? null : domId;
+  renderSipDomainNav();
+  renderSipDomainDetail();
+  // One view at a time: the phase cards and the timeline are the all-domains
+  // view, so they step aside rather than sit underneath a domain's own thread.
+  const tl = document.getElementById('sip-timeline-card');
+  const ph = document.getElementById('sip-phases');
+  if (tl) tl.style.display = _sipDomain ? 'none' : '';
+  if (ph) ph.style.display = _sipDomain ? 'none' : '';
+  const nav = document.getElementById('sip-domain-nav');
+  if (_sipDomain && nav && nav.scrollIntoView) nav.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderSipDomainDetail() {
+  const el = document.getElementById('sip-domain-detail');
+  if (!el) return;
+  if (!_sipDomain) { el.innerHTML = ''; return; }
+  const d = DOMAINS.find(x => x.id === _sipDomain);
+  if (!d) { el.innerHTML = ''; return; }
+  const w = _wtStats(d.id) || {};
+  const thread = _sipDomainThread(d.id);
+  const c = w.pct ? rColor(w.pct) : '#9A8F82';
+  const done = thread.filter(t => sipProgress[t.idx]).length;
+
+  // The standards still sitting at Level 1 or 2, which is what the plan is
+  // built from and the fastest answer to "where exactly?".
+  const weak = d.standards.map((st, i) => ({ st: st, i: i, v: scores[d.id + '-' + i] || 0 }))
+                          .filter(x => x.v && x.v <= 2).sort((a, b) => a.v - b.v);
+
+  let html = '<div class="card" style="margin-bottom:16px;border-left:4px solid ' + c + '">' +
+    '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
+      '<div style="width:44px;height:44px;border-radius:var(--r-md);background:' + d.bg +
+      ';display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0">' + d.emoji + '</div>' +
+      '<div style="flex:1;min-width:180px">' +
+        '<div style="font-size:17px;font-weight:500;color:var(--ink)">' + _escHtml(d.label) + '</div>' +
+        '<div style="font-size:12px;color:var(--ink-l);margin-top:2px">' + _wtLine(d.id) + '</div></div>' +
+      '<span class="badge ' + rClass(w.pct) + '">' + rLabel(w.pct) + '</span>' +
+      '<button class="btn btn-s" style="font-size:12px;padding:6px 12px" ' +
+        'onclick="goPage(\'audit-' + d.id + '\', document.querySelector(\'[data-page=audit-' + d.id + ']\'))">' +
+        'Score this domain →</button>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px">' +
+      '<div class="mc"><div class="mc-l">Actions in the plan</div><div class="mc-v">' + thread.length +
+        '</div><div class="mc-s">' + done + ' marked done</div></div>' +
+      '<div class="mc"><div class="mc-l">Phases involved</div><div class="mc-v">' +
+        new Set(thread.map(t => t.pi)).size + '</div><div class="mc-s">of 6</div></div>' +
+      '<div class="mc"><div class="mc-l">Points available here</div><div class="mc-v" style="color:' + c + '">' +
+        _wt1(w.headroom) + '</div><div class="mc-s">of this domain’s ' + w.weight + '</div></div>' +
+      '<div class="mc"><div class="mc-l">One level is worth</div><div class="mc-v" style="color:' + c + '">' +
+        _wt2(w.perLevelPts) + '</div><div class="mc-s">pts, on one standard</div></div>' +
+    '</div></div>';
+
+  html += _wtPanel(d.id);
+
+  if (weak.length) {
+    html += '<div class="card" style="margin-bottom:16px">' +
+      '<div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:3px">' +
+      'The ' + weak.length + ' standard' + (weak.length === 1 ? '' : 's') + ' this plan is built from</div>' +
+      '<div style="font-size:12px;color:var(--ink-l);margin-bottom:11px">Scored Level 1 or 2. ' +
+      'Each one raised a level adds ' + _wt2(w.perLevelPts) + ' pts to the Quality Score; all ' +
+      weak.length + ' raised to Level 3 would add ' +
+      _wt1(weak.reduce((a, x) => a + (3 - x.v), 0) * w.perLevelPts) + ' pts.</div>' +
+      weak.map(x => '<div style="display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:0.5px solid var(--bdr)">' +
+        '<span class="std-pill" style="width:22px;height:22px;font-size:11px;margin-top:0;background:' +
+          R_COLORS[x.v] + '20;border-color:' + R_COLORS[x.v] + ';color:' + R_COLORS[x.v] + '">' + x.v + '</span>' +
+        '<div style="flex:1"><div style="font-size:12px;color:var(--ink-m)">' + _escHtml(x.st.s) + '</div>' +
+        '<div style="font-size:10px;color:var(--ink-f);margin-top:2px">' + _escHtml(x.st.sub) + ' · ' +
+          _escHtml(x.st.st) + '</div>' +
+        '<div style="font-size:11px;color:var(--sage);margin-top:3px;font-style:italic">Level ' + (x.v + 1) +
+          ' looks like: “' + _escHtml(x.st.r[x.v]) + '”</div></div></div>').join('') +
+      '</div>';
+  }
+
+  if (!thread.length) {
+    html += '<div class="card" style="text-align:center;padding:28px;color:var(--ink-f)">' +
+      '<div style="font-size:26px;margin-bottom:10px">' + d.emoji + '</div>' +
+      '<div style="font-size:14px;color:var(--ink);margin-bottom:6px">No actions in the plan for ' +
+      _escHtml(d.label) + '</div><div style="font-size:12px">' +
+      (!w.scored
+        ? 'Nothing here is scored yet, and the plan is generated from the scores.'
+        : w.pct >= 88
+          ? 'Every sub-domain here already averages Level 3.5 or above, so the generator treats it as sustained rather than needing action.'
+          : 'The focus or density filter above may be excluding it — try “All domains” and “Comprehensive”.') +
+      '</div></div>';
+  } else {
+    const byPhase = {};
+    thread.forEach(t => { (byPhase[t.pi] = byPhase[t.pi] || []).push(t); });
+    Object.keys(byPhase).map(Number).sort((a, b) => a - b).forEach(pi => {
+      const ts = byPhase[pi];
+      const ph = ts[0].ph;
+      html += '<div class="sip-phase" style="margin-bottom:12px">' +
+        '<div class="sip-phase-hd" style="background:' + ph.bg + ';border-left:4px solid ' + ph.color +
+          ';cursor:default">' +
+          '<div style="width:34px;height:34px;border-radius:var(--r-md);background:' + ph.color +
+          ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">' +
+          (pi + 1) + '</div>' +
+          '<div style="flex:1"><div style="font-size:14px;font-weight:500;color:' + ph.color + '">' +
+            ph.label + ': ' + ph.theme + '</div>' +
+            '<div style="font-size:12px;color:var(--ink-l);margin-top:1px">' + ph.period + ' · ' +
+            ts.length + ' action' + (ts.length === 1 ? '' : 's') + ' for ' + _escHtml(d.label) + '</div></div>' +
+        '</div>' +
+        '<div class="sip-phase-body" style="padding-top:10px">' +
+          ts.map(t => _sipActionHtml(t.item, t.dg, t.idx, sipProgress[t.idx] || false)).join('') +
+        '</div></div>';
+    });
+  }
+
+  el.innerHTML = html;
+}
+
 function renderSipTimeline(phases, startYear) {
   const container = document.getElementById('sip-timeline');
   if (!container) return;
@@ -8235,6 +8623,46 @@ function renderSipTimeline(phases, startYear) {
       }).join('')}
     </div>`;
   container.innerHTML = html;
+}
+
+// One action card. Both the phase view and the per-domain view render through
+// this, and both derive `globalIdx` the same way — by counting actions across
+// the phase's domain groups in order — so a box ticked in one view is the same
+// `sipProgress` key as in the other.
+function _sipActionHtml(item, dg, globalIdx, isDone) {
+  return `<div class="sip-action" id="sip-act-${globalIdx}">
+                <div class="sip-action-cb${isDone?' done':''}" onclick="toggleSipAction('${globalIdx}')">${isDone?'✓':''}</div>
+                <div style="flex:1">
+                  <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                    <span style="font-size:13px;font-weight:500;color:var(--ink)${isDone?';text-decoration:line-through':''}">${item.sub}</span>
+                    <span class="priority-badge ${priorityClass(item.priority)}">${priorityLabel(item.priority)}</span>
+                    <span style="font-size:11px;color:var(--ink-f);padding:2px 7px;border-radius:20px;background:var(--sur)">${item.phaseRole === 'initiate' ? '▶ Initiate' : '✔ Consolidate'}</span>
+                    <span class="sip-score-chip" style="background:${priorityColor(item.priority)}18;color:${priorityColor(item.priority)}">Current: ${item.currentScore}/4 → Target: ${item.targetScore}/4</span>
+                  </div>
+
+                  <div style="margin-bottom:8px">
+                    <div style="font-size:11px;font-weight:600;color:var(--ink-l);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Actions this phase</div>
+                    ${item.phaseActions.map(a => `<div style="font-size:12px;color:var(--ink-m);padding:3px 0 3px 10px;border-left:2px solid ${dg.color}40;margin-bottom:2px">→ ${a}</div>`).join('')}
+                  </div>
+
+                  ${item.standards && item.standards.length ? `
+                  <div style="margin-bottom:8px">
+                    <div style="font-size:11px;font-weight:600;color:var(--ink-l);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Standards to address</div>
+                    ${item.standards.map(std => `
+                    <div style="background:${priorityColor(getSipPriority(std.current))}08;border:0.5px solid ${priorityColor(getSipPriority(std.current))}30;border-radius:var(--r-sm);padding:7px 10px;margin-bottom:4px">
+                      <div style="font-size:11px;color:var(--ink-m);margin-bottom:3px">${std.text}</div>
+                      <div style="font-size:10px;color:${priorityColor(getSipPriority(std.current))}">Level ${std.current}/4 now &nbsp;→&nbsp; Level ${item.targetScore}/4 target</div>
+                      ${std.target ? `<div style="font-size:10px;color:var(--sage);margin-top:2px;font-style:italic">Target: "${std.target}"</div>` : ''}
+                    </div>`).join('')}
+                  </div>` : ''}
+
+                  <div class="sip-kpi">
+                    <span style="font-size:10px;font-weight:600;color:var(--sage);flex-shrink:0">KPI</span>
+                    <span>${item.phaseKPI}</span>
+                    <span style="font-size:10px;color:var(--ink-f);margin-left:auto">Lead: ${item.stakeholders}</span>
+                  </div>
+                </div>
+              </div>`;
 }
 
 function renderSipPhases(phases) {
@@ -8282,42 +8710,7 @@ function renderSipPhases(phases) {
             ${dg.items.map((item, aii) => {
               const globalIdx = pi + '-' + (actIdx++);
               const isDone = sipProgress[globalIdx] || false;
-              return `<div class="sip-action" id="sip-act-${globalIdx}">
-                <div class="sip-action-cb${isDone?' done':''}" onclick="toggleSipAction('${globalIdx}')">${isDone?'✓':''}</div>
-                <div style="flex:1">
-                  <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                    <span style="font-size:13px;font-weight:500;color:var(--ink)${isDone?';text-decoration:line-through':''}">${item.sub}</span>
-                    <span class="priority-badge ${priorityClass(item.priority)}">${priorityLabel(item.priority)}</span>
-                    <span style="font-size:11px;color:var(--ink-f);padding:2px 7px;border-radius:20px;background:var(--sur)">${item.phaseRole === 'initiate' ? '▶ Initiate' : '✔ Consolidate'}</span>
-                    <span class="sip-score-chip" style="background:${priorityColor(item.priority)}18;color:${priorityColor(item.priority)}">Current: ${item.currentScore}/4 → Target: ${item.targetScore}/4</span>
-                  </div>
-
-                  <!-- Actions to take this phase -->
-                  <div style="margin-bottom:8px">
-                    <div style="font-size:11px;font-weight:600;color:var(--ink-l);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Actions this phase</div>
-                    ${item.phaseActions.map(a => `<div style="font-size:12px;color:var(--ink-m);padding:3px 0 3px 10px;border-left:2px solid ${dg.color}40;margin-bottom:2px">→ ${a}</div>`).join('')}
-                  </div>
-
-                  <!-- Specific standards to address -->
-                  ${item.standards && item.standards.length ? `
-                  <div style="margin-bottom:8px">
-                    <div style="font-size:11px;font-weight:600;color:var(--ink-l);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Standards to address</div>
-                    ${item.standards.map(std => `
-                    <div style="background:${priorityColor(getSipPriority(std.current))}08;border:0.5px solid ${priorityColor(getSipPriority(std.current))}30;border-radius:var(--r-sm);padding:7px 10px;margin-bottom:4px">
-                      <div style="font-size:11px;color:var(--ink-m);margin-bottom:3px">${std.text}</div>
-                      <div style="font-size:10px;color:${priorityColor(getSipPriority(std.current))}">Level ${std.current}/4 now &nbsp;→&nbsp; Level ${item.targetScore}/4 target</div>
-                      ${std.target ? `<div style="font-size:10px;color:var(--sage);margin-top:2px;font-style:italic">Target: "${std.target}"</div>` : ''}
-                    </div>`).join('')}
-                  </div>` : ''}
-
-                  <!-- KPI -->
-                  <div class="sip-kpi">
-                    <span style="font-size:10px;font-weight:600;color:var(--sage);flex-shrink:0">KPI</span>
-                    <span>${item.phaseKPI}</span>
-                    <span style="font-size:10px;color:var(--ink-f);margin-left:auto">Lead: ${item.stakeholders}</span>
-                  </div>
-                </div>
-              </div>`;
+              return _sipActionHtml(item, dg, globalIdx, isDone);
             }).join('')}
           </div>`;
         }).join('')}
@@ -13929,12 +14322,12 @@ function siWideImport() {
 var _bulkRows = [], _bulkFiles = 0, _bulkSkipped = [];
 
 // Where this sheet states what the marks are out of, in the order worth
-// trusting: the column heading, then a "Max Marks" column, then nothing \u2014
+// trusting: the column heading, then a "Max Marks" column, then nothing —
 // never a guess from the highest mark, which is only ever a lower bound.
 function _bulkMaxFromHeader(label) { return _wideMax(label).max; }
 
-// One cell to a grade label. A grade column holds whatever the office types \u2014
-// "3", "III", "Class V", "5th", "Grade 3", "UKG" \u2014 and all of them have to
+// One cell to a grade label. A grade column holds whatever the office types —
+// "3", "III", "Class V", "5th", "Grade 3", "UKG" — and all of them have to
 // land on the same label the rest of the app groups by, or Grade Averages
 // treats "3" and "Grade 3" as two different cohorts.
 function _bulkGradeValue(raw) {
@@ -13955,7 +14348,7 @@ function _bulkGradeValue(raw) {
 
 // A grade column needs its values to read as grades; its heading alone is never
 // enough. "Class" is also what many sheets call the section (A, B, C), and a
-// section is not a grade \u2014 filing a child into "Grade 2" because their section
+// section is not a grade — filing a child into "Grade 2" because their section
 // is B would be worse than leaving them ungraded.
 //
 // So: a column headed grade/class/std is taken when **any** value resolves,
@@ -14194,7 +14587,7 @@ function _bulkTop(row) {
 
 // A maximum corrected on one row is corrected on every row of the same
 // assessment. One test has one maximum however many grades sat it, and the
-// workbook that prompted this repeats each test once per grade \u2014 fixing the
+// workbook that prompted this repeats each test once per grade — fixing the
 // same wrong heading three times is three chances to fix it differently.
 function _bulkSetMax(i, v) {
   const row = _bulkRows[i];
