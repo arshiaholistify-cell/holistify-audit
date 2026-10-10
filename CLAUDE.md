@@ -1056,6 +1056,68 @@ The branch of the school being audited fills the **Campus** line the published
 format has; see **Branches** above for how it is stored. A school with one
 campus prints no campus row at all.
 
+### Matching the issued documents
+
+The reports Holistify issues by hand were read back into this repo and the
+generators were aligned to them. Three things came out of that reading and are
+easy to lose again:
+
+**The font is Avenir Book.** The newest issued document (the Students'
+Screening Report Summary, a .docx) sets every run in it; the older PDFs were
+produced elsewhere and carry Tw Cen MT and Candara, which is drift, not the
+house face. Avenir is a licensed Linotype typeface: it cannot be bundled here
+and is not on Google Fonts. `_RPT_FONT` therefore names it first and falls
+through `Avenir Next` and `Avenir` to **Nunito Sans**, the closest geometric
+humanist sans that can actually be served. So a report printed on a Mac — where
+the team produce them — is genuinely in Avenir; elsewhere it is a close match
+rather than Times.
+
+`_RPT_FONT_LINK` loads Nunito Sans with `rel="preload" … onload` rather than a
+plain stylesheet link. A render-blocking font request held the whole report
+back on a slow or filtered connection, which is the wrong trade for a fallback
+that only matters where Avenir is absent.
+
+**Each domain and stakeholder section opens with an overview paragraph** that
+describes what is being evaluated, before any of this school's numbers.
+`_RPT_DOMAIN_OVERVIEW` and `_RPT_STAKEHOLDER_OVERVIEW` hold that text verbatim
+from the issued format. It is the same in every school's report, which is why
+it is fixed text rather than generated — and why a report produced here and one
+produced by hand read as one document.
+
+**The sections and their order are the issued ones.** Per domain: Domain
+Overview, 1. Domain Statistics, 2. Performance Distribution, 3. Interpretation,
+4. Key Strengths, 5. Key Concerns, 6. Recommendations, 7. Final Interpretation.
+Per stakeholder, the same shape ending in 6. Strategic Recommendations and
+7. Stakeholder Conclusion. The screening report follows its own document:
+1. Executive Summary, 2. Assessment Methodology, 3. Summary of the Data,
+4. Summary of High-Risk Recurring Academic Behaviours, 5. Overall Risk
+Interpretation.
+
+Smaller things that the issued documents do and this now does:
+
+- The Domain Statistics row is **`School Quality Score (out of 10)`** — the
+  domain's weighted contribution, not its percentage. CPA reads `(out of 40)`.
+- **Levels run 1 → 4** in every table and bar. They used to run 4 → 1.
+- Strengths, concerns and recommendations are **named findings** — a title on
+  its own line, then the sentence — through `_rptFinding()`, not bullet lists.
+- Stakeholders are named in full (`_RPT_STAKEHOLDER_LABEL`): "Management &
+  Leadership", not "Management".
+- `Level 1 – Needs Improvement`, with an **en dash** and the rating
+  title-cased. `R_LABELS` keeps the app's own sentence case for the screen, and
+  `_rptLv()` is the report's copy, so one document never spells a rating two
+  ways. Every `R_LABELS[...]` read inside the report builders goes through it.
+- A running head prints on every page, and the cover carries the published
+  tagline and an `Audit Dates:` label.
+
+**Where the app and the issued report genuinely differ, and should:** section
+2.2 of the issued report totals raw points (`375 / 736`) and reports that
+percentage as the School Quality Score, while section 3 reports each domain
+`out of 10` or `out of 40`, which is the weighted model. Those are two
+different calculations, and on the Golekhana data they happen to agree at 51.
+This app's `totalScore()` is the weighted one throughout, and 2.2 carries the
+raw Score Obtained and Percentage columns beside it, so both figures are on the
+page and neither is hidden.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:

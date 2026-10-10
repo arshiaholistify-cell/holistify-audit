@@ -7059,11 +7059,32 @@ function printReport(){renderReport();window.print();}
 // instrument — the report says so in place of the section rather than leaving
 // a silent gap that reads as "nothing found".
 
+// The published reports are set in **Avenir Book**. Avenir is a licensed
+// Linotype face: it cannot be bundled here and is not on Google Fonts, so it
+// is named first and used wherever the reader's machine has it — macOS ships
+// Avenir, and the Holistify team's own documents are produced there. Nunito
+// Sans is loaded as the web fallback because it is the closest geometric
+// humanist sans that can actually be served, and the stack ends in the system
+// sans so a blocked CDN still renders a sane document rather than Times.
+const _RPT_FONT = "'Avenir Book','Avenir Next LT Pro','Avenir Next',Avenir," +
+  "'Nunito Sans','DM Sans','Segoe UI',system-ui,-apple-system,sans-serif";
+// Loaded asynchronously, never render-blocking: the fallback only matters on a
+// machine that lacks Avenir, and a school on a slow or filtered connection
+// should still get its report on screen at once rather than waiting on a font.
+const _RPT_FONT_URL =
+  'https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap';
+const _RPT_FONT_LINK =
+  '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+  '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+  '<link rel="preload" as="style" href="' + _RPT_FONT_URL +
+    '" onload="this.onload=null;this.rel=\'stylesheet\'">' +
+  '<noscript><link rel="stylesheet" href="' + _RPT_FONT_URL + '"></noscript>';
+
 const _RPT_CSS = `
   @page { size: A4 portrait; margin: 16mm 14mm; }
   @page :first { margin: 0; }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: Georgia, 'Times New Roman', serif; font-size: 10.5pt;
+  body { margin:0; font-family: ${_RPT_FONT}; font-size: 10.5pt;
          line-height: 1.5; color: #1a1a1a; background:#fff; }
   .sheet { max-width: 182mm; margin: 0 auto; }
   h1 { font-size: 19pt; margin: 0 0 4mm; font-weight: 600; letter-spacing:-0.2px; }
@@ -7085,6 +7106,8 @@ const _RPT_CSS = `
            align-items:center; text-align:center; background:linear-gradient(160deg,#1E3A35,#3C6B5B);
            color:#fff; padding: 0 24mm; page-break-after: always; }
   .cover .eyebrow { font-size:12pt; letter-spacing:5px; text-transform:uppercase; opacity:.8; }
+  .cover .tagline { font-size:13pt; letter-spacing:2.5px; text-transform:uppercase; opacity:.75;
+                    margin-top:3mm; }
   .cover .title { font-size:34pt; line-height:1.1; margin:6mm 0 3mm; font-weight:600; }
   .cover .rule { width:30mm; height:2px; background:rgba(255,255,255,.55); margin:5mm 0; }
   .cover .school { font-size:17pt; margin-bottom:2mm; }
@@ -7104,6 +7127,14 @@ const _RPT_CSS = `
   .bar .val { width:16mm; flex:0 0 16mm; text-align:right; font-weight:600; }
   .foot { margin-top:8mm; padding-top:3mm; border-top:0.5pt solid #ccc; font-size:8.5pt;
           color:#777; text-align:center; }
+  .finding { margin:0 0 3mm; page-break-inside:avoid; }
+  .finding .ft { font-weight:600; color:#1E3A35; }
+  .finding .fb { display:block; }
+  .finding .flv { font-size:9pt; color:#6b7672; }
+  .runhead { position:fixed; top:0; left:0; right:0; font-size:8pt; letter-spacing:1.2px;
+             text-transform:uppercase; color:#8a9793; padding:4mm 0 0; display:none; }
+  @media print { .runhead { display:block; } .runhead.cover-page { display:none; } }
+  .toc td:first-child { width:14mm; }
   .toolbar { position:fixed; top:0; left:0; right:0; background:#1E3A35; color:#fff;
              padding:9px 16px; font-family:system-ui,sans-serif; font-size:13px; z-index:99;
              display:flex; gap:10px; align-items:center; }
@@ -7116,7 +7147,7 @@ const _RPT_CSS = `
 
 // Opens the document in its own window. A blocked pop-up is reported rather
 // than failing silently, which is the usual way a print window "does nothing".
-function _rptOpen(title, bodyHtml, landscape) {
+function _rptOpen(title, bodyHtml, landscape, runningHead) {
   const w = window.open('', '_blank');
   if (!w) {
     toast('Allow pop-ups for this site to open the report.', 'error');
@@ -7125,10 +7156,11 @@ function _rptOpen(title, bodyHtml, landscape) {
   const css = _RPT_CSS + (landscape ? '\n@page { size: A4 landscape; margin: 12mm; }\n' +
     '@page :first { margin: 12mm; }\n.sheet { max-width: 272mm; }\n.cover { height:auto; padding:30mm 24mm; }' : '');
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' +
-    _escHtml(title) + '</title><style>' + css + '</style></head><body>' +
+    _escHtml(title) + '</title>' + _RPT_FONT_LINK + '<style>' + css + '</style></head><body>' +
     '<div class="toolbar"><button onclick="window.print()">\u2399 Print / Save as PDF</button>' +
     '<span class="hint">Choose <strong>Save as PDF</strong> as the destination. ' +
     'Turn on background graphics for the cover.</span></div>' +
+    '<div class="runhead">' + _escHtml(runningHead || title) + '</div>' +
     '<div class="wrap">' + bodyHtml + '</div></body></html>');
   w.document.close();
   w.focus();
@@ -7152,15 +7184,16 @@ function _rptDate()   {
 }
 function _rptAuditor(){ return (document.getElementById('inp-auditor') || {}).value || ''; }
 
-function _rptCover(eyebrow, title, subtitle) {
+function _rptCover(eyebrow, title, subtitle, tagline) {
   return '<div class="cover"><div class="eyebrow">' + _escHtml(eyebrow) + '</div>' +
+    (tagline ? '<div class="tagline">' + _escHtml(tagline) + '</div>' : '') +
     '<div class="title">' + _escHtml(title) + '</div><div class="rule"></div>' +
     '<div class="school">' + _escHtml(_rptSchool()) + '</div>' +
     (_rptBranch() ? '<div class="meta" style="font-size:13pt;margin-bottom:2mm">' +
       _escHtml(_rptBranch()) + '</div>' : '') +
     (_rptBoard() ? '<div class="meta">' + _escHtml(_rptBoard()) + '</div>' : '') +
     '<div class="meta">' + _escHtml(subtitle || '') + '</div>' +
-    '<div class="meta" style="margin-top:4mm">' + _escHtml(_rptDate()) +
+    '<div class="meta" style="margin-top:4mm">Audit Dates: ' + _escHtml(_rptDate()) +
     (_rptAuditor() ? ' \u00b7 ' + _escHtml(_rptAuditor()) : '') + '</div></div>';
 }
 
@@ -7177,14 +7210,18 @@ const _RPT_LV_COLOR = ['', '#C44B3A', '#D4860B', '#1B5C30', '#2B5FAD'];
 // rates a standard "Satisfactory"; a screening rates a child "Basic
 // understanding but frequent errors". Printing the audit's words under a
 // screening table would describe the wrong thing.
+// "Needs improvement" on screen; "Needs Improvement" in an issued document.
+const _RPT_LEVEL_LABELS = ['', 'Needs Improvement', 'Satisfactory', 'Good', 'Excellent'];
+function _rptLv(v) { return _RPT_LEVEL_LABELS[v] || _rptLv(v) || ''; }
+
 function _rptLevelBars(counts, total, labels) {
   if (!total) return '';
-  const lab = labels || R_LABELS;
+  const lab = labels || _RPT_LEVEL_LABELS;
   let h = '<div class="bars">';
   for (let lv = 1; lv <= 4; lv++) {
     const n = counts[lv] || 0;
     const pct = Math.round(n / total * 100);
-    h += '<div class="bar"><div class="lab">Level ' + lv + ' \u2014 ' + _escHtml(lab[lv]) + '</div>' +
+    h += '<div class="bar"><div class="lab">Level ' + lv + ' \u2013 ' + _escHtml(lab[lv]) + '</div>' +
       '<div class="track"><div class="fill" style="width:' + pct + '%;background:' + _RPT_LV_COLOR[lv] + '"></div></div>' +
       '<div class="val">' + n + ' (' + pct + '%)</div></div>';
   }
@@ -7248,7 +7285,10 @@ function _rptDomainSection(d) {
   const concerns  = _rptStandardsAt(d, [1, 2]);
   const recs = _rptRecommendations(d.id, 5);
 
-  let h = '<div class="pb"></div><h2>' + d.emoji + ' ' + _escHtml(d.label) + '</h2>';
+  const dIdx = DOMAINS.indexOf(d) + 1;
+  let h = '<div class="pb"></div><h2>Domain ' + dIdx + ' \u2013 ' + _escHtml(d.label) + '</h2>';
+
+  h += '<h3>Domain Overview</h3>' + _rptOverview(_RPT_DOMAIN_OVERVIEW[d.id]);
 
   h += '<h3>1. Domain Statistics</h3><table><tr><th>Indicator</th><th>Value</th></tr>' +
     '<tr><td>Number of Sub-Domains</td><td>' + st.subCount + '</td></tr>' +
@@ -7256,13 +7296,13 @@ function _rptDomainSection(d) {
     '<tr><td>Standards Assessed</td><td>' + st.scored +
       (st.notAssessed ? ' (' + st.notAssessed + ' not assessed)' : '') + '</td></tr>' +
     '<tr><td>Overall Level</td><td>Level ' + st.level + '</td></tr>' +
-    '<tr><td>Overall Rating</td><td>' + R_LABELS[st.level] + '</td></tr>' +
-    '<tr><td>Domain Score</td><td>' + st.pct + '% \u00b7 ' + (Math.round(st.pct / 10 * 10) / 10) +
-      ' out of 10 weighted points</td></tr></table>';
+    '<tr><td>Overall Rating</td><td>' + _rptLv(st.level) + '</td></tr>' +
+    '<tr><td>School Quality Score (out of ' + d.weight + ')</td><td>' +
+      (Math.round(st.pct / 100 * d.weight * 10) / 10) + '</td></tr></table>';
 
   h += '<h3>2. Performance Distribution</h3><table><tr><th>Level</th><th class="num">Standards</th><th class="num">Share</th></tr>';
-  for (let lv = 4; lv >= 1; lv--) {
-    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' +
+  for (let lv = 1; lv <= 4; lv++) {
+    h += '<tr><td>Level ' + lv + ' \u2013 ' + _rptLv(lv) + '</td><td class="num">' +
       st.counts[lv] + '</td><td class="num">' + _rptPct(st.counts[lv], st.scored) + '%</td></tr>';
   }
   if (st.notAssessed) h += '<tr><td>Not assessed</td><td class="num">' + st.notAssessed + '</td><td class="num">\u2014</td></tr>';
@@ -7273,7 +7313,7 @@ function _rptDomainSection(d) {
   h += '<h3>3. Interpretation</h3><p>' +
     'Across the ' + st.scored + ' standard' + (st.scored === 1 ? '' : 's') + ' assessed in this domain, ' +
     _escHtml(_rptSchool()) + ' scores <strong>' + st.pct + '%</strong>, placing the domain at ' +
-    '<strong>Level ' + st.level + ' \u2014 ' + R_LABELS[st.level] + '</strong>. ' +
+    '<strong>Level ' + st.level + ' \u2013 ' + _rptLv(st.level) + '</strong>. ' +
     (st.counts[3] + st.counts[4] ? 'Of these, ' + (st.counts[3] + st.counts[4]) + ' standard' +
       (st.counts[3] + st.counts[4] === 1 ? ' is' : 's are') + ' rated Good or Excellent' : 'No standard reached Good or Excellent') +
     ', while ' + (st.counts[1] ? st.counts[1] + ' require' + (st.counts[1] === 1 ? 's' : '') + ' improvement'
@@ -7282,39 +7322,33 @@ function _rptDomainSection(d) {
       ' not assessed and are excluded from the figures above.' : '') + '</p>';
 
   if (strengths.length) {
-    h += '<h3>4. Key Strengths</h3><p class="lede">Standards rated Good or Excellent in this audit.</p><ul>';
+    h += '<h3>4. Key Strengths</h3>';
     strengths.slice(0, 8).forEach(x => {
-      h += '<li><strong>' + _escHtml(x.st.sub) + ':</strong> ' + _escHtml(x.st.s) +
-        ' <em>(Level ' + x.v + ' \u2014 ' + R_LABELS[x.v] + ')</em>' +
-        (x.note ? '<br><span style="font-size:9pt;color:#555">Evidence: ' + _escHtml(x.note) + '</span>' : '') + '</li>';
+      h += _rptFinding(_escHtml(x.st.sub), _escHtml(x.st.s),
+        'Level ' + x.v + ' \u2013 ' + _rptLv(x.v) +
+        (x.note ? ' \u00b7 Evidence: ' + _escHtml(x.note) : ''));
     });
-    h += '</ul>';
     if (strengths.length > 8) h += '<p><em>and ' + (strengths.length - 8) + ' further standard' +
       (strengths.length - 8 === 1 ? '' : 's') + ' at Level 3 or above.</em></p>';
   }
 
   if (concerns.length) {
     const lv1 = concerns.filter(x => x.v === 1);
-    h += '<h3>5. Key Concerns</h3><p class="lede">' +
-      (lv1.length ? 'Standards rated Needs Improvement are listed first.' : 'Standards rated Satisfactory or below.') +
-      '</p><ul>';
+    h += '<h3>5. Key Concerns</h3>';
     lv1.concat(concerns.filter(x => x.v === 2)).slice(0, 8).forEach(x => {
-      h += '<li><strong>' + _escHtml(x.st.sub) + ':</strong> ' + _escHtml(x.st.s) +
-        ' <em>(Level ' + x.v + ' \u2014 ' + R_LABELS[x.v] + ')</em>' +
-        (x.note ? '<br><span style="font-size:9pt;color:#555">Evidence: ' + _escHtml(x.note) + '</span>' : '') + '</li>';
+      h += _rptFinding(_escHtml(x.st.sub), _escHtml(x.st.s),
+        'Level ' + x.v + ' \u2013 ' + _rptLv(x.v) +
+        (x.note ? ' \u00b7 Evidence: ' + _escHtml(x.note) : ''));
     });
-    h += '</ul>';
     if (concerns.length > 8) h += '<p><em>and ' + (concerns.length - 8) + ' further standard' +
       (concerns.length - 8 === 1 ? '' : 's') + ' at Level 2 or below.</em></p>';
   }
 
   if (recs.length) {
-    h += '<h3>6. Recommendations</h3><ul>';
+    h += '<h3>6. Recommendations</h3>';
     recs.forEach(r => {
-      h += '<li><strong>' + _escHtml(r.title) + '</strong><br>' +
-        _escHtml((r.do || []).slice(0, 3).join(' ')) + '</li>';
+      h += _rptFinding(_escHtml(r.title), _escHtml((r.do || []).slice(0, 3).join(' ')));
     });
-    h += '</ul>';
   }
 
   h += '<h3>7. Final Interpretation</h3><p>' +
@@ -7341,7 +7375,7 @@ function _rptStakeholderStats(name) {
       const v = scores[d.id + '-' + i];
       if (!v) return;
       counts[v]++; scored++; sum += v;
-      const rec = { st: st, v: v, dom: d.label };
+      const rec = { st: st, v: v, dom: d.label, domId: d.id };
       if (v >= 3) strengths.push(rec); else concerns.push(rec);
     });
   });
@@ -7352,7 +7386,160 @@ function _rptStakeholderStats(name) {
            strengths: strengths, concerns: concerns };
 }
 
+// The overview paragraph that opens each domain and stakeholder section in the
+// published report. It describes what the domain *evaluates*, not what this
+// school scored, so it is the same in every school's report — which is why it
+// is fixed text here rather than generated. Taken from the issued format so a
+// report produced by this app and one produced by hand read as one document.
+const _RPT_DOMAIN_OVERVIEW = {
+  vc: ['The Vision &amp; Culture domain evaluates the extent to which the school has established a clear ' +
+       'educational vision and whether that vision is effectively translated into institutional practices.',
+       'This domain examines how leadership communicates the school\u2019s purpose, how strategic planning ' +
+       'guides school development, and how governance structures support accountability and decision-making.',
+       'It also assesses whether the school\u2019s culture reflects shared values, collaboration, ethical ' +
+       'leadership, and alignment between institutional goals and daily practices.',
+       'A strong institutional culture ensures that the school community works collectively toward a common ' +
+       'educational mission and that policies, practices, and stakeholder engagement reinforce the ' +
+       'school\u2019s long-term vision.'],
+  fac: ['The Facilities domain evaluates the adequacy, safety, and functionality of the school\u2019s physical ' +
+        'infrastructure and support services. It examines whether the learning environment provides ' +
+        'appropriate classrooms, learning resources, health facilities, sanitation, and safety provisions ' +
+        'necessary to support effective teaching and learning.',
+        'The domain also reviews additional institutional facilities such as laboratories, ICT ' +
+        'infrastructure, activity spaces, hostel facilities, transport services, and sanitation systems ' +
+        'that contribute to students\u2019 overall educational experience and well-being.',
+        'A well-developed school infrastructure plays a crucial role in creating a safe, inclusive, and ' +
+        'conducive learning environment that supports academic success and student development.'],
+  cpa: ['The Curriculum, Pedagogy &amp; Assessment domain examines the quality and effectiveness of teaching ' +
+        'and learning processes within the school. It evaluates how well the curriculum is designed, ' +
+        'implemented, and aligned with the school\u2019s mission, educational standards, and student learning ' +
+        'needs.',
+        'This domain assesses the coherence of curriculum planning, the effectiveness of instructional ' +
+        'strategies used by teachers, and the systems in place to monitor and support teaching quality. It ' +
+        'also evaluates how assessment practices measure student learning and inform instructional ' +
+        'improvement.',
+        'Additionally, the domain reviews the extent to which the school supports holistic student ' +
+        'development through co-curricular activities, life skills programmes, and opportunities that ' +
+        'develop critical thinking, creativity, and independent learning.',
+        'Strong performance in this domain ensures that teaching practices actively engage students, ' +
+        'promote meaningful learning experiences, and support the development of essential academic and ' +
+        'life competencies.'],
+  hr: ['The Human Resources Management domain evaluates the effectiveness of the school\u2019s systems for ' +
+       'recruiting, developing, supporting, and retaining qualified staff. It examines whether leadership ' +
+       'ensures that the school has competent teachers and staff who are capable of implementing the ' +
+       'school\u2019s vision and educational goals.',
+       'This domain also reviews staff welfare systems, professional development opportunities, performance ' +
+       'monitoring practices, and mechanisms used to recognize and motivate staff members.',
+       'Additionally, the domain considers how school leadership fosters professional growth among teachers ' +
+       'and how effectively parents and alumni are engaged as partners in the school\u2019s development.',
+       'Effective human resource management is essential for maintaining teaching quality, supporting staff ' +
+       'well-being, and ensuring that the school continuously improves its educational practices.'],
+  ext: ['The External Development domain evaluates how effectively the school engages with its wider ' +
+        'community, including parents, alumni, staff, and other stakeholders. It examines the quality of ' +
+        'relationships that the school maintains with these groups and assesses how well the school ' +
+        'gathers feedback to improve institutional practices.',
+        'This domain also considers the extent to which the school builds partnerships that support student ' +
+        'learning, institutional growth, and community development.',
+        'Effective external development ensures that the school functions as an active part of the ' +
+        'community, encouraging collaboration, transparency, and shared responsibility for educational ' +
+        'outcomes. Strong stakeholder engagement also helps schools identify emerging needs, improve ' +
+        'educational programmes, and strengthen trust between the school and its community.'],
+  mg: ['The Management &amp; Governance domain evaluates how effectively the school\u2019s leadership systems ' +
+       'manage institutional planning, resource allocation, financial administration, communication, and ' +
+       'campus safety.',
+       'This domain examines the systems that guide school operations, including institutional planning ' +
+       'processes, resource management practices, relationship management with stakeholders, and ' +
+       'mechanisms for maintaining institutional records.',
+       'It also evaluates how effectively the school ensures compliance with educational regulations, ' +
+       'manages financial systems, and maintains safe and hygienic campus environments.',
+       'Strong governance structures ensure that school resources are used efficiently, policies are ' +
+       'implemented consistently, and institutional decisions support the school\u2019s long-term vision and ' +
+       'development.'],
+  sa: ['The Student Attainment &amp; Progress domain evaluates how effectively the school supports students ' +
+       'in achieving academic success and developing essential learning skills.',
+       'This domain examines the systems used to track student progress, assess learning outcomes, and ' +
+       'support skill development across different subject areas. It also evaluates how well students ' +
+       'develop independent learning habits, communication abilities, critical thinking skills, and ' +
+       'personal responsibility for their learning.',
+       'In addition to academic performance, the domain reviews aspects of student engagement, inclusivity ' +
+       'in learning opportunities, and the extent to which students develop positive attitudes toward ' +
+       'learning.',
+       'Strong performance in this domain reflects a school\u2019s ability to support students in achieving ' +
+       'consistent academic progress while also developing the skills necessary for lifelong learning.'],
+};
+
+const _RPT_STAKEHOLDER_OVERVIEW = {
+  Management: ['The Management &amp; Leadership stakeholder group is responsible for providing strategic ' +
+    'direction, governance oversight, and institutional leadership for the school.',
+    'This stakeholder group ensures that the school\u2019s vision and mission guide institutional practices, ' +
+    'policies are implemented effectively, and resources are used efficiently to support educational goals.',
+    'Strong leadership helps establish a positive organizational culture, supports teacher development, and ' +
+    'ensures that the school continuously improves its educational practices.'],
+  Principal: ['The Principal &amp; Progress stakeholder group evaluates the leadership role of the principal ' +
+    'in guiding school improvement, strengthening teaching and learning processes, and ensuring alignment ' +
+    'between institutional goals and classroom practices.',
+    'This stakeholder group examines how effectively the principal establishes systems for curriculum ' +
+    'planning, teacher support, instructional monitoring, and school improvement planning.',
+    'Effective leadership at this level ensures that educational strategies translate into improved ' +
+    'teaching practices, stronger learning outcomes, and continuous institutional development.'],
+  Teachers: ['The Teachers &amp; Teaching stakeholder group evaluates the quality of classroom practices, ' +
+    'instructional planning, assessment methods, and the learning environment created by teachers.',
+    'Teachers are the most critical drivers of student learning. Their ability to design engaging lessons, ' +
+    'apply effective pedagogical strategies, assess student understanding, and support diverse learners ' +
+    'determines the overall quality of education provided by the school.',
+    'This section of the audit reviews teachers\u2019 practices across several dimensions including lesson ' +
+    'planning, classroom environment, instructional methods, assessment practices, student engagement, and ' +
+    'professional development.'],
+  Parents: ['The Parents &amp; Partnership stakeholder group evaluates the level of parental involvement in ' +
+    'the school community and the effectiveness of collaboration between families and the school.',
+    'Strong parent-school partnerships play a critical role in supporting student learning, improving ' +
+    'school accountability, and strengthening the overall educational environment. When parents are ' +
+    'actively engaged in their children\u2019s education and maintain consistent communication with teachers, ' +
+    'student achievement and well-being improve significantly.',
+    'This section examines how parents contribute to the school\u2019s vision, participate in school ' +
+    'activities, support learning at home, communicate with teachers, and participate in school ' +
+    'decision-making processes.'],
+  Students: ['The Students &amp; Learning stakeholder group evaluates how effectively the school supports ' +
+    'student learning, skill development, academic progress, and personal growth.',
+    'This section examines multiple aspects of student development including academic achievement, learning ' +
+    'skills, engagement with classroom instruction, study habits, attendance, and overall readiness for ' +
+    'future education.',
+    'A strong student learning environment ensures that learners not only acquire subject knowledge but ' +
+    'also develop critical thinking, communication skills, problem-solving abilities, and positive learning ' +
+    'attitudes.'],
+  Admin: ['The Admin &amp; Administration stakeholder group evaluates the systems that keep the school ' +
+    'running day to day: admissions and records, financial administration, communication, procurement, and ' +
+    'the upkeep of the campus.',
+    'This section examines how reliably those systems operate, how well institutional records are ' +
+    'maintained, and how effectively administrative practice supports teaching, learning and safety.',
+    'Effective administration is largely invisible when it works: it shows in accurate records, timely ' +
+    'communication, and a campus that is safe, supplied and well maintained.'],
+};
+
+// A named finding, in the shape the published reports use: a short title on its
+// own line, then the sentence that explains it — not a bulleted list.
+function _rptFinding(title, body, meta) {
+  return '<div class="finding"><span class="ft">' + title + '</span>' +
+    '<span class="fb">' + body + '</span>' +
+    (meta ? '<span class="flv">' + meta + '</span>' : '') + '</div>';
+}
+
+function _rptOverview(paras) {
+  return (paras || []).map(x => '<p>' + x + '</p>').join('');
+}
+
 const _RPT_STAKEHOLDERS = ['Management', 'Principal', 'Teachers', 'Students', 'Parents', 'Admin'];
+
+// The published report names each group in full; the app keys them by the
+// single word carried on every standard's `st` field.
+const _RPT_STAKEHOLDER_LABEL = {
+  Management: 'Management & Leadership',
+  Principal:  'Principal & Progress',
+  Teachers:   'Teachers & Teaching',
+  Parents:    'Parents & Partnership',
+  Students:   'Students & Learning',
+  Admin:      'Admin & Administration',
+};
 
 const _RPT_SCALE_TABLE =
   '<table><tr><th>Rating Level</th><th>Description</th></tr>' +
@@ -7386,7 +7573,7 @@ function buildAuditSummaryReport() {
   const best = ranked[0], worst = ranked[ranked.length - 1];
 
   let h = _rptCover('School 360\u00b0', 'Comprehensive School Audit Report',
-                    'Holistify School Audit Report Summary');
+                    'Holistify School Audit Report Summary', 'A peek into the school');
 
   // Contents
   h += '<div class="sheet"><h1>Holistify School Audit Report Summary</h1>' +
@@ -7442,7 +7629,7 @@ function buildAuditSummaryReport() {
     '<tr><td>School Name</td><td>' + _escHtml(_rptSchool()) + '</td></tr>' +
     (_rptBranch() ? '<tr><td>Campus</td><td>' + _escHtml(_rptBranch()) + '</td></tr>' : '') +
     (_rptBoard() ? '<tr><td>Board</td><td>' + _escHtml(_rptBoard()) + '</td></tr>' : '') +
-    '<tr><td>Overall Institutional Rating</td><td>Level ' + overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</td></tr>' +
+    '<tr><td>Overall Institutional Rating</td><td>Level ' + overallLevel + ' \u2013 ' + _rptLv(overallLevel) + '</td></tr>' +
     '<tr><td>Total Assessed Domains</td><td>' + ranked.length + ' of ' + DOMAINS.length + '</td></tr>' +
     '<tr><td>Total Assessed Sub-Domains</td><td>' + totalSubs + '</td></tr>' +
     '<tr><td>Total Assessed Standards</td><td>' + scored + ' of ' + totalStds + '</td></tr>' +
@@ -7472,7 +7659,7 @@ function buildAuditSummaryReport() {
     '<table><tr><th>Performance Level</th><th class="num">Number of Standards</th>' +
     '<th class="num">% of all ' + totalStds + '</th></tr>';
   for (let lv = 1; lv <= 4; lv++) {
-    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' + counts[lv] +
+    h += '<tr><td>Level ' + lv + ' \u2013 ' + _rptLv(lv) + '</td><td class="num">' + counts[lv] +
       '</td><td class="num">' + _rptPct(counts[lv], totalStds) + '%</td></tr>';
   }
   h += '<tr><td>Not assessed</td><td class="num">' + notAssessed + '</td><td class="num">' +
@@ -7492,7 +7679,7 @@ function buildAuditSummaryReport() {
 
   h += '<h3>2.5 Overall Institutional Interpretation</h3><p>' + _escHtml(_rptSchoolFull()) +
     ' is currently positioned at <strong>Level ' +
-    overallLevel + ' \u2014 ' + R_LABELS[overallLevel] + '</strong>, with ' +
+    overallLevel + ' \u2013 ' + _rptLv(overallLevel) + '</strong>, with ' +
     _rptPct(counts[2] + counts[3] + counts[4], scored) + '% of assessed standards at Satisfactory or above. ' +
     'Addressing the standards recorded at Level 1 through structured institutional planning is the shortest ' +
     'route to a higher institutional score.</p>';
@@ -7511,7 +7698,7 @@ function buildAuditSummaryReport() {
       if (!st.total) return '';
       return '<tr><td>' + _escHtml(n) + '</td><td class="num">' + st.total + '</td><td class="num">' +
         st.scored + '</td><td class="num">' + (st.scored ? st.pct + '%' : '\u2014') + '</td><td>' +
-        (st.scored ? 'Level ' + st.level + ' \u2014 ' + R_LABELS[st.level] : 'Not assessed') + '</td></tr>';
+        (st.scored ? 'Level ' + st.level + ' \u2013 ' + _rptLv(st.level) : 'Not assessed') + '</td></tr>';
     }).join('') + '</table>';
   _RPT_STAKEHOLDERS.forEach(n => { h += _rptStakeholderSection(n); });
 
@@ -7544,7 +7731,7 @@ function buildAuditSummaryReport() {
   h += '<h3>6.2 Institutional Challenges</h3>';
   if (allConcerns.length) {
     h += '<p>' + allConcerns.length + ' standard' + (allConcerns.length === 1 ? ' is' : 's are') +
-      ' recorded at Level 1 \u2014 Needs Improvement. These are the institution\u2019s most immediate priorities:</p><ul>';
+      ' recorded at Level 1 \u2013 Needs Improvement. These are the institution\u2019s most immediate priorities:</p><ul>';
     allConcerns.slice(0, 12).forEach(r => {
       h += '<li><strong>' + _escHtml(r.d.label) + ' \u00b7 ' + _escHtml(r.x.st.sub) + '</strong> \u2014 ' +
         _escHtml(r.x.st.s) + '</li>';
@@ -7601,7 +7788,8 @@ function buildAuditSummaryReport() {
     'institution that provides strong academic and developmental opportunities for all students.</p>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Holistify School Audit Report Summary \u2014 ' + _rptSchoolFull(), h);
+  _rptOpen('Holistify School Audit Report Summary \u2014 ' + _rptSchoolFull(), h, false,
+           'Holistify School Audit Report');
 }
 
 // ── Reports 2 and 3: Teachers Performance ───────────────────────
@@ -7703,7 +7891,8 @@ function buildTeachersReport() {
   }
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Teachers Performance Report \u2014 ' + _rptSchoolFull(), h, true);
+  _rptOpen('Teachers Performance Report \u2014 ' + _rptSchoolFull(), h, true,
+           'Holistify.ai \u2013 Teachers Performance Report');
 }
 
 function buildTeacherIndivReport(tid) {
@@ -7738,7 +7927,8 @@ function buildTeacherIndivReport(tid) {
     '</strong></td></tr></table>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen((t.name || 'Teacher') + ' \u2014 Performance Report', h, true);
+  _rptOpen((t.name || 'Teacher') + ' \u2014 Performance Report', h, true,
+           'Holistify.ai \u2013 Teachers Performance Report');
 }
 
 // ── Report 4: Students’ Screening Report Summary ────────────────
@@ -7874,7 +8064,8 @@ function buildScreeningReport() {
       '</td></tr>').join('') + '</table>';
 
   // 3. Overall distribution
-  h += '<h2>3. Overall Proficiency Distribution</h2>' +
+  h += '<h2>3. Summary of the Data</h2>' +
+    '<h3>Overall Proficiency Distribution</h3>' +
     '<table><tr><th>Level</th><th>Description</th><th class="num">Results</th><th class="num">Share</th></tr>' +
     [4,3,2,1].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
       '</td><td class="num">' + tot[lv] + '</td><td class="num">' + _rptPct(tot[lv], n) +
@@ -7882,7 +8073,7 @@ function buildScreeningReport() {
     '</table>' + _rptLevelBars(tot, n, _RPT_SCREEN_LEVELS);
 
   // 4. Skill by skill
-  h += '<div class="pb"></div><h2>4. Skill-wise Findings</h2>';
+  h += '<div class="pb"></div><h3>Skill-wise Findings</h3>';
   labels.forEach(k => {
     const d = skills[k];
     const gs = _rptGradeSpan(d.grades);
@@ -7896,7 +8087,7 @@ function buildScreeningReport() {
   });
 
   // 5. Risks
-  h += '<div class="pb"></div><h2>5. Summary of Recurring Academic Risks</h2><ul>';
+  h += '<div class="pb"></div><h2>4. Summary of High-Risk Recurring Academic Behaviours</h2><ul>';
   weakest.slice(0, 3).forEach(k => {
     const d = skills[k];
     h += '<li><strong>' + _escHtml(k) + '</strong> \u2014 ' + _rptPct(d.counts[1], d.n) +
@@ -7915,7 +8106,7 @@ function buildScreeningReport() {
   h += '</ul>';
 
   // 6. Recommendation
-  h += '<h2>6. Final Assessment &amp; Strategic Recommendation</h2><ul>' +
+  h += '<h2>5. Overall Risk Interpretation &amp; Strategic Recommendation</h2><ul>' +
     '<li><strong>Target the widest gap first.</strong> ' + _escHtml(weakest[0]) +
     ' has the largest share of students below competent performance and should receive dedicated ' +
     'remedial time in the timetable, not incidental coverage.</li>' +
@@ -7931,7 +8122,8 @@ function buildScreeningReport() {
     'than counted as Level 1.</div>';
 
   h += _rptFoot() + '</div>';
-  _rptOpen('Students\u2019 Screening Report Summary \u2014 ' + _rptSchoolFull(), h);
+  _rptOpen('Students\u2019 Screening Report Summary \u2014 ' + _rptSchoolFull(), h, false,
+           'Holistify Students\u2019 Screening Report Summary');
 }
 
 // ── The Formal Reports panel ───────────────────────────────
@@ -8024,22 +8216,25 @@ function renderFormalReports() {
 function _rptStakeholderSection(name) {
   const st = _rptStakeholderStats(name);
   if (!st.total) return '';
-  let h = '<div class="pb"></div><h2>Stakeholder \u2014 ' + _escHtml(name) + '</h2>';
+  const sIdx = _RPT_STAKEHOLDERS.indexOf(name) + 1;
+  let h = '<div class="pb"></div><h2>Stakeholder ' + sIdx + ' \u2013 ' +
+    _escHtml(_RPT_STAKEHOLDER_LABEL[name] || name) + '</h2>';
   if (!st.scored) {
     return h + '<p><em>None of the ' + st.total + ' standards accountable to ' + _escHtml(name) +
       ' has been scored yet, so no findings are reported for this group.</em></p>';
   }
+  h += '<h3>Stakeholder Overview</h3>' + _rptOverview(_RPT_STAKEHOLDER_OVERVIEW[name]);
   h += '<h3>1. Stakeholder Statistics</h3><table><tr><th>Indicator</th><th>Value</th></tr>' +
     '<tr><td>Number of Domains</td><td>' + st.domains + '</td></tr>' +
     '<tr><td>Number of Sub-domains</td><td>' + st.subs + '</td></tr>' +
     '<tr><td>Number of Standards</td><td>' + st.total + '</td></tr>' +
     '<tr><td>Standards Assessed</td><td>' + st.scored + '</td></tr>' +
     '<tr><td>Overall Level</td><td>Level ' + st.level + '</td></tr>' +
-    '<tr><td>Overall Rating</td><td>' + R_LABELS[st.level] + '</td></tr></table>';
+    '<tr><td>Overall Rating</td><td>' + _rptLv(st.level) + '</td></tr></table>';
 
   h += '<h3>2. Performance Distribution</h3><table><tr><th>Level</th><th class="num">Standards</th><th class="num">Share</th></tr>';
-  for (let lv = 4; lv >= 1; lv--) {
-    h += '<tr><td>Level ' + lv + ' \u2014 ' + R_LABELS[lv] + '</td><td class="num">' + st.counts[lv] +
+  for (let lv = 1; lv <= 4; lv++) {
+    h += '<tr><td>Level ' + lv + ' \u2013 ' + _rptLv(lv) + '</td><td class="num">' + st.counts[lv] +
       '</td><td class="num">' + _rptPct(st.counts[lv], st.scored) + '%</td></tr>';
   }
   h += '</table>' + _rptLevelBars(st.counts, st.scored);
@@ -8047,27 +8242,51 @@ function _rptStakeholderSection(name) {
   h += '<h3>3. Interpretation</h3><p>' + _escHtml(name) +
     ' is accountable for ' + st.total + ' of the institution\u2019s standards, of which ' + st.scored +
     ' were assessed. The group scores <strong>' + st.pct + '%</strong> overall, placing it at <strong>Level ' +
-    st.level + ' \u2014 ' + R_LABELS[st.level] + '</strong>. ' +
+    st.level + ' \u2013 ' + _rptLv(st.level) + '</strong>. ' +
     (st.counts[1] ? st.counts[1] + ' standard' + (st.counts[1] === 1 ? '' : 's') +
       ' sit at Level 1 and should be treated as this group\u2019s immediate priorities.'
       : 'No standard in this group sits at Level 1.') + '</p>';
 
   if (st.strengths.length) {
-    h += '<h3>4. Key Strengths</h3><ul>';
+    h += '<h3>4. Key Strengths</h3>';
     st.strengths.slice(0, 7).forEach(x => {
-      h += '<li><strong>' + _escHtml(x.dom) + ' \u00b7 ' + _escHtml(x.st.sub) + ':</strong> ' +
-        _escHtml(x.st.s) + ' <em>(Level ' + x.v + ')</em></li>';
+      h += _rptFinding(_escHtml(x.st.sub), _escHtml(x.st.s),
+        _escHtml(x.dom) + ' \u00b7 Level ' + x.v + ' \u2013 ' + _rptLv(x.v));
     });
-    h += '</ul>';
   }
   if (st.concerns.length) {
-    h += '<h3>5. Key Concerns</h3><ul>';
+    h += '<h3>5. Key Concerns</h3>';
     st.concerns.sort((a, b) => a.v - b.v).slice(0, 7).forEach(x => {
-      h += '<li><strong>' + _escHtml(x.dom) + ' \u00b7 ' + _escHtml(x.st.sub) + ':</strong> ' +
-        _escHtml(x.st.s) + ' <em>(Level ' + x.v + ')</em></li>';
+      h += _rptFinding(_escHtml(x.st.sub), _escHtml(x.st.s),
+        _escHtml(x.dom) + ' \u00b7 Level ' + x.v + ' \u2013 ' + _rptLv(x.v));
     });
-    h += '</ul>';
   }
+
+  // The published format closes every stakeholder section with recommendations
+  // and a conclusion. The recommendations are the plan entries already defined
+  // for the domains this group is accountable for, so the report and the
+  // roadmap cannot contradict each other.
+  const recDoms = [...new Set(st.concerns.concat(st.strengths).map(x => x.domId))];
+  const recs = [];
+  recDoms.forEach(id => _rptRecommendations(id, 2).forEach(r => {
+    if (!recs.some(q => q.title === r.title)) recs.push(r);
+  }));
+  if (recs.length) {
+    h += '<h3>6. Strategic Recommendations</h3>';
+    recs.slice(0, 6).forEach(r => {
+      h += _rptFinding(_escHtml(r.title), _escHtml((r.do || []).slice(0, 3).join(' ')));
+    });
+  }
+
+  h += '<h3>7. Stakeholder Conclusion</h3><p>' +
+    _escHtml(_RPT_STAKEHOLDER_LABEL[name] || name) + ' is accountable for ' + st.total +
+    ' of the institution\u2019s standards and currently sits at <strong>Level ' + st.level +
+    ' \u2013 ' + _rptLv(st.level) + '</strong> across the ' + st.scored + ' assessed. ' +
+    (st.counts[1]
+      ? 'The ' + st.counts[1] + ' standard' + (st.counts[1] === 1 ? '' : 's') +
+        ' recorded at Level 1 are where this group\u2019s attention is most needed.'
+      : 'No standard in this group sits at Level 1, so the work here is consolidation rather than repair.') +
+    '</p>';
   return h;
 }
 
