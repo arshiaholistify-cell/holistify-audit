@@ -7969,6 +7969,95 @@ function _rptScreeningSkills(scope) {
   return skills;
 }
 
+// ── The same screening, read per student ───────────────────────────
+// `_rptScreeningSkills()` counts levels per skill and throws the names away,
+// which is the right shape for a summary and the wrong shape for acting on it:
+// "32% of students are at Level 1" is not a list anyone can teach to.
+//
+// This walks **the same assessments and rubrics, resolving each result the same
+// way**, and keys by student instead of by skill. So the two cannot disagree:
+// every result counted in the summary appears against exactly one child here.
+//
+// A student is identified by **name and grade together**, lower-cased and
+// whitespace-collapsed. Two children in different grades may share a name and
+// are different children; two in the same grade who share one are, as far as a
+// marks sheet can tell, the same child — the sheets carry no roll number, and
+// inventing a distinction the data does not support would be worse than
+// merging. The roll number is filled from the school roster where it knows
+// the name, by the same exact match `_fillFromRoster()` uses.
+function _rptStudentIndex(scope) {
+  const inScope = item => !scope || scope === 'all' ||
+    (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
+  const roster = (typeof _rosterIndex === 'function') ? _rosterIndex().idx : {};
+  const out = {};
+  const put = (name, grade, item, lv, detail) => {
+    const nm = _wideNorm(name);
+    if (!nm || !lv) return;
+    const g = _wideNorm(grade);
+    const key = nm.toLowerCase() + '|' + g.toLowerCase();
+    if (!out[key]) {
+      const hit = roster[nm.toLowerCase()];
+      out[key] = { name: nm, grade: g, roll: (hit && hit.roll) || '',
+                   skills: {}, counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, sum: 0 };
+    }
+    const st = out[key];
+    const label = _skillKey(item) || 'Unassigned';
+    // A child sat a skill once; where a sheet repeats it, the lowest stands,
+    // because a screening reports what a child could not yet do.
+    if (!st.skills[label] || lv < st.skills[label].lv) {
+      st.skills[label] = { lv: lv, detail: detail || '' };
+    }
+    st.counts[lv]++; st.n++; st.sum += lv;
+  };
+
+  assessments.filter(inScope).forEach(a => {
+    (scoreEntries[a.id] || []).forEach(sc => {
+      if (!a.maxMarks) return;
+      const pct = Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100);
+      put(sc.name, sc.grade || a.grade, a, _bandLevel(pct),
+          sc.score + '/' + a.maxMarks + ' · ' + pct + '%');
+    });
+  });
+  rubrics.filter(inScope).forEach(r => {
+    const scale = r.scale || 4;
+    (rubricScores[r.id] || []).forEach(resp => {
+      const avg = _rubricRespAvg(resp, r);
+      if (avg === null) return;
+      const lv = scale === 4 ? Math.max(1, Math.min(4, Math.round(avg)))
+                             : _bandLevel(Math.round(avg / scale * 100));
+      put(resp.name, resp.grade, r, lv, avg.toFixed(1) + '/' + scale);
+    });
+  });
+
+  Object.keys(out).forEach(k => {
+    const st = out[k];
+    st.avg = st.n ? st.sum / st.n : 0;
+    // The overall level is the average of the skills the child was screened
+    // on, rounded — the same rule a domain score uses.
+    st.level = st.n ? Math.max(1, Math.min(4, Math.round(st.avg))) : 0;
+  });
+  return out;
+}
+
+// Sorted for a report: by grade in the order the rest of the app uses, then by
+// name, so a printed roster matches a class list.
+function _rptStudentList(scope, grade) {
+  const idx = _rptStudentIndex(scope);
+  const rows = Object.keys(idx).map(k => idx[k])
+    .filter(st => !grade || grade === 'all' || st.grade === grade);
+  const gi = g => { const i = GRADES_ORDER.indexOf(g); return i < 0 ? 99 : i; };
+  rows.sort((a, b) => gi(a.grade) - gi(b.grade) ||
+                      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  return rows;
+}
+
+// Every skill any of these students was screened on, in a stable order.
+function _rptStudentSkills(rows) {
+  const seen = {};
+  rows.forEach(st => Object.keys(st.skills).forEach(k => { seen[k] = (seen[k] || 0) + 1; }));
+  return Object.keys(seen).sort((a, b) => seen[b] - seen[a] || a.localeCompare(b));
+}
+
 // The four screening levels, as the published report words them. Used by the
 // framework table, each skill table and the bars, so the three cannot drift.
 const _RPT_SCREEN_LEVELS = ['',
@@ -8144,6 +8233,172 @@ function _rptReadiness() {
            screenResults: nScreen, allResults: nAll };
 }
 
+// ── Students’ Screening Report — Student Details ────────────────────
+// The issued Screening Report Summary is a summary by design: percentages of a
+// cohort, no names. This is its companion, and it is the document a school
+// actually works from — who is at Level 1, by name, in which skill.
+//
+// It is deliberately a separate report rather than names bolted into the
+// summary: the summary goes to a board, this goes to a staffroom, and they
+// carry different information about identifiable children.
+function buildStudentScreeningReport() {
+  loadAssessmentData();
+  const scope = (document.getElementById('rpt-stu-scope') || { value: 'screening' }).value || 'screening';
+  const grade = (document.getElementById('rpt-stu-grade') || { value: 'all' }).value || 'all';
+  const rows = _rptStudentList(scope, grade);
+  if (!rows.length) {
+    toast(grade === 'all'
+      ? 'No screening results carry a student name yet.'
+      : 'No screened students in ' + grade + '.', 'warn');
+    return;
+  }
+  const skills = _rptStudentSkills(rows);
+  const gradeLabel = grade === 'all' ? 'All grades' : grade;
+
+  let h = _rptCover('Holistify.ai', 'Students’ Screening Report',
+                    'Student Details — ' + gradeLabel, 'Who needs what, by name');
+
+  h += '<div class="sheet"><h1>Students’ Screening Report — Student Details</h1>' +
+    '<p class="lede">' + _escHtml(_rptSchoolFull()) + ' · ' + _escHtml(gradeLabel) + ' · ' +
+    rows.length + ' student' + (rows.length === 1 ? '' : 's') + ' screened across ' +
+    skills.length + ' skill' + (skills.length === 1 ? '' : 's') + '</p>';
+
+  h += '<div class="note"><strong>This document names individual children.</strong> It is intended for ' +
+    'the teachers and coordinators planning their support, and should be handled as a student record. ' +
+    'The Screening Report Summary carries the same findings without names, and is the version for ' +
+    'wider circulation.</div>';
+
+  // ── 1. How many children sit at each level ──
+  const tot = { 1:0, 2:0, 3:0, 4:0 };
+  rows.forEach(st => { if (st.level) tot[st.level]++; });
+  h += '<h2>1. Where the cohort sits</h2>' +
+    '<p>Each child’s level is the average of the skills they were screened on. ' +
+    'The four levels are the screening’s own:</p>' +
+    '<table><tr><th>Level</th><th>Description</th><th class="num">Students</th><th class="num">Share</th></tr>' +
+    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
+      '</td><td class="num">' + tot[lv] + '</td><td class="num">' +
+      _rptPct(tot[lv], rows.length) + '%</td></tr>').join('') + '</table>' +
+    _rptLevelBars(tot, rows.length, _RPT_SCREEN_LEVELS);
+
+  // ── 2. The intervention lists ──
+  h += '<div class="pb"></div><h2>2. Students needing support, by skill</h2>' +
+    '<p>Every child at <strong>Level 1</strong> or <strong>Level 2</strong> in each skill. ' +
+    'Level 1 is a child who cannot yet perform the skill; Level 2 is one who can, with frequent ' +
+    'errors. These are the lists to plan from.</p>';
+  skills.forEach(sk => {
+    const at = lv => rows.filter(st => st.skills[sk] && st.skills[sk].lv === lv);
+    const l1 = at(1), l2 = at(2), n = rows.filter(st => st.skills[sk]).length;
+    if (!n) return;
+    h += '<h3>' + _escHtml(sk) + '</h3>' +
+      '<p class="lede">' + n + ' screened · ' + l1.length + ' at Level 1 (' + _rptPct(l1.length, n) +
+      '%) · ' + l2.length + ' at Level 2 (' + _rptPct(l2.length, n) + '%)</p>';
+    [[1, l1], [2, l2]].forEach(([lv, list]) => {
+      if (!list.length) {
+        h += '<p><em>No student is at Level ' + lv + ' in this skill.</em></p>';
+        return;
+      }
+      h += '<div class="finding"><span class="ft">Level ' + lv + ' – ' + _RPT_SCREEN_LEVELS[lv] +
+        ' (' + list.length + ')</span><span class="fb">' +
+        list.map(st => _escHtml(st.name) + (st.grade ? ' <span style="color:#6b7672">(' +
+          _escHtml(st.grade) + (st.roll ? ', roll ' + _escHtml(st.roll) : '') + ')</span>' : ''))
+          .join('; ') + '</span></div>';
+    });
+  });
+
+  // ── 3. The roster ──
+  h += '<div class="pb"></div><h2>3. Student profiles</h2>' +
+    '<p>One row per child: the level reached in each skill screened, and the overall level. ' +
+    'A dash means the child was not screened on that skill.</p>';
+  let lastGrade = null;
+  h += '<table style="font-size:8.5pt"><tr><th>Roll</th><th>Student</th><th>Grade</th>' +
+    skills.map(sk => '<th class="num">' + _escHtml(sk) + '</th>').join('') +
+    '<th class="num">Overall</th></tr>';
+  rows.forEach(st => {
+    h += '<tr><td>' + _escHtml(st.roll || '—') + '</td><td>' + _escHtml(st.name) +
+      '</td><td>' + _escHtml(st.grade || '—') + '</td>' +
+      skills.map(sk => {
+        const v = st.skills[sk];
+        return '<td class="num"' + (v ? ' style="color:' + _RPT_LV_COLOR[v.lv] + ';font-weight:600"' : '') +
+          '>' + (v ? v.lv : '—') + '</td>';
+      }).join('') +
+      '<td class="num" style="font-weight:600">' + (st.level || '—') + '</td></tr>';
+  });
+  h += '</table>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen('Students’ Screening Report — Student Details — ' + _rptSchoolFull(), h, false,
+           'Holistify Students’ Screening Report – Student Details');
+}
+
+// One child, in full — the analogue of the Individual Teacher Report.
+function buildStudentIndivReport(key) {
+  loadAssessmentData();
+  const scope = (document.getElementById('rpt-stu-scope') || { value: 'screening' }).value || 'screening';
+  const idx = _rptStudentIndex(scope);
+  const st = idx[key];
+  if (!st) { toast('That student has no screening results in this scope.', 'warn'); return; }
+  const skills = Object.keys(st.skills).sort();
+
+  let h = _rptCover('Holistify.ai', 'Student Screening Profile', st.name,
+                    [st.grade, st.roll ? 'Roll ' + st.roll : ''].filter(Boolean).join(' · '));
+
+  h += '<div class="sheet"><h1>' + _escHtml(st.name) + '</h1>' +
+    '<p class="lede">' + _escHtml(_rptSchoolFull()) +
+    (st.grade ? ' · ' + _escHtml(st.grade) : '') +
+    (st.roll ? ' · Roll ' + _escHtml(st.roll) : '') + '</p>';
+
+  h += '<h2>1. Profile</h2><table><tr><th>Indicator</th><th>Value</th></tr>' +
+    '<tr><td>Student</td><td>' + _escHtml(st.name) + '</td></tr>' +
+    (st.roll ? '<tr><td>Roll number</td><td>' + _escHtml(st.roll) + '</td></tr>' : '') +
+    (st.grade ? '<tr><td>Grade</td><td>' + _escHtml(st.grade) + '</td></tr>' : '') +
+    '<tr><td>Skills screened</td><td>' + skills.length + '</td></tr>' +
+    '<tr><td>Average level</td><td>' + st.avg.toFixed(1) + ' / 4</td></tr>' +
+    '<tr><td>Overall level</td><td>Level ' + st.level + ' – ' + _RPT_SCREEN_LEVELS[st.level] +
+      '</td></tr></table>';
+
+  h += '<h2>2. Skill by skill</h2>' +
+    '<table><tr><th>Skill</th><th class="num">Level</th><th>What that level means</th><th class="num">Result</th></tr>' +
+    skills.map(sk => {
+      const v = st.skills[sk];
+      return '<tr><td>' + _escHtml(sk) + '</td>' +
+        '<td class="num" style="color:' + _RPT_LV_COLOR[v.lv] + ';font-weight:600">' + v.lv + '</td>' +
+        '<td>' + _RPT_SCREEN_LEVELS[v.lv] + '</td>' +
+        '<td class="num">' + _escHtml(v.detail || '—') + '</td></tr>';
+    }).join('') + '</table>' +
+    _rptLevelBars(st.counts, st.n, _RPT_SCREEN_LEVELS);
+
+  const weak = skills.filter(sk => st.skills[sk].lv <= 2);
+  const strong = skills.filter(sk => st.skills[sk].lv >= 3);
+  h += '<h2>3. What this says</h2>';
+  h += '<p>' + _escHtml(st.name) + ' was screened on ' + skills.length + ' skill' +
+    (skills.length === 1 ? '' : 's') + ' and averages <strong>' + st.avg.toFixed(1) +
+    ' of 4</strong>, placing ' + (st.level >= 3 ? 'them at a competent level overall'
+      : 'them where targeted support is needed') + '. ' +
+    (weak.length ? 'The ' + weak.length + ' skill' + (weak.length === 1 ? '' : 's') +
+      ' below Level 3 are where that support belongs.' : 'No skill falls below Level 3.') + '</p>';
+  if (weak.length) {
+    h += '<h3>Needs support</h3>';
+    weak.sort((a, b) => st.skills[a].lv - st.skills[b].lv).forEach(sk => {
+      h += _rptFinding(_escHtml(sk), _RPT_SCREEN_LEVELS[st.skills[sk].lv],
+                       'Level ' + st.skills[sk].lv + ' · ' + _escHtml(st.skills[sk].detail || ''));
+    });
+  }
+  if (strong.length) {
+    h += '<h3>Secure</h3>';
+    strong.sort((a, b) => st.skills[b].lv - st.skills[a].lv).forEach(sk => {
+      h += _rptFinding(_escHtml(sk), _RPT_SCREEN_LEVELS[st.skills[sk].lv],
+                       'Level ' + st.skills[sk].lv + ' · ' + _escHtml(st.skills[sk].detail || ''));
+    });
+  }
+
+  h += '<div class="note">Screening measures what a child could do on the day, on these skills alone. ' +
+    'It is a starting point for teaching, not a judgement of the child.</div>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen(st.name + ' — Student Screening Profile', h, false,
+           'Holistify Student Screening Profile');
+}
+
 function renderFormalReports() {
   const el = document.getElementById('rpt-docs-body');
   if (!el) return;
@@ -8206,7 +8461,60 @@ function renderFormalReports() {
     r.allResults > 0, 'No assessment or rubric scores yet. Import or enter scores on the Assessment page.',
     btn('Generate', 'buildScreeningReport()', r.allResults > 0));
 
+  // The named companion to the summary above, and one child in full.
+  const stuAll = _rptStudentList('all', 'all');
+  const stuScr = _rptStudentList('screening', 'all');
+  const gradesSeen = GRADES_ORDER.filter(g => stuAll.some(x => x.grade === g));
+  const gradeOpts = '<option value="all">All grades (' + stuAll.length + ' students)</option>' +
+    gradesSeen.map(g => '<option value="' + _escHtml(g) + '">' + _escHtml(g) + ' (' +
+      stuAll.filter(x => x.grade === g).length + ')</option>').join('');
+
+  h += card('\ud83e\uddd1\u200d\ud83c\udf93', 'Students\u2019 Screening Report \u2014 Student Details',
+    'The same screening, by name: where the cohort sits, every child at Level 1 or 2 in each skill, ' +
+    'and a roster of one row per student with the level reached in each skill.',
+    'Built from <strong>' + stuAll.length + '</strong> named student' + (stuAll.length === 1 ? '' : 's') +
+    ' \u00b7 A4 portrait \u00b7 <strong>names identifiable children</strong>' +
+    (stuAll.length ? '<br><select id="rpt-stu-scope" style="margin-top:6px;padding:5px 8px;border:0.5px solid var(--bdr-s);' +
+      'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif">' +
+      '<option value="screening">\ud83d\udd2c Holistify screening only (' + stuScr.length + ' students)</option>' +
+      '<option value="all">Everything assessed (' + stuAll.length + ' students)</option></select> ' +
+      '<select id="rpt-stu-grade" onchange="_rptStuPickGrade()" style="margin-top:6px;padding:5px 8px;border:0.5px solid var(--bdr-s);' +
+      'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif">' + gradeOpts + '</select>' : ''),
+    stuAll.length > 0,
+    'No screening result carries a student name. Import scores with a student-name column.',
+    btn('Generate', 'buildStudentScreeningReport()', stuAll.length > 0));
+
+  h += card('\ud83d\udc64', 'Student Screening Profile',
+    'One child in full: their level in every skill screened, what each level means, the mark behind ' +
+    'it, and which skills need support.',
+    'A4 portrait \u00b7 one document per student' +
+    (stuAll.length ? '<br><select id="rpt-stu-pick" style="margin-top:6px;padding:5px 8px;border:0.5px solid var(--bdr-s);' +
+      'border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif;max-width:300px">' +
+      _rptStuOptions(stuAll) + '</select>' : ''),
+    stuAll.length > 0, 'No screening result carries a student name.',
+    btn('Generate', 'buildStudentIndivReport((document.getElementById(\'rpt-stu-pick\')||{}).value)',
+        stuAll.length > 0));
+
   el.innerHTML = h;
+}
+
+// The picker's options, and the key each one carries \u2014 the same name|grade key
+// `_rptStudentIndex()` builds, so the two cannot drift apart.
+function _rptStuOptions(rows) {
+  return rows.map(st => '<option value="' +
+    _escHtml(st.name.toLowerCase() + '|' + st.grade.toLowerCase()) + '">' +
+    _escHtml(st.name) + (st.grade ? ' \u2014 ' + _escHtml(st.grade) : '') +
+    (st.roll ? ' (roll ' + _escHtml(st.roll) + ')' : '') + '</option>').join('');
+}
+
+// Narrowing the roster report's grade narrows the one-student picker with it.
+function _rptStuPickGrade() {
+  const g = (document.getElementById('rpt-stu-grade') || {}).value || 'all';
+  const sel = document.getElementById('rpt-stu-pick');
+  if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = _rptStuOptions(_rptStudentList('all', g));
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
 }
 
 

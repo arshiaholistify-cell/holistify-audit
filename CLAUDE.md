@@ -1056,6 +1056,46 @@ The branch of the school being audited fills the **Campus** line the published
 format has; see **Branches** above for how it is stored. A school with one
 campus prints no campus row at all.
 
+### Student-level screening reports
+
+The issued Screening Report Summary is cohort-level by design: percentages, no
+names. "32% of students are at Level 1" is the right sentence for a board and
+the wrong one for a staffroom, because it is not a list anyone can teach to.
+Two reports sit beside it:
+
+| Report | What it is |
+|---|---|
+| Students' Screening Report — Student Details | the roster: where the cohort sits, every child at Level 1 or 2 **by name** in each skill, and one row per student with the level reached in each |
+| Student Screening Profile | one child in full — level per skill, what that level means, the mark behind it, and which skills need support |
+
+Both read `_rptStudentIndex(scope)`, which walks **the same assessments and
+rubrics as `_rptScreeningSkills()` and resolves every result the same way**,
+keyed by student rather than by skill. `stu.js` asserts the two reconcile: each
+result counted in the summary lands on exactly one child. Change one and the
+test will catch the other.
+
+Things decided here that are easy to get wrong:
+
+- **A student is `name|grade`**, lower-cased and whitespace-collapsed. Two
+  children in different grades may share a name and are different children;
+  two in the same grade who share one are, as far as a marks sheet can tell,
+  the same child — the sheets carry no roll number, so inventing a distinction
+  the data cannot support would be worse than merging. The picker's option
+  values are those same keys, so the list and the report cannot drift.
+- **The roll number comes from the roster**, by the same exact-name match
+  `_fillFromRoster()` uses. A child the roster does not list still appears,
+  with a dash.
+- **Where a sheet screens one skill twice, the lower level stands.** A
+  screening reports what a child could not yet do.
+- A child's **overall level** is the rounded average of the skills they were
+  screened on — the same rule a domain score uses — not a mark total.
+
+The roster report **says on its first page that it names identifiable
+children** and points at the summary as the version for wider circulation. The
+individual profile closes by saying screening measures what a child could do on
+the day, on these skills alone, and is a starting point for teaching rather
+than a judgement. Keep both: these documents travel.
+
 ### Matching the issued documents
 
 The reports Holistify issues by hand were read back into this repo and the
