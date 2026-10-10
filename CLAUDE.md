@@ -1065,7 +1065,7 @@ Two reports sit beside it:
 
 | Report | What it is |
 |---|---|
-| Students' Screening Report — Student Details | the roster: where the cohort sits, every child at Level 1 or 2 **by name** in each skill, and one row per student with the level reached in each |
+| Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix**, the same matrix per skill **with the children's names in the cells**, and a roster of one row per student |
 | Student Screening Profile | one child in full — level per skill, what that level means, the mark behind it, and which skills need support |
 
 Both read `_rptStudentIndex(scope)`, which walks **the same assessments and
@@ -1089,6 +1089,15 @@ Things decided here that are easy to get wrong:
   screening reports what a child could not yet do.
 - A child's **overall level** is the rounded average of the skills they were
   screened on — the same rule a domain score uses — not a mark total.
+
+**The names go in table cells, not in a sentence.** The first cut printed each
+level's students as one semicolon-separated run; on real data that was a
+paragraph of 417 names, which is a wall rather than a list. Everything a school
+does with this is "which grade, at which level", so that is the shape: grade
+down the side, the four levels across the top, the children in the cell, each
+with the roll number the roster knows them by. `_rptStudentGrades()` orders the
+grades as `GRADES_ORDER` does and puts anything ungraded last rather than
+dropping it.
 
 The roster report **says on its first page that it names identifiable
 children** and points at the summary as the version for wider circulation. The

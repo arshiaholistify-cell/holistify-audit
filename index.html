@@ -8051,6 +8051,26 @@ function _rptStudentList(scope, grade) {
   return rows;
 }
 
+// The grades present, in the order the rest of the app uses, with anything
+// ungraded last rather than dropped — a child with no grade is still a child
+// the school has to teach.
+function _rptStudentGrades(rows) {
+  const seen = {};
+  rows.forEach(st => { seen[st.grade || '\u2014'] = 1; });
+  const out = GRADES_ORDER.filter(g => seen[g]);
+  Object.keys(seen).forEach(g => { if (out.indexOf(g) < 0) out.push(g); });
+  return out;
+}
+
+// Names for a table cell: the roll number where the roster knows it, because
+// two children in a class can share a first name and the roll is what a
+// teacher looks them up by.
+function _rptNameList(list) {
+  return list.map(st => _escHtml(st.name) +
+    (st.roll ? ' <span style="color:#8a9793">' + _escHtml(st.roll) + '</span>' : ''))
+    .join(', ');
+}
+
 // Every skill any of these students was screened on, in a stable order.
 function _rptStudentSkills(rows) {
   const seen = {};
@@ -8281,32 +8301,74 @@ function buildStudentScreeningReport() {
     _rptLevelBars(tot, rows.length, _RPT_SCREEN_LEVELS);
 
   // ── 2. The intervention lists ──
-  h += '<div class="pb"></div><h2>2. Students needing support, by skill</h2>' +
-    '<p>Every child at <strong>Level 1</strong> or <strong>Level 2</strong> in each skill. ' +
-    'Level 1 is a child who cannot yet perform the skill; Level 2 is one who can, with frequent ' +
-    'errors. These are the lists to plan from.</p>';
+  // \u2500\u2500 2. Levels by grade, across the whole screening \u2500\u2500
+  // A run of four hundred names separated by semicolons is a wall, not a
+  // list. Everything a school acts on is "which grade, at which level", so
+  // that is the shape: grade down the side, level across the top.
+  const grades = _rptStudentGrades(rows);
+  const gradeCell = (list, lv) =>
+    '<td class="num"' + (list.length && lv <= 2 ? ' style="color:' + _RPT_LV_COLOR[lv] + ';font-weight:600"' : '') +
+    '>' + (list.length || '\u2014') + '</td>';
+
+  h += '<div class="pb"></div><h2>2. Levels by grade</h2>' +
+    '<p>Each child counted once, at their overall level across the skills they were screened on.</p>' +
+    '<table style="width:auto;min-width:120mm"><tr><th style="width:34mm">Grade</th>' +
+    [1,2,3,4].map(lv => '<th class="num" style="width:18mm">Level ' + lv + '</th>').join('') +
+    '<th class="num" style="width:20mm">Screened</th>' +
+    '<th class="num" style="width:22mm">At Level 1\u20132</th></tr>';
+  grades.forEach(g => {
+    const inG = rows.filter(st => (st.grade || '\u2014') === g);
+    const at = lv => inG.filter(st => st.level === lv);
+    const low = at(1).length + at(2).length;
+    h += '<tr><td>' + _escHtml(g) + '</td>' +
+      [1,2,3,4].map(lv => gradeCell(at(lv), lv)).join('') +
+      '<td class="num">' + inG.length + '</td>' +
+      '<td class="num"><strong>' + _rptPct(low, inG.length) + '%</strong></td></tr>';
+  });
+  const tAt = lv => rows.filter(st => st.level === lv).length;
+  h += '<tr><td><strong>All grades</strong></td>' +
+    [1,2,3,4].map(lv => '<td class="num"><strong>' + tAt(lv) + '</strong></td>').join('') +
+    '<td class="num"><strong>' + rows.length + '</strong></td>' +
+    '<td class="num"><strong>' + _rptPct(tAt(1) + tAt(2), rows.length) + '%</strong></td></tr></table>';
+
+  // \u2500\u2500 3. The same thing per skill, with the names in the cells \u2500\u2500
+  h += '<div class="pb"></div><h2>3. Students by skill, grade and level</h2>' +
+    '<p>One table per skill: the grade down the side, the level across the top, and the children ' +
+    'in each cell. <strong>Level 1</strong> is a child who cannot yet perform the skill; ' +
+    '<strong>Level 2</strong> is one who can, with frequent errors. Those two columns are the ' +
+    'lists to plan from.</p>';
   skills.forEach(sk => {
-    const at = lv => rows.filter(st => st.skills[sk] && st.skills[sk].lv === lv);
-    const l1 = at(1), l2 = at(2), n = rows.filter(st => st.skills[sk]).length;
-    if (!n) return;
+    const inSk = rows.filter(st => st.skills[sk]);
+    if (!inSk.length) return;
+    const gs = _rptStudentGrades(inSk);
+    const low = inSk.filter(st => st.skills[sk].lv <= 2).length;
     h += '<h3>' + _escHtml(sk) + '</h3>' +
-      '<p class="lede">' + n + ' screened · ' + l1.length + ' at Level 1 (' + _rptPct(l1.length, n) +
-      '%) · ' + l2.length + ' at Level 2 (' + _rptPct(l2.length, n) + '%)</p>';
-    [[1, l1], [2, l2]].forEach(([lv, list]) => {
-      if (!list.length) {
-        h += '<p><em>No student is at Level ' + lv + ' in this skill.</em></p>';
-        return;
-      }
-      h += '<div class="finding"><span class="ft">Level ' + lv + ' – ' + _RPT_SCREEN_LEVELS[lv] +
-        ' (' + list.length + ')</span><span class="fb">' +
-        list.map(st => _escHtml(st.name) + (st.grade ? ' <span style="color:#6b7672">(' +
-          _escHtml(st.grade) + (st.roll ? ', roll ' + _escHtml(st.roll) : '') + ')</span>' : ''))
-          .join('; ') + '</span></div>';
+      '<p class="lede">' + inSk.length + ' screened \u00b7 ' + low + ' at Level 1\u20132 (' +
+      _rptPct(low, inSk.length) + '%)</p>' +
+      '<table style="font-size:8pt"><tr><th style="width:17mm">Grade</th>' +
+      [1,2,3,4].map(lv => '<th style="width:40mm">Level ' + lv + '<div style="font-weight:400;' +
+        'font-size:7pt;color:#4a5a55">' + _RPT_SCREEN_LEVELS[lv] + '</div></th>').join('') +
+      '</tr>';
+    gs.forEach(g => {
+      const inG = inSk.filter(st => (st.grade || '\u2014') === g);
+      h += '<tr><td><strong>' + _escHtml(g) + '</strong><div style="font-size:7pt;color:#6b7672">' +
+        inG.length + ' screened</div></td>' +
+        [1,2,3,4].map(lv => {
+          const list = inG.filter(st => st.skills[sk].lv === lv);
+          if (!list.length) return '<td style="color:#9aa5a1">\u2014</td>';
+          return '<td><strong style="color:' + _RPT_LV_COLOR[lv] + '">' + list.length + '</strong> ' +
+            _rptNameList(list) + '</td>';
+        }).join('') + '</tr>';
     });
+    h += '<tr><td><strong>All grades</strong></td>' +
+      [1,2,3,4].map(lv => {
+        const n = inSk.filter(st => st.skills[sk].lv === lv).length;
+        return '<td class="num"><strong>' + n + '</strong> (' + _rptPct(n, inSk.length) + '%)</td>';
+      }).join('') + '</tr></table>';
   });
 
-  // ── 3. The roster ──
-  h += '<div class="pb"></div><h2>3. Student profiles</h2>' +
+  // ── 4. The roster ──
+  h += '<div class="pb"></div><h2>4. Student profiles</h2>' +
     '<p>One row per child: the level reached in each skill screened, and the overall level. ' +
     'A dash means the child was not screened on that skill.</p>';
   let lastGrade = null;
