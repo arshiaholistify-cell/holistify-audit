@@ -1096,20 +1096,29 @@ paragraph of 417 names, which is a wall rather than a list.
 
 Section 3 is now the shape the school already keeps this in by hand — a
 spreadsheet with **a sheet per class**, each skill split into its four levels,
-the children listed down the column. So: one grid per grade, the skill as a
-banner across four columns, `Level 1`…`Level 4` beneath it with a count, and
-the names stacked down each column. Reading "who in my class needs reading
-support" is then one column rather than a search.
+the children listed down the column. So: one table per grade, the skill down
+the side, `Level 1`…`Level 4` across, and the names stacked one below the
+other in each cell. Reading "who in my class needs reading support" is then one
+cell rather than a search.
 
-- **Two skills per table** (`CHUNK = 2`), which gives eight columns of about
-  21mm on A4 portrait. Three gives 14mm, and `MOHIUDDIN` does not fit in 14mm
-  at any readable size — it broke mid-word as `MOHIUDDI / N`. The cells wrap on
-  `overflow-wrap`, not `word-break`, so a name breaks between its words and
-  only splits one if it cannot fit a line alone.
-- **Every grade gets the same chunks in the same order**, so a skill is in the
-  same place on every page.
+- **Every skill screened in a grade is in that grade's one table.** The skills
+  were briefly chunked two at a time *across* the top (`CHUNK = 2`), which gave
+  each pair a table of its own — so `Kannada · Reading` printed separately
+  from the English and Maths skills beside it, reading as a different exercise
+  rather than one more column of the same screening.
+- **The skill goes down the side because A4 portrait is tall, not wide.**
+  Eight skills × four levels across is 32 columns of ~5mm, which is nothing;
+  down the side it is four level columns of ~34mm. That is also why the
+  chunking existed — it was protecting a ~21mm column, where `MOHIUDDIN` at
+  14mm had broken mid-word as `MOHIUDDI / N`. At 34mm the problem is gone.
+  The cells still wrap on `overflow-wrap`, not `word-break`, so a name breaks
+  between its words and only splits one if it cannot fit a line alone.
+- **A skill nobody in the grade was screened on is left out of that grade's
+  table**, rather than printing four empty columns.
 - **Each grade starts a new page**, as each class is its own sheet in the
-  original.
+  original. Rows may break across a page (`page-break-inside:auto`), because a
+  level column of sixty names is taller than a page and the alternative is a
+  blank one.
 
 **Names are printed in sentence case, and only printed that way.**
 `_rptName()` re-cases a word only when that word is **entirely upper or

@@ -7127,18 +7127,24 @@ const _RPT_CSS = `
   .bar .val { width:16mm; flex:0 0 16mm; text-align:right; font-weight:600; }
   .foot { margin-top:8mm; padding-top:3mm; border-top:0.5pt solid #ccc; font-size:8.5pt;
           color:#777; text-align:center; }
-  table.grid { table-layout:fixed; width:100%; font-size:7pt; margin:1mm 0 5mm;
+  table.grid { table-layout:fixed; width:100%; font-size:7.5pt; margin:1mm 0 5mm;
                page-break-inside:auto; }
-  table.grid th.gsk { background:#1E3A35; color:#fff; font-size:7.5pt; padding:1.2mm 1mm;
-                      text-align:center; border:0.5pt solid #1E3A35; }
-  table.grid th.glv { background:#F2F6F4; color:#1E3A35; font-size:7pt; padding:0.8mm 0.5mm;
-                      text-align:center; border:0.5pt solid #C7D5CF; border-top-width:1.2pt;
-                      border-top-style:solid; }
-  table.grid th.glv .gn { font-weight:400; font-size:6pt; color:#6b7672; }
-  table.grid td.gnm { padding:0.6mm 1mm; border:0.5pt solid #E1E8E5; vertical-align:top;
+  table.grid th.gskh { background:#1E3A35; color:#fff; font-size:7.5pt; padding:1.2mm 1mm;
+                       text-align:left; border:0.5pt solid #1E3A35; width:30mm; }
+  table.grid th.glv { background:#1E3A35; color:#fff; font-size:7.5pt; padding:1.2mm 1mm;
+                      text-align:center; border:0.5pt solid #1E3A35; border-bottom-width:1.5pt;
+                      border-bottom-style:solid; }
+  table.grid th.gsk { background:#F2F6F4; color:#1E3A35; font-size:7.5pt; font-weight:600;
+                      padding:1mm; text-align:left; vertical-align:top;
+                      border:0.5pt solid #C7D5CF; width:30mm;
+                      word-break:normal; overflow-wrap:break-word; hyphens:none; }
+  table.grid th.gsk .gn { font-weight:400; font-size:6pt; color:#6b7672; display:block;
+                          margin-top:0.5mm; }
+  table.grid td.gnm { padding:0.8mm 1mm; border:0.5pt solid #E1E8E5; vertical-align:top;
                       word-break:normal; overflow-wrap:break-word; hyphens:none;
-                      line-height:1.25; }
-  table.grid tr:nth-child(even) td.gnm { background:#FAFBFB; }
+                      line-height:1.3; }
+  table.grid td.gnm .gc { font-size:6pt; color:#6b7672; margin-bottom:0.6mm; }
+  table.grid tbody tr:nth-child(even) td.gnm { background:#FAFBFB; }
   .finding { margin:0 0 3mm; page-break-inside:avoid; }
   .finding .ft { font-weight:600; color:#1E3A35; }
   .finding .fb { display:block; }
@@ -8355,58 +8361,53 @@ function buildStudentScreeningReport() {
     '<td class="num"><strong>' + rows.length + '</strong></td>' +
     '<td class="num"><strong>' + _rptPct(tAt(1) + tAt(2), rows.length) + '%</strong></td></tr></table>';
 
-  // \u2500\u2500 3. The same thing per skill, with the names in the cells \u2500\u2500
-  // \u2500\u2500 3. A grid per grade: skills across, levels beneath, names stacked \u2500\u2500
-  // The shape the school already keeps this in by hand \u2014 a sheet per class,
-  // each skill split into its four levels, the children listed down the
-  // column. Reading "who in my class needs reading support" is then one
-  // column, not a search through a paragraph.
+  // ── 3. One table per grade, holding every skill ──
+  // The shape the school already keeps this in by hand — a sheet per class,
+  // the children listed under the level they reached. Reading "who in my
+  // class needs reading support" is then one cell, not a search through a
+  // paragraph.
   //
-  // Skills are taken a few at a time so the columns stay wide enough for a
-  // name on an A4 page; every grade gets the same chunks, so the same skill
-  // is in the same place on every page.
+  // Every skill screened in a grade sits in the SAME table: the skill down
+  // the side, the four levels across, the names stacked in each cell. The
+  // skills used to be chunked two at a time across the top, which gave each
+  // pair a table of its own and printed a skill like "Kannada · Reading"
+  // separately from the rest, as though it were a different exercise. A4
+  // portrait is tall rather than wide, so down the side there is room for
+  // all of them and the four level columns stay ~34mm — wider than the
+  // ~21mm that chunking was there to protect.
   h += '<div class="pb"></div><h2>3. Students by grade and level</h2>' +
-    '<p>One grid per grade, in the shape the school keeps these in: the skill across the top, ' +
-    'its four levels beneath, and the children listed down each column. <strong>Level 1</strong> is ' +
-    'a child who cannot yet perform the skill; <strong>Level 4</strong> is secure mastery.</p>';
-
-  const CHUNK = 2;
-  const chunks = [];
-  for (let i = 0; i < skills.length; i += CHUNK) chunks.push(skills.slice(i, i + CHUNK));
+    '<p>One table per grade, carrying every skill screened in that grade: the skill down the ' +
+    'side, its four levels across, and the children listed one below the other in each cell. ' +
+    '<strong>Level 1</strong> is a child who cannot yet perform the skill; ' +
+    '<strong>Level 4</strong> is secure mastery.</p>';
 
   grades.forEach((g, gi) => {
     const inG = rows.filter(st => (st.grade || '\u2014') === g);
     if (!inG.length) return;
+    const gSkills = skills.filter(sk => inG.some(st => st.skills[sk]));
     h += (gi ? '<div class="pb"></div>' : '') +
       '<h3>' + _escHtml(g) + '</h3>' +
       '<p class="lede">' + inG.length + ' student' + (inG.length === 1 ? '' : 's') + ' screened \u00b7 ' +
-      skills.filter(sk => inG.some(st => st.skills[sk])).length + ' skill' +
-      (skills.filter(sk => inG.some(st => st.skills[sk])).length === 1 ? '' : 's') + '</p>';
+      gSkills.length + ' skill' + (gSkills.length === 1 ? '' : 's') + '</p>';
+    if (!gSkills.length) return;
 
-    chunks.forEach(group => {
-      const cols = [];
-      group.forEach(sk => [1, 2, 3, 4].forEach(lv => {
-        cols.push({ sk: sk, lv: lv,
-          names: inG.filter(st => st.skills[sk] && st.skills[sk].lv === lv)
-                    .map(st => st.name) });
-      }));
-      if (!cols.some(c => c.names.length)) return;
-      const depth = cols.reduce((n, c) => Math.max(n, c.names.length), 0);
-      const w = (170 / cols.length).toFixed(1);
-
-      h += '<table class="grid"><thead><tr>' +
-        group.map(sk => '<th colspan="4" class="gsk">' + _escHtml(sk) + '</th>').join('') +
-        '</tr><tr>' +
-        cols.map(c => '<th class="glv" style="width:' + w + 'mm;border-top-color:' +
-          _RPT_LV_COLOR[c.lv] + '">Level ' + c.lv +
-          '<div class="gn">' + (c.names.length || '\u2013') + '</div></th>').join('') +
-        '</tr></thead><tbody>';
-      for (let r = 0; r < depth; r++) {
-        h += '<tr>' + cols.map(c => '<td class="gnm">' +
-          (c.names[r] ? _escHtml(_rptName(c.names[r])) : '') + '</td>').join('') + '</tr>';
-      }
-      h += '</tbody></table>';
+    h += '<table class="grid"><thead><tr><th class="gskh">Skill</th>' +
+      [1, 2, 3, 4].map(lv => '<th class="glv" style="width:34mm;border-bottom-color:' +
+        _RPT_LV_COLOR[lv] + '">Level ' + lv + '</th>').join('') +
+      '</tr></thead><tbody>';
+    gSkills.forEach(sk => {
+      const at = lv => inG.filter(st => st.skills[sk] && st.skills[sk].lv === lv)
+                          .map(st => st.name);
+      const n = [1, 2, 3, 4].map(at);
+      const scored = n.reduce((a, l) => a + l.length, 0);
+      h += '<tr><th class="gsk">' + _escHtml(sk) +
+        '<span class="gn">' + scored + ' screened</span></th>' +
+        n.map(list => '<td class="gnm"><div class="gc">' +
+          (list.length || '\u2013') + '</div>' +
+          list.map(nm => '<div>' + _escHtml(_rptName(nm)) + '</div>').join('') +
+          '</td>').join('') + '</tr>';
     });
+    h += '</tbody></table>';
   });
 
   // ── 4. The roster ──
