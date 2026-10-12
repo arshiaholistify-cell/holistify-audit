@@ -1056,6 +1056,53 @@ The branch of the school being audited fills the **Campus** line the published
 format has; see **Branches** above for how it is stored. A school with one
 campus prints no campus row at all.
 
+### A recommendation is read after the audit, not before it
+
+`PLAN` serves two documents in two different tenses, and the same sentence is
+right in one and circular in the other:
+
+- On the **Transformation Journey** page (`renderPlan()`) the audit is still
+  ahead, so *"Audit all infrastructure and safety compliance — conduct a full
+  infrastructure audit against the 22 standards"* is a real first action.
+- In a **report compiled from that audit** it is circular. The document in the
+  reader's hand is the audit, and telling the school to go and carry one out
+  reads as though nothing had been done.
+
+So `_rptPlanEntry(x)` is the one place a PLAN entry becomes its report form,
+and both report consumers go through it — Section 6 Recommendations via
+`_rptRecommendations()`, and the Section 7 three-year roadmap, which reads
+`PLAN` directly and was printing the full infrastructure audit as a Year 1
+"Key action". `renderPlan()` deliberately does **not**.
+
+Two mechanisms:
+
+- **`rpt` on a PLAN entry is its title in a report**, where its own `title` is
+  written for the plan. Only `p6` carries one today
+  (`Close the infrastructure and safety compliance gaps`). A lookup keyed on
+  the title sentence would have been the fragility this file has already been
+  bitten by — see `standardMap`, re-keyed away from sentences.
+- **`_rptIsReaudit(bullet)` drops a `do` bullet**, and needs *both* of two
+  things to be true, neither of them the mere presence of the word "audit":
+  1. the bullet's **opening instruction** is to carry out an audit
+     (`_RPT_REAUDIT`), so *"Establish nutritional standards for canteen menus
+     and audit termly"* is about the standards and stays;
+  2. it is a **one-off** (`_RPT_RECURRING` does not match). A recurring
+     control is not this report coming round again: *"Run regular cleanliness
+     audits with student participation"* and *"Audit teaching hours and TSR at
+     the start of each academic year"* happen every term or every year and no
+     audit report replaces them.
+
+  That leaves exactly the scope-wide one-offs — `p4`, `p6` and `p23`, each
+  asking for an audit of the very thing the reader is holding the scores for.
+  *"Conduct stakeholder confidence surveys annually"* is caught by neither
+  test, and should not be: a survey of parents and staff is not what this
+  audit did.
+
+An entry whose every bullet is dropped leaves the Recommendations rather than
+printing a titled finding with nothing under it, and the next plan entry for
+the domain takes the slot. The roadmap keeps it either way, because there it
+names a priority. No entry is in that state today.
+
 ### Student-level screening reports
 
 The issued Screening Report Summary is cohort-level by design: percentages, no

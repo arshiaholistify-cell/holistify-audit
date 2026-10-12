@@ -4089,7 +4089,7 @@ const PLAN = [
   {id:'p3',dom:'vc',ph:2,title:'Align Principal and teachers to vision in daily practice',do:['Embed vision language in lesson planning templates.','Build individual CPD plans for all teachers tied to school goals.','Use SIP as a living document reviewed termly.','Develop structured family communication protocols.'],dont:['Do not treat vision alignment as a training event — it requires ongoing reinforcement.','Avoid assigning CPD without connecting it to classroom impact.','Do not allow silo teaching — cross-curricular collaboration must be structured.'],risks:['Teacher buy-in wanes without visible leadership participation in CPD.','SIP becomes shelf-ware if not reviewed and updated — assign ownership termly.']},
   {id:'p4',dom:'vc',ph:2,title:'Align admin staff and students to vision',do:['Conduct regulatory compliance audit across all admin functions.','Implement formal EDI policy with monitoring mechanism.','Run student vision articulation sessions.','Align all admin policies to vision language.'],dont:['Do not assume compliance — audit it formally with documentation.','Avoid EDI policies that exist only on paper without training and practice.'],risks:['Students disconnect from vision if it is only communicated in assemblies — integrate into daily routines.']},
   {id:'p5',dom:'vc',ph:3,title:'Activate parent partnership and community co-ownership',do:['Consult parents during vision review cycles.','Build structured parent volunteering and co-creation programmes.','Publish parent satisfaction results and actions taken publicly.'],dont:['Do not treat parent engagement as a single annual event.','Avoid one-way communication — parent voice must inform decisions.'],risks:['Parent involvement declines without clear roles and recognition — design meaningful participation.']},
-  {id:'p6',dom:'fac',ph:1,title:'Audit all infrastructure and safety compliance',do:['Conduct a full infrastructure audit against the 22 standards — room by room.','Document all gaps with priority ratings (critical / important / desirable).','Ensure CCTV, fire safety, and disaster management are operational before everything else.','Confirm SEN accessibility across all pathways.'],dont:['Do not allow unsafe facilities to remain open without a remediation plan.','Avoid purchasing equipment without a maintenance and replacement budget.','Do not overlook smaller details — furniture ergonomics, board visibility, drinking water quality.'],risks:['Facilities that meet compliance on paper but fail in practice — do walkthroughs, not just paperwork.','Safety drill records that are outdated — schedule drills in the school calendar.']},
+  {id:'p6',dom:'fac',ph:1,title:'Audit all infrastructure and safety compliance',rpt:'Close the infrastructure and safety compliance gaps',do:['Conduct a full infrastructure audit against the 22 standards — room by room.','Document all gaps with priority ratings (critical / important / desirable).','Ensure CCTV, fire safety, and disaster management are operational before everything else.','Confirm SEN accessibility across all pathways.'],dont:['Do not allow unsafe facilities to remain open without a remediation plan.','Avoid purchasing equipment without a maintenance and replacement budget.','Do not overlook smaller details — furniture ergonomics, board visibility, drinking water quality.'],risks:['Facilities that meet compliance on paper but fail in practice — do walkthroughs, not just paperwork.','Safety drill records that are outdated — schedule drills in the school calendar.']},
   {id:'p7',dom:'fac',ph:2,title:'Develop hostel, canteen, transport and wellness facilities',do:['Appoint a dedicated pastoral care lead for residential students.','Establish nutritional standards for canteen menus and audit termly.','Maintain a transport route register and safety checklist.','Run regular cleanliness audits with student participation.'],dont:['Do not treat hostels as secondary facilities — they are the home for residential students.','Avoid unstandardised canteen menus — nutrition should be non-negotiable.'],risks:['Pastoral care for residential students can be overlooked when academic pressure is high.','Transport safety checks may lapse without a formal schedule — calendar them.']},
   {id:'p8',dom:'cpa',ph:1,title:'Design mission-aligned curriculum and assessment framework',do:['Create ACPP before the academic year starts — not mid-year.','Ensure curriculum explicitly maps to mission and student exit profile.','Build a multi-modal assessment system from the outset.','Align all CPD investments to curriculum priorities.'],dont:['Do not build a curriculum framework in isolation — involve HODs and experienced teachers.','Avoid assessment systems that only measure recall — include competency and skills.','Do not adopt external frameworks wholesale without contextualising to your school.'],risks:['ACPP becomes too rigid and teachers stop using it — build in flexibility and teacher voice.','Assessment overload on students if both formative and summative are not balanced.']},
   {id:'p9',dom:'cpa',ph:1,title:'Comply with teaching norms and implement learning outcomes',do:['Audit teaching hours and TSR at the start of each academic year.','Post board Learning Outcomes in classrooms and lesson plans.','Put in place an early warning system for attendance drops.'],dont:['Do not treat compliance as a one-time check — review every term.','Avoid setting LOs without training teachers to write and assess them effectively.'],risks:['Schools that meet TSR on paper but have significant teacher absenteeism — track substitution records.','Attendance early warning systems that generate data but no follow-up action.']},
@@ -7288,8 +7288,62 @@ function _rptStandardsAt(d, levels) {
 
 // Recommendations come from the transformation plan already written for this
 // domain, so the report and the 3-year roadmap cannot contradict each other.
+//
+// But a recommendation is read in two different tenses. In the SIP the audit is
+// still ahead, so "Audit all infrastructure and safety compliance" is a real
+// first action. In a report compiled *from* that audit it is circular — the
+// document in the reader's hand is the audit, and telling the school to go and
+// carry one out reads as though nothing had been done. So the report takes
+// `rpt` where a plan entry carries one, while the Transformation Journey page
+// (`renderPlan()`) reads PLAN directly and keeps the entry's own title; the
+// alternative, keying a lookup on the sentence, is the fragility this file has
+// already been bitten by elsewhere.
+//
+// The `do` bullets are filtered on the same reasoning, and two things decide
+// it — neither of them the mere presence of the word "audit":
+//
+// 1. The bullet's **opening instruction** must be to carry out an audit.
+//    "Establish nutritional standards for canteen menus and audit termly" is
+//    about the standards, not about auditing, and stays.
+// 2. It must be a **one-off**. A recurring control is not this report coming
+//    round again: "Run regular cleanliness audits with student participation"
+//    and "Audit teaching hours and TSR at the start of each academic year" are
+//    things the school does every term or every year, and no audit report
+//    replaces them. Only the scope-wide one-off — "Conduct a full
+//    infrastructure audit against the 22 standards" — is circular, because
+//    those 22 standards are what the reader is holding the scores for.
+//
+// "Conduct stakeholder confidence surveys annually" is caught by neither, and
+// should not be: a survey of parents and staff is not what this audit did.
+const _RPT_REAUDIT =
+  /^(?:conduct|carry\s+out|undertake|perform|complete|commission|run)\s+(?:a|an|the)?\s*[^.;\u2014\u2013]{0,44}?\baudits?\b|^audit\b/i;
+const _RPT_RECURRING =
+  /\b(?:regular(?:ly)?|routine|ongoing|cycle|termly|half-?termly|monthly|weekly|quarterly|annual(?:ly)?|(?:each|every)\s+(?:term|year|month|week|academic\s+year))\b/i;
+const _rptIsReaudit = b =>
+  _RPT_REAUDIT.test(b) && !_RPT_RECURRING.test(b);
+
+// `_rptPlanEntry()` is the one place a PLAN entry is turned into its report
+// form, so Section 6 and the three-year roadmap in Section 7 cannot end up
+// saying different things about the same entry — the roadmap reads PLAN
+// directly and was printing "Key actions: Conduct a full infrastructure audit
+// against the 22 standards" under a heading that says Year 1.
+function _rptPlanEntry(x) {
+  return Object.assign({}, x, {
+    title: x.rpt || x.title,
+    do: (x.do || []).filter(b => !_rptIsReaudit(String(b).trim()))
+  });
+}
+
 function _rptRecommendations(domId, limit) {
-  return PLAN.filter(x => x.dom === domId).slice(0, limit || 5);
+  return PLAN.filter(x => x.dom === domId)
+    .map(x => _rptPlanEntry(x))
+    // An entry that was nothing but "go and audit this" leaves the
+    // recommendations rather than printing a titled finding with no action
+    // under it; the next plan entry for the domain takes the slot. No entry is
+    // in that state today — each keeps at least two bullets. The roadmap
+    // keeps every entry either way, because there it names a priority.
+    .filter(x => x.do.length)
+    .slice(0, limit || 5);
 }
 
 function _rptDomainSection(d) {
@@ -7784,7 +7838,7 @@ function buildAuditSummaryReport() {
       obj: 'Embed the improvements, build internal capacity and sustain performance without external support.' },
   ];
   YEARS.forEach(y => {
-    const items = PLAN.filter(x => y.ph.indexOf(x.ph) >= 0);
+    const items = PLAN.filter(x => y.ph.indexOf(x.ph) >= 0).map(x => _rptPlanEntry(x));
     h += '<h3>' + y.label + '</h3><p><strong>Strategic Objective.</strong> ' + y.obj + '</p>';
     if (!items.length) { h += '<p><em>No actions are defined for this phase.</em></p>'; return; }
     h += '<h4>Key Priorities</h4><ul>';
