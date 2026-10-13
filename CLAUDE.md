@@ -764,6 +764,55 @@ how many spellings and how many recorded results are about to change.
 On Grade 1's real 41 spellings it proposes 11 groups covering 27 of them, and
 leaves `Taimur Khan`, `Hassan Bin Sajid`, `Kaifa Maheen` and `Zohra` alone.
 
+### The student data as a workbook
+
+`downloadStudentsXlsx()` (**⬇ Excel (.xlsx)** on the Students page, beside the
+CSV) is the roster and the screening data in one file. It exists because the two
+are different lists of children and the distance between them is the question
+it gets opened to answer: Iqra has **308 students on the roster, 303 distinct
+names**, while its assessment data carries **660** — roughly twice the roster
+in every grade, which is spellings, not extra children.
+
+So the workbook does not just dump the roster. Six sheets:
+
+| Sheet | What it holds |
+|---|---|
+| Students | the roster as it stands, plus what each child was screened on |
+| Screening results | one row per child per skill — the unit the reports use |
+| Screened students | one row per child, a column per skill |
+| Coverage | the two counts, and how far they reconcile |
+| Not screened | roster students with no screening result |
+| Not in roster | screened names the roster does not hold |
+
+It reads `_rptScreeningResults()` and `_rptStudentIndex()`, so the workbook and
+the screening reports cannot disagree about who was screened or at what level
+— duplicates are consolidated the same way, the lower level standing, and
+grades go through `_rptGrade()`.
+
+Four things decided here:
+
+- **It reconciles; it never merges.** The Coverage sheet counts what matches and
+  the two list sheets name what does not, and the "why" row points at
+  **🧠 Review the names** on the Assessment page. Proposing a spelling match in
+  a file nobody can correct would put one child's results against another's
+  name — the same reasoning as `repairTeacherNames()` and `relabelScreening()`.
+- **Names are exported exactly as stored**, not through `_rptName()`. The
+  reports sentence-case for the reader; here the name is the key that matches a
+  child to the roster, and re-casing it would hide the mismatch the Coverage
+  sheet exists to show.
+- **A roster child whose results were filed under two grades is one row on the
+  Students sheet and two on Screened students.** A marks sheet carries no
+  identity but name and grade, so the assessment data genuinely holds two
+  children; the roster is the one list that knows better, so that sheet unions
+  their skills and names the other grades in a **Grade in the sheets** column
+  rather than averaging the split away.
+- **A grade the sheets and the roster disagree about is reported, not
+  resolved.** Which is right is the school's call about its own forms.
+
+Roster lookups go by name alone, so a child is found whatever grade the sheet
+filed them under, and a name two roster students share identifies nobody — the
+rule `_rosterIndex()` already applies.
+
 ### Headings: an underscore is a word character
 
 `_hdrNorm()` normalises a heading by reading `_` as the space it stands for,

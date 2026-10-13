@@ -2201,7 +2201,8 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <button class="btn btn-p always-on" onclick="openAddStudent()">+ Add student</button>
       <button class="btn btn-s always-on" onclick="document.getElementById('stu-csv-input').click()">⬆ Upload</button>
       <input type="file" id="stu-csv-input" accept=".csv,.xlsx,.xls,.ods" style="display:none" onchange="handleStudentUpload(this)">
-      <button class="btn btn-s" onclick="exportStudentsCSV()">⬇ Export</button>
+      <button class="btn btn-s" onclick="downloadStudentsXlsx()">⬇ Excel (.xlsx)</button>
+      <button class="btn btn-s" onclick="exportStudentsCSV()">⬇ CSV</button>
       <button class="btn btn-s" onclick="clearAllStudentsData()" style="color:var(--red)">🗑 Clear all</button>
     </div>
   </div>
@@ -14663,6 +14664,188 @@ function exportStudentsCSV() {
   const headers = ['Roll No','Name','Grade','Section','Gender','DOB','Parent/Guardian','Phone'];
   const rows = studentsData.map(s => [s.roll,s.name,s.grade,s.section,s.gender,s.dob,s.parent,s.phone]);
   _downloadCsv('students_data.csv', _csvFrom(headers, rows));
+}
+
+// ── The student data as a workbook ───────────────────────────────
+// The roster and the assessment sheets are two separate lists of children, and
+// the distance between them is what this workbook is usually opened to
+// explain: a school with 308 students on the Students page can carry twice
+// that many names in its assessment data, because a child whose name was
+// spelled two ways is two children as far as a marks sheet can tell.
+//
+// Nothing here guesses at that. It lays the two lists side by side and names
+// what does not match, so the spellings get reviewed on the Assessment page
+// (🧠 Review the names) rather than merged silently in an export — the same
+// reasoning as `repairTeacherNames()` and `relabelScreening()`.
+//
+// Six sheets:
+//
+// | Sheet | What it holds |
+// |---|---|
+// | Students | the roster as it stands, plus what each child was screened on |
+// | Screening results | one row per child per skill — the unit the reports use |
+// | Screened students | one row per child, a column per skill |
+// | Coverage | the two counts, and how far they reconcile |
+// | Not screened | roster students with no screening result |
+// | Not in roster | screened names the roster does not hold |
+//
+// It reads `_rptScreeningResults()` and `_rptStudentIndex()`, the same
+// resolvers every screening report reads, so the workbook and the reports
+// cannot disagree about who was screened or at what level.
+//
+// **Names are exported exactly as stored**, not through `_rptName()`. The
+// reports sentence-case for the reader; here the name is the key that matches
+// a child to the roster, and re-casing it would hide the very mismatch the
+// Coverage sheet exists to show.
+function downloadStudentsXlsx() {
+  if (typeof XLSX === 'undefined') {
+    toast('The spreadsheet library did not load. Use ⬇ CSV instead.', 'error');
+    return;
+  }
+  loadStudentsData();
+  const roster = studentsData || [];
+  const idx = _rptStudentIndex('all');
+  const screened = Object.keys(idx).map(k => idx[k]);
+  if (!roster.length && !screened.length) {
+    toast('No student or assessment data to export yet.', 'warn');
+    return;
+  }
+
+  const res = _rptScreeningResults('all');
+  const rin = _rosterIndex();     // roll and grade by name; a shared name dropped
+  const rNames = {};              // every roster name, for presence alone
+  roster.forEach(st => { const k = _rosterKey(st && st.name); if (k) rNames[k] = 1; });
+
+  // Screening is looked up **by name alone**, so a roster student is found
+  // whatever grade the sheet filed them under. A grade that disagrees is
+  // reported in its own column rather than resolved: which of the two is right
+  // is the school's call about its own sheets.
+  const sByName = {};
+  screened.forEach(st => {
+    const k = _rosterKey(st.name);
+    if (!k) return;
+    (sByName[k] = sByName[k] || []).push(st);
+  });
+
+  const skills = [...new Set(screened.reduce(
+    (a, st) => a.concat(Object.keys(st.skills)), []))].sort();
+  const gi = g => { const i = GRADES_ORDER.indexOf(g); return i < 0 ? 99 : i; };
+  const byGradeName = (a, b) => gi(a.grade) - gi(b.grade) ||
+    String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
+
+  const wb = XLSX.utils.book_new();
+  const add = (name, rows) => {
+    if (!rows.length) return;
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
+  };
+
+  // A roster child whose results were filed under two grades is **two
+  // children** in the assessment data, because that is the only identity a
+  // marks sheet carries. On this sheet they are one row — the roster is the
+  // one list that knows — so the skills are the union of every grade they
+  // appear under, the lower level standing where a skill was recorded twice,
+  // as it does everywhere else. The grades the sheets used are named in their
+  // own column, so the split is visible rather than averaged away.
+  add('Students', roster.map(st => {
+    const k = _rosterKey(st && st.name);
+    const hits = (k && sByName[k]) || [];
+    const got = {};
+    hits.forEach(h => Object.keys(h.skills).forEach(sk => {
+      const lv = h.skills[sk].lv;
+      if (got[sk] === undefined || lv < got[sk]) got[sk] = lv;
+    }));
+    const on = Object.keys(got);
+    const level = on.length ? Math.max(1, Math.min(4,
+      Math.round(on.reduce((a, sk) => a + got[sk], 0) / on.length))) : 0;
+    const elsewhere = [...new Set(hits.map(h => h.grade).filter(Boolean))]
+      .filter(g => g !== String(st.grade || ''));
+    const row = {
+      'Roll No': st.roll || '', 'Name': st.name || '', 'Grade': st.grade || '',
+      'Section': st.section || '', 'Gender': st.gender || '', 'DOB': st.dob || '',
+      'Parent/Guardian': st.parent || '', 'Phone': st.phone || '',
+      'Screened': on.length ? 'Yes' : 'No',
+      'Skills screened': on.length,
+      'Overall level': level || '',
+      'Overall level means': level ? _RPT_SCREEN_LEVELS[level] : '',
+      'Grade in the sheets': elsewhere.join('; ')
+    };
+    skills.forEach(sk => { row[sk] = got[sk] === undefined ? '' : got[sk]; });
+    return row;
+  }));
+
+  add('Screening results', res.rows.slice().sort((a, b) =>
+    byGradeName(a, b) || String(a.skill).localeCompare(String(b.skill))
+  ).map(r => {
+    const k = _rosterKey(r.name);
+    return {
+      'Name': r.name, 'Grade': r.grade, 'Skill': r.skill, 'Level': r.lv,
+      'Level means': _RPT_SCREEN_LEVELS[r.lv] || '', 'Score': r.detail || '',
+      'In roster': rNames[k] ? 'Yes' : 'No',
+      'Roll No': (rin.idx[k] || {}).roll || ''
+    };
+  }));
+
+  add('Screened students', screened.slice().sort(byGradeName).map(st => {
+    const k = _rosterKey(st.name);
+    const row = {
+      'Name': st.name, 'Grade': st.grade || '',
+      'In roster': rNames[k] ? 'Yes' : 'No',
+      'Roll No': (rin.idx[k] || {}).roll || '',
+      'Skills screened': st.n,
+      'Average level': +st.avg.toFixed(2),
+      'Overall level': st.level,
+      'Overall level means': _RPT_SCREEN_LEVELS[st.level] || ''
+    };
+    skills.forEach(sk => { row[sk] = st.skills[sk] ? st.skills[sk].lv : ''; });
+    return row;
+  }));
+
+  const notScreened = roster.filter(st => {
+    const k = _rosterKey(st && st.name);
+    return !k || !sByName[k];
+  });
+  const notInRoster = screened.filter(st => !rNames[_rosterKey(st.name)]);
+
+  add('Coverage', [
+    { Metric: 'School', Value: (document.getElementById('inp-school') || {}).value || '' },
+    { Metric: 'Generated', Value: new Date().toLocaleString() },
+    { Metric: 'Students on the roster', Value: roster.length },
+    { Metric: 'Distinct names on the roster', Value: Object.keys(rNames).length },
+    { Metric: 'Children in the assessment data', Value: screened.length },
+    { Metric: '… of those, found on the roster', Value: screened.length - notInRoster.length },
+    { Metric: '… of those, not on the roster', Value: notInRoster.length },
+    { Metric: 'Roster students with no screening result', Value: notScreened.length },
+    { Metric: 'Screening results counted', Value: res.kept },
+    { Metric: 'Duplicate results consolidated', Value: res.dropped },
+    { Metric: 'Skills screened', Value: skills.length },
+    { Metric: 'Why the two counts differ', Value:
+      'A child is identified in the assessment data by name and grade, because the ' +
+      'sheets carry nothing else — no roll number. So one child whose name was spelled ' +
+      'two ways counts as two children here, and a count well above the roster is ' +
+      'spellings, not extra students. Review them on the Assessment page under ' +
+      '"Review the names" before reading this as a headcount; it proposes, and you ' +
+      'decide which spellings are one child.' }
+  ]);
+
+  add('Not screened', notScreened.map(st => ({
+    'Roll No': st.roll || '', 'Name': st.name || '', 'Grade': st.grade || '',
+    'Section': st.section || '', 'Gender': st.gender || ''
+  })));
+
+  // Named, never matched. A near spelling here is exactly what the name-merge
+  // tool is for; proposing one in a file nobody can correct would put one
+  // child's results against another's name.
+  add('Not in roster', notInRoster.slice().sort(byGradeName).map(st => ({
+    'Name': st.name, 'Grade': st.grade || '',
+    'Skills screened': st.n, 'Overall level': st.level,
+    'Skills': Object.keys(st.skills).sort().join('; ')
+  })));
+
+  const school = schoolKey((document.getElementById('inp-school') || {}).value || 'school');
+  XLSX.writeFile(wb, 'students_' + school + '.xlsx');
+  toast('Exported ' + roster.length + ' roster student' + (roster.length === 1 ? '' : 's') +
+    ' and ' + screened.length + ' child' + (screened.length === 1 ? '' : 'ren') +
+    ' from the assessment data. The Coverage sheet reconciles the two.');
 }
 
 // ═══════════════════════════════════════════════════════
