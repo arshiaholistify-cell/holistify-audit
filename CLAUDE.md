@@ -922,6 +922,13 @@ that they are the same skill in two languages.
   removed — the language or area. This is also what folds `"English- Reading"`
   and `"English-Reading"` into one card.
 
+**`Algebra` is matched on `equation`, not on `expression`, and sits last.**
+A school's instrument is named `Expressions and Equations`, which `equation`
+catches. A bare `expression` would also catch "Oral Expression" and "Written
+Expression" — those match Speaking and Writing above it, so the order saves
+them — but nothing above it claims "reads facial expressions" in a behavioural
+rubric, and that one would have come out as Algebra.
+
 Deriving rather than requiring the field means rubrics that predate it land in
 the right card untouched. The editor's Skill box offers `_SKILL_SUGGESTIONS`
 plus whatever this school already uses, accepts free text, and `_updateSkillHint()`
@@ -1574,6 +1581,31 @@ anything outside `GRADES_ORDER` last.
 One case does still guess, inherited from `_bulkGradeValue()`: a multi-select
 answer reading `Grade 1, Grade 2` resolves to `Grade 1`. There is one such
 response.
+
+**A label it cannot resolve is also a label someone can fix**, so
+`_gradeBanner()` + `openGradeFix()` + `applyGradeFix()` are the
+banner-and-button for it, on both Assessment tabs because the live typo was
+typed into the forms. It is the same shape as `openNameMerge()` and for the
+same reason: keeping `Gradeb 10` is right, and leaving the school no way to
+correct it is not.
+
+`_glPropose(raw)` reads a label the way a person does — ignoring the
+punctuation and the letters that are not part of a grade — and proposes a
+grade only when **exactly one** number 1–12 is left, so `Gradeb 10` proposes
+`Grade 10` and `9 or 10` proposes nothing and has to be answered. The proposal
+is preselected in a dropdown of every grade plus *Leave it as it is*; nothing
+moves until the button is pressed.
+
+Two things it is careful about:
+
+- **`all` is not a mistyped grade.** It is an assessment saying it spans the
+  school, and `_bulkGradeValue()` cannot resolve it either, so it would
+  otherwise head the list.
+- **It refiles the label wherever it was typed** — a score row, a rubric
+  response, and an assessment's or rubric's own `grade` — and the toast
+  separates the two counts. A row with **no** grade of its own is left blank
+  rather than filled, because it reads under its assessment's grade, which is
+  the fallback `_rptScreeningResults()` applies.
 
 Things decided here that are easy to get wrong:
 

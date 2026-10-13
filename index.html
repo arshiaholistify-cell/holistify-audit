@@ -2729,6 +2729,26 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+<div class="sip-modal-overlay" id="gl-modal">
+  <div class="sip-modal" style="max-width:560px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('gl-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
+    <div class="sip-modal-title">✂ A grade label that is not a grade</div>
+    <div style="background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:#8a5a06;line-height:1.6">
+      A label that does not read as a grade is kept <strong>exactly as typed</strong>, because filing a
+      child into Grade 10 on the strength of a misspelling would be guessing at their grade. But it
+      then gets its own row in every grade table, the reports’ grade picker never offers it, and those
+      children are split from their own class.<br>
+      The reading proposed below is a suggestion. Change any of them, leave any of them alone, and
+      nothing is refiled until you press the button — the scores themselves are never touched.
+    </div>
+    <div id="gl-body"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-s" onclick="document.getElementById('gl-modal').classList.remove('open')">Cancel</button>
+      <button class="btn" onclick="applyGradeFix()">Refile under these grades</button>
+    </div>
+  </div>
+</div>
+
 <div class="sip-modal-overlay" id="score-import-modal">
   <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
     <button onclick="document.getElementById('score-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
@@ -15175,6 +15195,157 @@ function applyNameMerge() {
   else if (typeof renderAssessments === 'function') renderAssessments();
 }
 
+// ── A grade label that does not read as a grade ───────────────────
+// `_rptGrade()` keeps a label it cannot resolve **exactly as typed**, which is
+// the right default — filing a child into Grade 10 because someone typed
+// `Gradeb 10` would be guessing at their grade from a misspelling. But the
+// label then sits in its own row in every grade table, the report's grade
+// picker filters `GRADES_ORDER` and so never offers it, and the children under
+// it are split from their own classmates. Iqra has 22 responses under
+// `Gradeb 10`.
+//
+// So it is the same banner-and-button as `repairTeacherNames()`,
+// `relabelScreening()` and `openNameMerge()`: it finds them, proposes the
+// obvious reading, and changes nothing until the author confirms each one.
+//
+// `_glPropose()` reads a label the way a person does — ignoring the
+// punctuation and the letters that are not part of a grade — and proposes a
+// grade only when **exactly one** number 1-12 is left. `9 or 10` proposes
+// nothing and has to be answered, because there the typo is not the only
+// question.
+function _glPropose(raw) {
+  const t = _wideNorm(raw);
+  if (!t || _bulkGradeValue(t)) return '';
+  const nums = (t.match(/\d{1,2}/g) || [])
+    .map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 12);
+  if (nums.length === 1) return 'Grade ' + nums[0];
+  const low = t.toLowerCase();
+  if (/pre.?kg|nursery|pre.?k\b/.test(low)) return 'Pre-KG';
+  if (/lkg|kg.?1|jr.?kg/.test(low)) return 'KG 1';
+  if (/ukg|kg.?2|sr.?kg/.test(low)) return 'KG 2';
+  return '';
+}
+
+// Every distinct grade label in the assessment data that `_bulkGradeValue()`
+// cannot resolve, with how many results carry it. `all` is excluded: that is
+// an assessment saying it spans the school, not a grade someone mistyped.
+function _gradeLabelIssues() {
+  const by = {};
+  const note = (raw, n) => {
+    const t = _wideNorm(raw);
+    if (!t || t.toLowerCase() === 'all' || _bulkGradeValue(t)) return;
+    if (!by[t]) by[t] = { raw: t, n: 0, rows: 0, items: 0, proposed: _glPropose(t) };
+    by[t].n += n;
+  };
+  assessments.forEach(a => {
+    const rows = scoreEntries[a.id] || [];
+    rows.forEach(e => {
+      // A row with no grade of its own is read under the assessment's, which
+      // is the same fallback `_rptScreeningResults()` applies.
+      if (_wideNorm(e.grade)) { note(e.grade, 1); if (by[_wideNorm(e.grade)]) by[_wideNorm(e.grade)].rows++; }
+      else { note(a.grade, 1); }
+    });
+    note(a.grade, 0);
+  });
+  rubrics.forEach(r => {
+    (rubricScores[r.id] || []).forEach(e => {
+      note(e.grade, 1);
+      const t = _wideNorm(e.grade);
+      if (t && by[t]) by[t].rows++;
+    });
+    note(r.grade, 0);
+  });
+  return Object.keys(by).map(k => by[k]).sort((a, b) => b.n - a.n);
+}
+
+function _gradeBanner() {
+  const issues = _gradeLabelIssues();
+  if (!issues.length) return '';
+  const rows = issues.reduce((n, i) => n + i.n, 0);
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;' +
+    'padding:10px 13px;background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md)">' +
+    '<span style="font-size:12px;color:#8a5a06;flex:1">' + rows + ' result' +
+    (rows === 1 ? '' : 's') + ' carry a grade label that does not read as a grade — ' +
+    issues.map(i => '<strong>' + _escHtml(i.raw) + '</strong>').join(', ') +
+    '. Each gets its own row in every grade table and the reports’ grade picker ' +
+    'cannot reach it, so those children are split from their own class. Nothing ' +
+    'is refiled until you confirm each one.</span>' +
+    '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="openGradeFix()">' +
+    'Fix the grade labels</button></div>';
+}
+
+function openGradeFix() {
+  const issues = _gradeLabelIssues();
+  window._glIssues = issues;
+  const body = document.getElementById('gl-body');
+  if (!body) return;
+  if (!issues.length) {
+    body.innerHTML = '<p style="font-size:13px;color:var(--ink-l)">Every grade label reads as a ' +
+      'grade. Nothing to fix.</p>';
+  } else {
+    const opts = sel => '<option value="">Leave it as it is</option>' +
+      GRADES_ORDER.map(g => '<option value="' + _escHtml(g) + '"' +
+        (g === sel ? ' selected' : '') + '>' + _escHtml(g) + '</option>').join('');
+    body.innerHTML = issues.map((it, i) =>
+      '<div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:0.5px solid var(--bdr-s);' +
+      'border-radius:var(--r-md);padding:11px 13px;margin-bottom:10px">' +
+      '<span style="flex:1;min-width:150px">' +
+      '<span style="font-size:14px;font-weight:600;color:var(--ink)">' + _escHtml(it.raw) + '</span><br>' +
+      '<span style="font-size:11px;color:var(--ink-l)">' + it.n + ' result' +
+      (it.n === 1 ? '' : 's') + (it.proposed ? '' : ' · no obvious reading — choose one') +
+      '</span></span>' +
+      '<span style="font-size:12px;color:var(--ink-l)">→</span>' +
+      '<select id="gl-to-' + i + '" style="font-size:13px;padding:5px 8px;border-radius:var(--r-sm);' +
+      'border:0.5px solid var(--bdr)">' + opts(it.proposed) + '</select></div>').join('');
+  }
+  const ov = document.getElementById('gl-modal');
+  if (ov) ov.classList.add('open');
+}
+
+function applyGradeFix() {
+  const issues = window._glIssues || [];
+  const plan = [];
+  issues.forEach((it, i) => {
+    const sel = document.getElementById('gl-to-' + i);
+    const to = sel && sel.value;
+    if (to) plan.push({ from: it.raw, to: to, n: it.n });
+  });
+  if (!plan.length) { toast('Nothing chosen — no grade label was changed.', 'warn'); return; }
+  const rows = plan.reduce((n, p) => n + p.n, 0);
+  if (!confirm('Refile ' + rows + ' recorded result' + (rows === 1 ? '' : 's') + ' under ' +
+      plan.length + ' corrected grade label' + (plan.length === 1 ? '' : 's') +
+      '. The scores themselves are untouched. Continue?')) return;
+
+  const map = {};
+  plan.forEach(p => { map[p.from.toLowerCase()] = p.to; });
+  let rowsFixed = 0, itemsFixed = 0;
+  const fix = o => {
+    const t = _wideNorm(o && o.grade);
+    const to = t && map[t.toLowerCase()];
+    if (!to || to === o.grade) return false;
+    o.grade = to;
+    return true;
+  };
+  assessments.forEach(a => {
+    if (fix(a)) itemsFixed++;
+    (scoreEntries[a.id] || []).forEach(e => { if (fix(e)) rowsFixed++; });
+  });
+  rubrics.forEach(r => {
+    if (fix(r)) itemsFixed++;
+    (rubricScores[r.id] || []).forEach(e => { if (fix(e)) rowsFixed++; });
+  });
+
+  saveAssessmentData();
+  if (typeof saveRubricScores === 'function') saveRubricScores();
+  const ov = document.getElementById('gl-modal');
+  if (ov) ov.classList.remove('open');
+  toast(rowsFixed + ' result' + (rowsFixed === 1 ? '' : 's') +
+    (itemsFixed ? ' and ' + itemsFixed + ' assessment' + (itemsFixed === 1 ? '' : 's') : '') +
+    ' refiled under the right grade.', 'success');
+  if (typeof renderAssessmentPage === 'function') renderAssessmentPage();
+  else if (typeof renderAssessments === 'function') renderAssessments();
+}
+
 // ── Roll numbers and grades from the school's own roster ───────────────
 // A marks sheet very often carries neither. The office exports names and
 // marks and nothing else, and the importer can only read what is in the file —
@@ -15352,9 +15523,13 @@ function populateAssessFilters() {
   // *across* them — the marks sheet spells it one way and the rubric form
   // another, which is exactly what makes the skill go missing.
   const nameB = _nameBanner();
+  // The grade banner goes on both tabs for the same reason the name one does:
+  // a mistyped grade label splits a child from their class in whichever store
+  // it was typed into, and on the live data it was typed into the forms.
+  const gradeB = _gradeBanner();
   ['assess-screening-banner','rubric-screening-banner'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML += nameB;
+    if (el) el.innerHTML += nameB + gradeB;
   });
 }
 
@@ -17524,6 +17699,13 @@ const _SKILLS = [
   { name: 'Speaking',     re: /speaking|spoken|oral|speech|conversation/i },
   { name: 'Writing',      re: /writing|written|handwriting|composition/i },
   { name: 'Reading',      re: /reading|decoding|phonics|fluency|recognition/i },
+  // Last, and matched on `equation` rather than `expression`, because
+  // "Oral Expression" and "Written Expression" are Speaking and Writing —
+  // they match above, but a bare `expression` here would still catch
+  // "facial expressions" in a behavioural rubric. `Expressions and
+  // Equations`, which is what a school actually names the instrument, is
+  // caught by `equation`.
+  { name: 'Algebra',      re: /algebra|equation|inequalit/i },
 ];
 // The suggestions offered in the editor. Free text is still allowed — a school
 // with a skill not listed here simply types it.
@@ -17685,6 +17867,7 @@ const _ASSESS_STD_DEFAULT = {
   'Number Sense':  'Maths',
   'Computation':   'Maths',
   'Geometry':      'Maths',
+  'Algebra':       'Maths',
 };
 // Nothing is linked to a whole domain by default; '__none__' is how an author
 // says "this one reports against no standard" and means it, rather than
