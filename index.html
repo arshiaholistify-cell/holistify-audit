@@ -14758,7 +14758,7 @@ function downloadStudentsXlsx() {
     const level = on.length ? Math.max(1, Math.min(4,
       Math.round(on.reduce((a, sk) => a + got[sk], 0) / on.length))) : 0;
     const elsewhere = [...new Set(hits.map(h => h.grade).filter(Boolean))]
-      .filter(g => g !== String(st.grade || ''));
+      .filter(g => g !== _rptGrade(st.grade));
     const row = {
       'Roll No': st.roll || '', 'Name': st.name || '', 'Grade': st.grade || '',
       'Section': st.section || '', 'Gender': st.gender || '', 'DOB': st.dob || '',
@@ -15200,7 +15200,16 @@ function _rosterIndex() {
     const k = _rosterKey(st && st.name);
     if (!k) return;
     if (idx[k]) { shared[k] = 1; return; }
-    idx[k] = { roll: String(st.roll || '').trim(), grade: String(st.grade || '').trim() };
+    // **The grade is normalised on the way out.** Iqra's roster stores its
+    // grades as bare numbers (`3`) while every assessment sheet says
+    // `Grade 3`, so filling a score row from the roster wrote a label
+    // `GRADES_ORDER` does not hold — and Grade Averages then read "3" and
+    // "Grade 3" as two cohorts, which is the one thing `_bulkGradeValue()`
+    // exists to prevent. `_rptGrade()` is the same normaliser the importers
+    // and the screening reports use, and it keeps a label it cannot resolve
+    // exactly as typed rather than blanking it.
+    idx[k] = { roll: String(st.roll || '').trim(),
+               grade: _rptGrade(st.grade) };
   });
   // A shared name identifies nobody.
   Object.keys(shared).forEach(k => { delete idx[k]; });

@@ -813,6 +813,25 @@ Roster lookups go by name alone, so a child is found whatever grade the sheet
 filed them under, and a name two roster students share identifies nobody — the
 rule `_rosterIndex()` already applies.
 
+#### The roster writes its grades differently from the sheets
+
+Iqra's roster stores grades as **bare numbers** — `1`, `2`, … `10` — while every
+assessment sheet and Google Form says `Grade 1`. So `_rosterIndex()` now hands
+out `_rptGrade(st.grade)` rather than the raw string, which fixes two things at
+once:
+
+- **A fill from the roster wrote a label nothing else uses.** `_fillFromRoster()`
+  put `3` into a score row's grade, and Grade Averages then read "3" and
+  "Grade 3" as two cohorts — the one thing `_bulkGradeValue()` exists to
+  prevent. Every caller of the index fills grades, so normalising there fixes
+  `bulkImport`, `siImport`, the wide path and `fillScoresFromRoster()` together.
+- **The workbook compares grade to grade.** Without it, every row of the
+  Students sheet would report a disagreement between `3` and `Grade 3`.
+
+The **stored roster is not rewritten** — the Students page still shows and
+filters what the school typed. A label `_rptGrade()` cannot resolve is kept
+exactly as typed, so a typo stays visible rather than being filed under a guess.
+
 ### Headings: an underscore is a word character
 
 `_hdrNorm()` normalises a heading by reading `_` as the space it stands for,
