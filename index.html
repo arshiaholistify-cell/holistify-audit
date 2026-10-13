@@ -2672,6 +2672,25 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+<div class="sip-modal-overlay" id="bhvp-modal">
+  <div class="sip-modal" style="max-width:720px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('bhvp-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
+    <div class="sip-modal-title">✨ Draft the narrative</div>
+    <div style="background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:#8a5a06;line-height:1.6">
+      <strong>Read this before you accept it.</strong> Only the counted figures were sent — no
+      child's name and no individual answer leaves this browser. The tables in the report stay
+      counted from the responses whatever you do here; this is the prose around them, and it goes
+      out over the school's name, so it should be read by someone at the school first.
+    </div>
+    <div id="bhvp-body"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-s" onclick="document.getElementById('bhvp-modal').classList.remove('open')">Discard</button>
+      <button class="btn btn-s" onclick="draftBhvProse(_bhvDraftSurvey && _bhvDraftSurvey.id)">Draft again</button>
+      <button class="btn" onclick="acceptBhvProse()">Accept it</button>
+    </div>
+  </div>
+</div>
+
 <div class="sip-modal-overlay" id="bhvq-modal">
   <div class="sip-modal" style="max-width:820px;max-height:94vh;overflow-y:auto">
     <button onclick="document.getElementById('bhvq-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
@@ -8638,8 +8657,15 @@ function buildBehaviourReport() {
     (qs.length === 1 ? '' : 's') + '</p>';
 
   // ── 5.1 Executive Summary ──
-  h += '<h2>5.1 Executive Summary \u2014 Behavioural &amp; Psychosocial</h2>' +
-    '<p>The social-emotional screening conducted at ' + _escHtml(_rptSchoolFull()) +
+  // An accepted narrative replaces the sentences generated from the counts. The
+  // tables below are counted either way, so the two cannot disagree about a
+  // figure, and nothing is used until the author has read it and accepted it.
+  const prose = (ix.surveys.filter(sv => sv.prose && (sv.prose.summary || []).length)[0] || {}).prose;
+  h += '<h2>5.1 Executive Summary \u2014 Behavioural &amp; Psychosocial</h2>';
+  if (prose) {
+    h += prose.summary.map(x => '<p>' + _escHtml(x) + '</p>').join('');
+  } else {
+  h += '<p>The social-emotional screening conducted at ' + _escHtml(_rptSchoolFull()) +
     ' provides insight into the psychological wellbeing, academic stress levels and social ' +
     'environment of students within the institution.</p>';
   if (flagged.length) {
@@ -8661,6 +8687,7 @@ function buildBehaviourReport() {
       'question below is counted and reported, but until the answers that signal a concern are ticked ' +
       '\u2014 on the Assessment page, under \u201c🧠 Behaviour\u201d \u2192 Tag the questions \u2014 this ' +
       'report cannot say which of them is the finding.</div>';
+  }
   }
 
   // ── 5.2 Introduction & Methodology ──
@@ -8744,6 +8771,9 @@ function buildBehaviourReport() {
 
   // ── 5.5 Summary of High-Risk Recurring Behaviours ──
   h += '<h2>5.5 Summary of High-Risk Recurring Behaviours</h2>';
+  // An accepted reading across the findings sits here, above the counted list.
+  const interp = (ix.surveys.filter(sv => sv.prose && (sv.prose.interpretation || []).length)[0] || {}).prose;
+  if (interp) h += interp.interpretation.map(x => '<p>' + _escHtml(x) + '</p>').join('');
   if (flagged.length) {
     h += '<ul>' + flagged.slice(0, 6).map(q => '<li><strong>' + _escHtml(q.q) + ':</strong> ' +
       q.concernPct + '% of those who answered' +
@@ -18600,6 +18630,126 @@ function bhvImport() {
 // response. A question half the cohort skipped should report the share among
 // those who answered it, and say how many that was, rather than quietly
 // reading as though the rest had all said no.
+// ── The drafted narrative ─────────────────────────────
+// The tables in this report are counted; the paragraphs around them are the
+// part a psychologist writes, and the part this drafts.
+//
+// **Only aggregates leave the browser.** The figures the report has already
+// computed go to the `behaviour-prose` edge function — per question: its text,
+// its heading, how many answered, the most common answer, the concern share.
+// No child's name and no individual response is sent. The prose describes a
+// cohort, so nothing finer is needed, and sending identifiable answers about
+// children's wellbeing through a third party for no gain would be indefensible.
+//
+// The **key lives in the function**, never here: `index.html` is served to the
+// public. Same reasoning as the service-role key in `admin-accounts`.
+//
+// **The draft is never used until it is accepted.** It opens for review first,
+// because a paragraph about children's wellbeing going out over the school's
+// name should have been read by someone at the school.
+function _bhvProsePayload(sv) {
+  const ix = _bhvIndex();
+  const mine = (sv.questions || []).map(q => _bhvQuestionStats(sv, q)).filter(x => x.n);
+  const grades = {};
+  (behaviourResponses[sv.id] || []).forEach(r => { if (r.grade) grades[r.grade] = 1; });
+  return {
+    school: _rptSchoolFull(),
+    grades: _rptGradeSpan(grades) || '',
+    respondent: sv.respondent || '',
+    responses: (behaviourResponses[sv.id] || []).length,
+    students: Object.keys(ix.students).length,
+    questions: mine.map(x => ({
+      q: x.q, cat: x.cat, n: x.n,
+      top: x.top ? x.top.a : '', topPct: x.top ? x.top.pct : 0,
+      concern: x.concern, concernPct: x.concernPct,
+    })),
+  };
+}
+
+let _bhvDraft = null, _bhvDraftSurvey = null;
+
+async function draftBhvProse(id) {
+  const sv = behaviourSurveys.filter(x => x.id === id)[0];
+  if (!sv) return;
+  const payload = _bhvProsePayload(sv);
+  if (!payload.questions.length) {
+    toast('There are no answered questions to write about yet.', 'warn');
+    return;
+  }
+  const sb = (typeof _sbClient === 'function') ? _sbClient() : null;
+  if (!sb) { toast('No connection to Supabase, so the narrative cannot be drafted.', 'error'); return; }
+  _bhvDraftSurvey = sv;
+  const body = document.getElementById('bhvp-body');
+  if (body) body.innerHTML = '<p style="font-size:13px;color:var(--ink-l)">Drafting from ' +
+    payload.questions.length + ' question' + (payload.questions.length === 1 ? '' : 's') +
+    '\u2026 this takes a few seconds.</p>';
+  const ov = document.getElementById('bhvp-modal'); if (ov) ov.classList.add('open');
+
+  let res;
+  try { res = await sb.functions.invoke('behaviour-prose', { body: payload }); }
+  catch (e) { res = { error: { message: (e && e.message) || 'Request failed.' } }; }
+  if (res.error) {
+    let detail = '';
+    try { detail = (await res.error.context.json()).error; } catch (e) {}
+    if (body) body.innerHTML = '<div style="padding:12px 14px;background:var(--red-p);' +
+      'border:0.5px solid var(--red);border-radius:var(--r-md);font-size:12px;color:var(--red);line-height:1.6">' +
+      _escHtml(detail || res.error.message || 'The draft could not be produced.') + '</div>';
+    return;
+  }
+  _bhvDraft = res.data || {};
+  _renderBhvDraft();
+}
+
+function _renderBhvDraft() {
+  const body = document.getElementById('bhvp-body');
+  if (!body) return;
+  const d = _bhvDraft || {};
+  const para = (arr, label, id) =>
+    '<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:600;color:var(--ink-l);' +
+    'text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">' + label + '</div>' +
+    '<textarea id="' + id + '" style="width:100%;min-height:150px;padding:9px 11px;' +
+    'border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12.5px;line-height:1.65;' +
+    'font-family:\'DM Sans\',sans-serif;color:var(--ink);background:var(--sur-r);resize:vertical">' +
+    _escHtml((arr || []).join('\n\n')) + '</textarea></div>';
+  body.innerHTML =
+    (!(d.summary || []).length && !(d.interpretation || []).length
+      ? '<p style="font-size:13px;color:var(--ink-l)">The draft came back empty.</p>'
+      : para(d.summary, '5.1 Executive Summary', 'bhvp-sum') +
+        para(d.interpretation, 'Interpretation', 'bhvp-int') +
+        '<div style="font-size:11px;color:var(--ink-f)">Edit it here before accepting. ' +
+        'The tables in the report stay counted from the responses either way.</div>');
+}
+
+function acceptBhvProse() {
+  const sv = _bhvDraftSurvey;
+  if (!sv) return;
+  const split = id => {
+    const el = document.getElementById(id);
+    return el ? el.value.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean) : [];
+  };
+  const summary = split('bhvp-sum'), interpretation = split('bhvp-int');
+  if (!summary.length && !interpretation.length) {
+    toast('There is nothing to accept.', 'warn'); return;
+  }
+  sv.prose = { summary: summary, interpretation: interpretation,
+               at: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+  saveBehaviourData();
+  document.getElementById('bhvp-modal').classList.remove('open');
+  renderBehaviourPanel();
+  toast('Accepted. The report now opens with it \u2014 regenerate to see it.', 'success');
+}
+
+function clearBhvProse(id) {
+  const sv = behaviourSurveys.filter(x => x.id === id)[0];
+  if (!sv || !sv.prose) return;
+  if (!confirm('Remove the accepted narrative? The report goes back to the sentences it ' +
+               'generates from the counts.')) return;
+  delete sv.prose;
+  saveBehaviourData();
+  renderBehaviourPanel();
+  toast('Removed.', 'success');
+}
+
 function renderBehaviourPanel() {
   const el = document.getElementById('bhv-list');
   if (!el) return;
@@ -18627,6 +18777,8 @@ function renderBehaviourPanel() {
       (sv.date ? ' \u00b7 imported ' + _escHtml(sv.date) : '') + '</div></div>' +
       '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="openBhvQuestions(\'' +
       sv.id + '\')">\u270e Tag the questions</button>' +
+      '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="draftBhvProse(\'' +
+      sv.id + '\')">\u2728 Draft the narrative</button>' +
       '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="deleteBhvSurvey(\'' +
       sv.id + '\')">Delete</button></div>' +
       '<div style="margin-top:9px;font-size:12px;color:' +
@@ -18634,7 +18786,16 @@ function renderBehaviourPanel() {
       tagged + ' of ' + qs.length + ' question' + (qs.length === 1 ? '' : 's') +
       ' grouped under a heading \u00b7 ' + flagged + ' with a concern answer marked' +
       (flagged ? '' : ' \u2014 until at least one is, the Concerns table has nothing to list') +
-      '</div></div>';
+      '</div>' +
+      (sv.prose
+        ? '<div style="margin-top:8px;padding:8px 11px;background:var(--sage-p);border:0.5px solid var(--sage-m);' +
+          'border-radius:var(--r-md);font-size:11.5px;color:var(--sage);display:flex;align-items:center;gap:9px;flex-wrap:wrap">' +
+          '<span style="flex:1">\u2728 A narrative you accepted on ' + _escHtml(sv.prose.at || '') +
+          ' opens the report. The tables are still counted from the responses.</span>' +
+          '<button class="btn btn-s" style="font-size:11px;padding:3px 9px" onclick="clearBhvProse(\'' +
+          sv.id + '\')">Remove it</button></div>'
+        : '') +
+      '</div>';
   }).join('');
 }
 

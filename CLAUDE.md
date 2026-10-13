@@ -1249,6 +1249,45 @@ A question with more than ~24 distinct answers is treated as free text and
 offered no concern tick, because ticking individual answers of an open
 question is not a measurement.
 
+#### Drafting the narrative
+
+The tables are counted; the paragraphs around them are what a psychologist
+writes, and `behaviour-prose` (`supabase/functions/`) drafts them.
+
+**It is an edge function because `index.html` is served to the public.** An
+Anthropic key placed in the page would be readable by anyone who views source
+— the same reasoning that puts the service-role key in `admin-accounts`.
+Supabase injects `ANTHROPIC_API_KEY` into the function runtime; the browser
+only ever calls the function, and the function requires a signed-in caller,
+because the anon key is itself a valid JWT and `verify_jwt` alone is not a
+check.
+
+**Only aggregates leave the browser.** `_bhvProsePayload()` sends the figures
+the report has already counted — per question: its text, its heading, how many
+answered, the most common answer, the concern share — plus the school, the
+grade span and the totals. **No child's name and no individual response is
+sent.** The prose describes a cohort, so nothing finer is needed, and putting
+identifiable answers about children's wellbeing through a third party for no
+gain would be indefensible. The function re-checks the payload size as a
+backstop, so a later change on the client cannot start leaking responses
+through it unnoticed.
+
+**The model never supplies a number.** It is given the figures and asked to
+write about them; every table stays counted from the responses, so the prose
+cannot drift from the data beside it. The prompt forbids inventing or
+re-rounding a figure, comparing the school to any benchmark it has no data
+for, and naming or implying any clinical condition.
+
+**Nothing is used until it is accepted.** The draft opens in a review modal,
+editable, with Draft again / Discard / Accept. Only on Accept is it stored as
+`survey.prose`, and only then does the report open with it — 5.1 takes the
+summary, 5.5 takes the interpretation. Removing it falls back to the sentences
+generated from the counts. A paragraph about children's wellbeing going out
+over the school's name should have been read by someone at the school.
+
+Without the key the function answers **503 with the remedy named**, rather
+than failing obscurely; without a session, 401.
+
 #### The report
 
 `buildBehaviourReport()` follows the issued document section for section: 5.1
