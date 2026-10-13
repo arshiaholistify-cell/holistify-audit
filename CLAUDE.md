@@ -702,6 +702,68 @@ numbers were imported correctly, only the identity columns were missing.
 Rubric responses are deliberately **not** included: they already carry a grade
 and show no roll number.
 
+### The same child, spelled two ways
+
+A screening result is matched to a child **by name**, because the sheets carry
+nothing else. So a form that spells a name differently from the marks sheet
+creates a second child holding that one result, and the report prints a dash
+where the skill should be.
+
+On Iqra's live data that is most of the Kannada screening: the Kannada forms
+spell `Mohammad`, the English forms and the bulk imports spell `Mohammed` or
+`Md`, and **121 Kannada results** sit against children who appear nowhere else.
+`Sumaiya` / `Sumaiyya` / `Summaiya` splits one child three ways in the
+non-Kannada sources alone. In Grade 1 only 8 of 34 children had a complete
+record.
+
+`_nameBanner()` + `openNameMerge()` + `applyNameMerge()` are the
+banner-and-button, on both Assessment tabs because a split child is usually
+split *across* them. **Nothing merges on its own**: it proposes, the author
+unticks anything that is genuinely two children and picks which spelling to
+keep, and only then are names rewritten — same shape as `repairTeacherNames()`
+and `relabelScreening()`, and for the same reason.
+
+How a pair is proposed, and why each part is there:
+
+- **`_nmCanon()`** lower-cases, drops punctuation, maps each word through
+  `_NAME_ALIAS` and **sorts the words**. Sorting because the sheets do swap
+  given and family names; within one grade the same words in a different order
+  are one child.
+- **`_NAME_ALIAS` is short and only for forms of one name** — the Muhammad
+  family (`Md`, `Mohd`, `Mohammed`, `Muhammad` …) and `Fathima`/`Fatima`. `Md`
+  and `Mohammed` are three edits apart and the same person, so no distance test
+  would ever pair them. **`Syed`/`Syeda` is deliberately absent**: it is
+  gender-marked, and collapsing it would propose merging a brother and a sister
+  who share a second name.
+- **`_nmNear()` compares word by word, never the flattened string.** This is
+  the part that matters. Measuring the whole name, `Fathima Zahra` and
+  `Zaina Fathima` are two edits apart — `fatima zahra` against `fatima zaina`
+  — and the first cut proposed them as one child, because the word they share
+  padded the length and hid that the word that matters changed completely. They
+  are two girls in Grade 1. So each word must be identical or **one edit** from
+  its partner, and at most two words may differ. One edit is a dropped letter
+  or a typo (`Shaikh`/`Shaik`, `Rayan`/`Ryan`, `Umna`/`Yumna`); two edits
+  inside a five-letter given name is a different name. Where the word *counts*
+  differ the only case worth taking is a lost space (`Murtuja Sab` written
+  `Murtujasab`), which is one edit on the flattened string, so that one is
+  measured whole.
+- **Groups never cross a grade.** Two children of one name in different grades
+  are different children — the rule `_rptScreeningResults()` already keys on.
+- Union-find, so `Md Saqib`, `Md Saquib`, `Mohammad Saquib` and
+  `MOHAMMED SAQIB` form one group rather than overlapping pairs.
+- The spelling proposed to keep is the roster's, then the one with the most
+  results, then one that is **not SHOUTED** (the all-caps spellings come from
+  the machine exports), then the longer one — `Mohammed` over `Md`.
+
+`applyNameMerge()` rewrites `name` on the matching rows of `scoreEntries` and
+`rubricScores` and saves both. A plan entry applies **only in the grade it was
+proposed in**, so a name used in two grades is never rewritten in the grade
+nobody reviewed. The scores themselves are never touched, and the confirm says
+how many spellings and how many recorded results are about to change.
+
+On Grade 1's real 41 spellings it proposes 11 groups covering 27 of them, and
+leaves `Taimur Khan`, `Hassan Bin Sajid`, `Kaifa Maheen` and `Zohra` alone.
+
 ### Headings: an underscore is a word character
 
 `_hdrNorm()` normalises a heading by reading `_` as the space it stands for,

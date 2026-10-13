@@ -2592,6 +2592,25 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   </div>
 </div>
 
+<div class="sip-modal-overlay" id="nm-modal">
+  <div class="sip-modal" style="max-width:640px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('nm-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
+    <div class="sip-modal-title">✎ One child, spelled two ways</div>
+    <div style="background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:#8a5a06;line-height:1.6">
+      A screening result is matched to a child <strong>by name</strong>, because the sheets carry nothing
+      else. Where one form spells a name differently from another, that child is split in two and each
+      half shows a gap where the other half’s skills should be.<br>
+      Each group below is <strong>one grade</strong>. Untick anything that is genuinely two children —
+      nothing is renamed until you press the button, and the scores themselves are never touched.
+    </div>
+    <div id="nm-body"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-s" onclick="document.getElementById('nm-modal').classList.remove('open')">Cancel</button>
+      <button class="btn" onclick="applyNameMerge()">Merge the ticked names</button>
+    </div>
+  </div>
+</div>
+
 <div class="sip-modal-overlay" id="score-import-modal">
   <div class="sip-modal" style="max-width:700px;max-height:94vh;overflow-y:auto">
     <button onclick="document.getElementById('score-import-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">×</button>
@@ -14160,6 +14179,262 @@ function saveAssessmentData() {
   if (typeof queueSave === 'function') queueSave();
 }
 
+// ── The same child, spelled two ways ────────────────────
+// A screening result is matched to a child by name, because the sheets carry
+// nothing else. So a form that spells a name differently from the marks sheet
+// creates a second child holding that one result, and the report shows a dash
+// where the skill should be.
+//
+// On Iqra's live data this is most of the Kannada screening: the Kannada forms
+// spell `Mohammad`, the English forms and the bulk imports spell `Mohammed` or
+// `Md`, and 121 Kannada results sit against children who appear nowhere else.
+// `Sumaiya` / `Sumaiyya` / `Summaiya` splits one child three ways in the
+// non-Kannada sources alone.
+//
+// **Nothing here merges on its own.** It proposes, the author confirms each
+// group, and only then are names rewritten — the same shape as
+// `repairTeacherNames()` and `relabelScreening()`, and for the same reason:
+// putting one child's screening result on another is worse than a gap.
+
+// Abbreviations and spellings of one name, which no edit distance will ever
+// pair: `Md` and `Mohammed` are three edits apart and the same person. This
+// list is deliberately short and about **forms of a name**, not about
+// similarity — everything else is left to the distance test below.
+// Kept deliberately short, and only for **abbreviations and spellings of one
+// name**. `Syed` / `Syeda` is not here: it is gender-marked, and collapsing it
+// would propose merging a brother and sister who share a second name.
+const _NAME_ALIAS = {
+  md: 'mohammad', mohd: 'mohammad', mohammed: 'mohammad', muhammad: 'mohammad',
+  mohamed: 'mohammad', mohamad: 'mohammad', muhammed: 'mohammad', mohammd: 'mohammad',
+  fathima: 'fatima', fathema: 'fatima', fatema: 'fatima',
+};
+
+// The key two spellings of one child should share. Punctuation goes, each word
+// is mapped through the alias list, and the words are **sorted** — within one
+// grade, the same words in a different order are the same child, and the
+// sheets do swap given and family names.
+function _nmCanon(name) {
+  const t = String(name == null ? '' : name).toLowerCase()
+    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  return t.split(' ').map(w => _NAME_ALIAS[w] || w).sort().join(' ');
+}
+
+// Levenshtein, stopped as soon as it exceeds `max` — there is no reason to
+// finish counting a pair that is already too far apart.
+function _nmDist(a, b, max) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = [], cur = [];
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i; let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
+                        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > max) return max + 1;
+    prev = cur; cur = [];
+  }
+  return prev[b.length];
+}
+
+// How far apart two canonical names may be and still be proposed as one child.
+//
+// **The comparison is word by word, not across the whole string**, and that is
+// the whole of it. Measuring the flattened name let `Fathima Zahra` and
+// `Zaina Fathima` sit two edits apart — `fatima zahra` against `fatima zaina`
+// — and be proposed as one child, because the word they share padded the
+// length and hid that the word that matters changed completely. They are two
+// girls in Grade 1.
+//
+// So: each word must be the same or **one edit** from its partner, and at most
+// two words may differ at all. One edit is a dropped letter or a typo
+// (`Shaikh`/`Shaik`, `Rayan`/`Ryan`, `Umna`/`Yumna`); two edits inside a
+// five-letter given name is a different name.
+//
+// Where the word counts differ, the only case worth taking is a lost space
+// (`Murtuja Sab` written `Murtujasab`), which is exactly one edit on the
+// flattened string — so that one is measured whole.
+function _nmNear(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const x = a.split(' '), y = b.split(' ');
+  if (x.length !== y.length) return _nmDist(a, b, 1) <= 1;
+  let differing = 0;
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] === y[i]) continue;
+    if (++differing > 2) return false;
+    if (_nmDist(x[i], y[i], 1) > 1) return false;
+  }
+  return differing > 0;
+}
+
+// Every name a screening result is recorded against, with its grade and how
+// many results it carries. Keyed by the grade so nothing is ever proposed
+// across two grades: two children of the same name in different grades are
+// different children, which is the rule `_rptScreeningResults()` keys on.
+function _nmCensus() {
+  const by = {};   // "grade|name" -> {name, grade, n, inRoster}
+  const roster = {};
+  (typeof studentsData !== 'undefined' ? studentsData || [] : []).forEach(st => {
+    const k = _rptGrade(st.grade) + '|' + _wideNorm(st.name).toLowerCase();
+    roster[k] = 1;
+  });
+  const add = (name, grade) => {
+    const nm = _wideNorm(name);
+    if (!nm) return;
+    const g = _rptGrade(grade);
+    const k = g + '|' + nm.toLowerCase();
+    if (!by[k]) by[k] = { name: nm, grade: g, n: 0, inRoster: !!roster[k] };
+    by[k].n++;
+  };
+  (typeof assessments !== 'undefined' ? assessments : []).forEach(a =>
+    ((typeof scoreEntries !== 'undefined' && scoreEntries[a.id]) || [])
+      .forEach(e => add(e.name, e.grade || a.grade)));
+  (typeof rubrics !== 'undefined' ? rubrics : []).forEach(r =>
+    ((typeof rubricScores !== 'undefined' && rubricScores[r.id]) || [])
+      .forEach(e => add(e.name, e.grade)));
+  return Object.keys(by).map(k => by[k]);
+}
+
+// The groups worth proposing: two or more spellings, in one grade, that look
+// like one child. Union-find, so `Md Saquib`, `Mohammed Saqib` and
+// `Md Saqib` land in one group rather than three overlapping pairs.
+function _nameGroups() {
+  const rows = _nmCensus().filter(r => r.grade);
+  const byGrade = {};
+  rows.forEach(r => { (byGrade[r.grade] = byGrade[r.grade] || []).push(r); });
+
+  const out = [];
+  Object.keys(byGrade).forEach(g => {
+    const list = byGrade[g];
+    list.forEach(r => { r._c = _nmCanon(r.name); });
+    const parent = list.map((_, i) => i);
+    const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    const join = (i, j) => { const a = find(i), b = find(j); if (a !== b) parent[a] = b; };
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        if (list[i]._c === list[j]._c || _nmNear(list[i]._c, list[j]._c)) join(i, j);
+      }
+    }
+    const sets = {};
+    list.forEach((r, i) => { (sets[find(i)] = sets[find(i)] || []).push(r); });
+    Object.keys(sets).forEach(k => {
+      const members = sets[k];
+      if (members.length < 2) return;
+      // The spelling to keep: the roster's, if one of them is in the roster,
+      // then the one carrying the most results. After that, a spelling that is
+      // not SHOUTED — the all-caps ones come from the machine exports and read
+      // as careless beside the rest — and then the longer spelling, which is
+      // the unabbreviated one ("Mohammed" over "Md").
+      const shouted = x => x === x.toUpperCase() ? 1 : 0;
+      const target = members.slice().sort((a, b) =>
+        (b.inRoster ? 1 : 0) - (a.inRoster ? 1 : 0) || b.n - a.n ||
+        shouted(a.name) - shouted(b.name) ||
+        b.name.length - a.name.length ||
+        a.name.localeCompare(b.name))[0];
+      out.push({ grade: g, members: members.slice().sort((a, b) => b.n - a.n),
+                 target: target.name,
+                 why: target.inRoster ? 'in the student roster' : 'most results',
+                 rows: members.reduce((n, m) => n + m.n, 0) });
+    });
+  });
+  out.sort((a, b) => b.rows - a.rows || a.grade.localeCompare(b.grade));
+  return out;
+}
+
+function _nameBanner() {
+  const groups = _nameGroups();
+  if (!groups.length) return '';
+  const names = groups.reduce((n, g) => n + g.members.length, 0);
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;' +
+    'padding:10px 13px;background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md)">' +
+    '<span style="font-size:12px;color:#8a5a06;flex:1">' + names + ' spellings look like <strong>' +
+    groups.length + '</strong> child' + (groups.length === 1 ? '' : 'ren') +
+    ' recorded more than one way — a result filed under a second spelling shows as a gap in that ' +
+    'child\u2019s row. Nothing is merged until you confirm each one.</span>' +
+    '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="openNameMerge()">' +
+    'Review the names</button></div>';
+}
+
+function openNameMerge() {
+  const groups = _nameGroups();
+  window._nmGroups = groups;
+  const body = document.getElementById('nm-body');
+  if (!body) return;
+  if (!groups.length) {
+    body.innerHTML = '<p style="font-size:13px;color:var(--ink-l)">Every name is recorded one way. ' +
+      'Nothing to merge.</p>';
+  } else {
+    body.innerHTML = groups.map((g, i) =>
+      '<div style="border:0.5px solid var(--bdr-s);border-radius:var(--r-md);padding:11px 13px;margin-bottom:10px">' +
+      '<label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer">' +
+      '<input type="checkbox" id="nm-ck-' + i + '" checked style="margin-top:3px">' +
+      '<span style="flex:1">' +
+      '<span style="font-size:12px;color:var(--ink-l)">' + _escHtml(g.grade) + '</span><br>' +
+      g.members.map(m => '<span style="display:inline-block;margin:3px 7px 0 0;font-size:13px">' +
+        _escHtml(m.name) + ' <span style="color:var(--ink-l);font-size:11px">(' + m.n +
+        ' result' + (m.n === 1 ? '' : 's') + (m.inRoster ? ', in roster' : '') + ')</span></span>').join('') +
+      '</span></label>' +
+      '<div style="margin:8px 0 0 26px;font-size:12px;color:var(--ink-l)">Keep the spelling ' +
+      '<select id="nm-tg-' + i + '" style="padding:3px 6px;border:0.5px solid var(--bdr-s);' +
+      'border-radius:4px;font-size:12px;font-family:\'DM Sans\',sans-serif">' +
+      g.members.map(m => '<option value="' + _escHtml(m.name) + '"' +
+        (m.name === g.target ? ' selected' : '') + '>' + _escHtml(m.name) + '</option>').join('') +
+      '</select> <span style="font-size:11px">(suggested: ' + _escHtml(g.why) + ')</span></div></div>'
+    ).join('');
+  }
+  const ov = document.getElementById('nm-modal');
+  if (ov) ov.classList.add('open');
+}
+
+function applyNameMerge() {
+  const groups = window._nmGroups || [];
+  const plan = [];
+  groups.forEach((g, i) => {
+    const ck = document.getElementById('nm-ck-' + i);
+    if (!ck || !ck.checked) return;
+    const tg = document.getElementById('nm-tg-' + i);
+    const target = (tg && tg.value) || g.target;
+    g.members.forEach(m => {
+      if (m.name !== target) plan.push({ grade: g.grade, from: m.name, to: target });
+    });
+  });
+  if (!plan.length) { toast('Nothing ticked — no name was changed.', 'warn'); return; }
+  const rows = plan.reduce((n, p) => {
+    const hit = (groups.find(g => g.grade === p.grade) || { members: [] })
+      .members.find(m => m.name === p.from);
+    return n + (hit ? hit.n : 0);
+  }, 0);
+  if (!confirm('Rename ' + plan.length + ' spelling' + (plan.length === 1 ? '' : 's') +
+      ', changing ' + rows + ' recorded result' + (rows === 1 ? '' : 's') +
+      '. The scores themselves are untouched. Continue?')) return;
+
+  // A plan entry only applies to the grade it was proposed in, so a name used
+  // in two grades is never rewritten in the grade nobody reviewed.
+  const map = {};
+  plan.forEach(p => { map[p.grade + '|' + p.from.toLowerCase()] = p.to; });
+  let changed = 0;
+  const fix = (e, fallbackGrade) => {
+    const g = _rptGrade(e.grade || fallbackGrade);
+    const to = map[g + '|' + _wideNorm(e.name).toLowerCase()];
+    if (to && to !== e.name) { e.name = to; changed++; }
+  };
+  assessments.forEach(a => (scoreEntries[a.id] || []).forEach(e => fix(e, a.grade)));
+  rubrics.forEach(r => (rubricScores[r.id] || []).forEach(e => fix(e, '')));
+
+  saveAssessmentData();
+  if (typeof saveRubricScores === 'function') saveRubricScores();
+  const ov = document.getElementById('nm-modal');
+  if (ov) ov.classList.remove('open');
+  toast(changed + ' result' + (changed === 1 ? '' : 's') + ' now sit under ' + plan.length +
+    ' fewer spelling' + (plan.length === 1 ? '' : 's') + '.', 'success');
+  if (typeof renderAssessmentPage === 'function') renderAssessmentPage();
+  else if (typeof renderAssessments === 'function') renderAssessments();
+}
+
 // ── Roll numbers and grades from the school's own roster ───────────────
 // A marks sheet very often carries neither. The office exports names and
 // marks and nothing else, and the importer can only read what is in the file —
@@ -14321,6 +14596,14 @@ function populateAssessFilters() {
   // their grade already and show no roll number.
   const rb = document.getElementById('assess-screening-banner');
   if (rb) rb.innerHTML += _rosterBanner();
+  // The name banner belongs on both, because a split child is usually split
+  // *across* them — the marks sheet spells it one way and the rubric form
+  // another, which is exactly what makes the skill go missing.
+  const nameB = _nameBanner();
+  ['assess-screening-banner','rubric-screening-banner'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML += nameB;
+  });
 }
 
 function renderAssessmentTable() {
