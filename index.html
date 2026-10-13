@@ -2322,8 +2322,22 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
   <div class="tab-bar" id="assess-tabs">
     <button class="tab active" onclick="setAssessTab('scores',this)">📈 Score-based</button>
     <button class="tab" onclick="setAssessTab('rubric',this)">📋 Rubric-based</button>
+    <button class="tab" onclick="setAssessTab('behaviour',this)">🧠 Behaviour</button>
     <button class="tab" onclick="setAssessTab('grade',this)">🎓 By Grade</button>
     <button class="tab" onclick="setAssessTab('analytics',this)">📊 Analytics</button>
+  </div>
+
+  <!-- Behaviour panel: a questionnaire, not a rubric -->
+  <div id="assess-panel-behaviour" style="display:none">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <div style="flex:1;font-size:12px;color:var(--ink-l)">
+        The behavioural screening is a <strong>questionnaire the student answers</strong>, not a scored
+        rubric — so the answers are stored as the form recorded them and every figure in the report is
+        counted from them.
+      </div>
+      <button class="btn btn-s" onclick="openBhvImport()">⬆ Upload Google Form responses</button>
+    </div>
+    <div id="bhv-list"></div>
   </div>
 
   <!-- Score-based panel -->
@@ -2597,6 +2611,81 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <button class="btn btn-s" onclick="document.getElementById('bulk-files').click()">⬆ Add more files</button>
         <button class="btn btn-s" onclick="document.getElementById('bulk-import-modal').classList.remove('open')">Cancel</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="sip-modal-overlay" id="bhv-modal">
+  <div class="sip-modal" style="max-width:760px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('bhv-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
+    <div class="sip-modal-title">⬆ Upload Google Form responses</div>
+
+    <div id="bhv-step1">
+      <div style="background:var(--sage-p);border:0.5px solid var(--sage-m);border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--sage);line-height:1.6">
+        <strong>The form as the students filled it in.</strong> One row per student, one column per
+        question. Nothing has to be scored or recoded first — the answers are kept exactly as recorded
+        and the report counts them.
+      </div>
+      <div class="sip-field"><label>Name this screening</label>
+        <input id="bhv-name" placeholder="Behavioural &amp; Psychosocial Screening" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+      </div>
+      <div class="sip-field"><label>Who answered it</label>
+        <select id="bhv-respondent" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+          <option value="student">The students, about themselves</option>
+          <option value="staff">A teacher or staff member</option>
+          <option value="parent">A parent or carer</option>
+          <option value="">— not stated —</option>
+        </select>
+      </div>
+      <div class="sip-field"><label>Upload the file — .xlsx or .csv</label>
+        <input type="file" id="bhv-file" accept=".csv,.xlsx,.xlsm,.xls,.ods" onchange="bhvPickFile(this)" style="width:100%;font-size:12px">
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--ink-f);margin:10px 0">or</div>
+      <div class="sip-field"><label>Paste a Google Drive or published-sheet link</label>
+        <input id="bhv-url" placeholder="https://drive.google.com/file/d/…" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+        <button class="btn btn-s" style="margin-top:8px" onclick="bhvFetchUrl()">Fetch it</button>
+      </div>
+      <div id="bhv-err" style="display:none;margin-top:12px;padding:10px 12px;background:var(--red-p);border:0.5px solid var(--red);border-radius:var(--r-md);font-size:12px;color:var(--red);line-height:1.6"></div>
+    </div>
+
+    <div id="bhv-step2" style="display:none">
+      <div id="bhv-sheet-pick" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div class="sip-field" style="flex:1;min-width:190px;margin:0"><label>Student name column</label>
+          <select id="bhv-col-name" style="width:100%;padding:7px 9px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+        </div>
+        <div class="sip-field" style="flex:1;min-width:190px;margin:0"><label>Grade / class column</label>
+          <select id="bhv-col-grade" style="width:100%;padding:7px 9px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--ink-l);margin-bottom:8px">
+        <strong>The questions.</strong> Untick anything that is not one — a timestamp, an email address,
+        a serial number. Each ticked column becomes a question in the report.
+      </div>
+      <div id="bhv-qs" style="max-height:300px;overflow-y:auto;border:0.5px solid var(--bdr);border-radius:var(--r-md);padding:8px"></div>
+      <div id="bhv-preview" style="margin-top:12px;font-size:12px;color:var(--ink-l)"></div>
+      <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-s" onclick="document.getElementById('bhv-step2').style.display='none';document.getElementById('bhv-step1').style.display=''">Back</button>
+        <button class="btn" onclick="bhvImport()">Import the responses</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sip-modal-overlay" id="bhvq-modal">
+  <div class="sip-modal" style="max-width:820px;max-height:94vh;overflow-y:auto">
+    <button onclick="document.getElementById('bhvq-modal').classList.remove('open')" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-l)">&times;</button>
+    <div class="sip-modal-title">🧠 What each question measures</div>
+    <div style="background:#FDF5E6;border:0.5px solid #D4860B;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:#8a5a06;line-height:1.6">
+      Every question is already counted and will appear in the report with its own distribution. What
+      this adds is <strong>what the number means</strong>: which group of findings it belongs under, and
+      which answers are the <strong>concern</strong> — "Yes" to being bullied, "No" to feeling you
+      belong. Only questions with a concern answer reach the Concerns table.
+    </div>
+    <div id="bhvq-body"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-s" onclick="document.getElementById('bhvq-modal').classList.remove('open')">Close</button>
+      <button class="btn" onclick="saveBhvQuestions()">Save</button>
     </div>
   </div>
 </div>
@@ -8492,174 +8581,225 @@ function _rptSkillProse(label, d) {
         : 'The cohort is spread across the scale, indicating inconsistent attainment rather than a uniform gap.');
 }
 
-// The Behavioural Screening Report. Cohort-level, as the issued Screening
-// Report Summary is: percentages and areas, no names. A behavioural finding
-// against a named child is a different document with a different readership,
-// and this one is written to be circulated.
+// ── The Behavioural Screening Report ─────────────────────
+// Section 5 of the issued audit report, in the shape the psychologist writes
+// it: 5.1 Executive Summary, 5.2 Introduction & Methodology, 5.3 Assessment
+// Methodology (framework, data collection, ethics), 5.4 Key Findings grouped
+// under the five headings with a Concise Table and a Concerns table, 5.5
+// Summary of High-Risk Recurring Behaviours, and the note on subjectivity.
+//
+// The issued document numbers two different sections 5.3; that is a slip in
+// the original rather than a feature of the format, so Key Findings is 5.4
+// here and everything after it shifts by one.
+//
+// **Every percentage is counted from the responses.** The parts a psychologist
+// supplies — which answer is a concern, what it implies — are authored in
+// the question editor and printed verbatim; where none was given the report
+// prints the observation and leaves the implication blank rather than
+// inventing one.
+const _RPT_BHV_FRAMEWORK = ['Emotional wellbeing', 'Social belonging and peer safety',
+  'Academic stress levels', 'Lifestyle and digital habits', 'Emotional coping patterns',
+  'Family relationships'];
+
+const _RPT_BHV_WHO = {
+  student: 'the students themselves',
+  staff: 'the teachers and staff who work with them',
+  parent: 'their parents or carers' };
+
 function buildBehaviourReport() {
-  const ix = _rptBehaviourIndex();
-  const areas = Object.keys(ix.areas).sort((a, b) => ix.areas[b].n - ix.areas[a].n ||
-                                                     a.localeCompare(b));
-  if (!areas.length) {
-    toast('No behavioural screening results yet. Add an assessment or rubric typed ' +
-          '\u201cBehavioural Screening\u201d on the Assessment page and import its responses.', 'warn');
+  const ix = _bhvIndex();
+  const rubricIx = _rptBehaviourIndex();
+  if (!ix.questions.length && !Object.keys(rubricIx.areas).length) {
+    toast('No behavioural screening yet. Upload the Google Form responses on the Assessment page, ' +
+          'under \u201c🧠 Behaviour\u201d.', 'warn');
     return;
   }
-  const kids = Object.keys(ix.students).map(k => ix.students[k]);
-  const tot = { 1:0, 2:0, 3:0, 4:0 };
-  let n = 0;
-  areas.forEach(a => { [1,2,3,4].forEach(lv => { tot[lv] += ix.areas[a].counts[lv]; });
-                       n += ix.areas[a].n; });
-  const allGrades = {};
-  areas.forEach(a => Object.keys(ix.areas[a].grades).forEach(g => { allGrades[g] = 1; }));
-  const grades = _rptStudentGrades(kids);
-  const concernOf = a => _rptPct(ix.areas[a].counts[1] + ix.areas[a].counts[2], ix.areas[a].n);
-  const worst = areas.slice().sort((x, y) => concernOf(y) - concernOf(x))[0];
+  const qs = ix.questions;
+  const kids = Object.keys(ix.students).length;
+  const flagged = qs.filter(q => q.concernPct !== null)
+                    .sort((a, b) => b.concernPct - a.concernPct);
+  const worst = flagged[0];
+  // Both sources can record who answered, and a school running only the rated
+  // instrument would otherwise lose it from the methodology.
+  const respondents = ix.respondents
+    .concat(rubricIx.respondents.filter(r => ix.respondents.indexOf(r) < 0));
+  const who = respondents.map(r => _RPT_BHV_WHO[r]).filter(Boolean);
+  const grades = {};
+  Object.keys(ix.students).forEach(k => { const g = ix.students[k].grade; if (g) grades[g] = 1; });
 
-  let h = _rptCover('Holistify.ai', 'Behavioural Screening Report',
-                    _rptGradeSpan(allGrades) || 'All grades',
-                    'How our children manage themselves, and each other');
+  let h = _rptCover('Holistify.ai', 'Behavioural & Psychosocial Screening Report',
+                    _rptGradeSpan(grades) || 'All grades',
+                    'A peek into how our children are doing');
 
-  h += '<div class="sheet"><h1>Behavioural Screening Report</h1>' +
-    '<p class="lede">' + _escHtml(_rptSchoolFull()) + ' \u00b7 ' + kids.length + ' student' +
-    (kids.length === 1 ? '' : 's') + ' screened across ' + areas.length + ' area' +
-    (areas.length === 1 ? '' : 's') + ' of behaviour \u00b7 ' + n + ' recorded result' +
-    (n === 1 ? '' : 's') + '</p>';
+  h += '<div class="sheet"><h1>Section 5: Behavioural and Academic Assessment Report</h1>' +
+    '<p class="lede">' + _escHtml(_rptSchoolFull()) + ' \u00b7 ' +
+    (kids ? kids + ' student' + (kids === 1 ? '' : 's') + ' \u00b7 ' : '') +
+    ix.n + ' response' + (ix.n === 1 ? '' : 's') + ' \u00b7 ' + qs.length + ' question' +
+    (qs.length === 1 ? '' : 's') + '</p>';
 
-  h += '<div class="note"><strong>This is a screening, not a diagnosis.</strong> It records what was ' +
-    'observed of a child\u2019s behaviour on the day it was administered, in the areas listed below and ' +
-    'no others. It identifies where support is worth putting in; it does not name a condition, and it ' +
-    'does not replace assessment by a psychologist.</div>' +
-    (ix.dropped ? '<p class="small">' + ix.dropped + ' result' + (ix.dropped === 1 ? ' was' : 's were') +
-      ' recorded more than once for the same child and area; one is counted per child per area, the ' +
-      'lower level in each case.</p>' : '');
+  // ── 5.1 Executive Summary ──
+  h += '<h2>5.1 Executive Summary \u2014 Behavioural &amp; Psychosocial</h2>' +
+    '<p>The social-emotional screening conducted at ' + _escHtml(_rptSchoolFull()) +
+    ' provides insight into the psychological wellbeing, academic stress levels and social ' +
+    'environment of students within the institution.</p>';
+  if (flagged.length) {
+    const top3 = flagged.slice(0, 3);
+    h += '<p>The findings are drawn from ' + ix.n + ' recorded response' + (ix.n === 1 ? '' : 's') +
+      '. The indicators carrying the most weight are ' +
+      top3.map(q => '<strong>' + _escHtml(q.q) + '</strong> (' + q.concernPct + '%)').join(', ') +
+      '. ' +
+      (worst.concernPct >= 50
+        ? 'More than half of those who answered fall on the concerning side of at least one indicator, ' +
+          'which places this at the level of a whole-school wellbeing priority rather than individual ' +
+          'casework.'
+        : 'These sit below half the cohort, so the work indicated is targeted support for the groups ' +
+          'and areas named below rather than a universal programme.') + '</p>' +
+      '<p>These trends point to where preventive mental-health work, stress-management and peer-safety ' +
+      'systems would do the most good.</p>';
+  } else {
+    h += '<div class="note"><strong>No indicator has been marked as a concern yet.</strong> Every ' +
+      'question below is counted and reported, but until the answers that signal a concern are ticked ' +
+      '\u2014 on the Assessment page, under \u201c🧠 Behaviour\u201d \u2192 Tag the questions \u2014 this ' +
+      'report cannot say which of them is the finding.</div>';
+  }
 
-  // 1. Executive summary — written from the counts, so it cannot drift.
-  const concern = tot[1] + tot[2];
-  h += '<h2>1. Executive Summary</h2><p>' +
-    _escHtml(_rptSchoolFull()) + ' screened <strong>' + kids.length + '</strong> student' +
-    (kids.length === 1 ? '' : 's') + ' across <strong>' + areas.length + '</strong> area' +
-    (areas.length === 1 ? '' : 's') + ' of behaviour. <strong>' + _rptPct(concern, n) +
-    '%</strong> of the results sit at Level 1 or 2, meaning the behaviour is either a barrier to ' +
-    'learning or managed only with frequent adult support. ' +
-    (worst ? 'The area of greatest concern is <strong>' + _escHtml(worst) + '</strong>, where ' +
-      concernOf(worst) + '% of those screened are at Level 1 or 2. ' : '') +
-    (_rptPct(concern, n) >= 50
-      ? 'More than half of what was observed falls below independent management, which makes behaviour ' +
-        'a whole-school priority rather than an individual-casework one.'
-      : 'Most of what was observed is managed independently, so the work is targeted support for the ' +
-        'children and areas named below rather than a universal programme.') + '</p>';
+  // ── 5.2 Introduction & Methodology ──
+  h += '<h2>5.2 Introduction &amp; Methodology</h2>' +
+    '<p>This report consolidates the behavioural and psychological screening data for ' +
+    _escHtml(_rptSchoolFull()) + '. The screening uses a standardised behavioural checklist to map ' +
+    'the emotional, social and academic health of the student body. An in-house school coordinator ' +
+    'facilitated the process so that students could interpret the questions accurately.</p>' +
+    '<p>The data is categorised to give school leadership a roadmap for grade-specific and ' +
+    'branch-specific wellness interventions.</p>';
 
-  // 2. Methodology
-  const WHO = { student: 'the students themselves, about their own behaviour',
-                staff: 'the teachers and staff who work with them',
-                parent: 'their parents or carers' };
-  const who = ix.respondents.map(r => WHO[r]).filter(Boolean);
-  h += '<h2>2. Assessment Methodology</h2>' +
-    '<p>Each area was rated on a four-level scale' +
-    // Said only where the instrument records it. A child reporting that they
-    // lose their temper is not the same evidence as a teacher reporting it,
-    // and a report that assumes one of them is wrong half the time.
-    (who.length ? ' by <strong>' + who.join('</strong>, and by <strong>') + '</strong>' : '') +
-    '. The instrument' + (ix.instruments.length === 1 ? ' used was' : 's used were') + ': ' +
-    ix.instruments.map(x => '<em>' + _escHtml(x) + '</em>').join(', ') + '.</p>' +
-    (ix.respondents.indexOf('student') >= 0
-      ? '<p>Where a child answered for themselves, the report carries what they said about ' +
-        'themselves. That is worth having and is not the same thing as an observation: a child ' +
-        'may not report a difficulty an adult can see, or may report one an adult has missed.</p>'
+  // ── 5.3 Assessment Methodology ──
+  h += '<h2>5.3 Assessment Methodology</h2>' +
+    '<p>The screening was conducted using a structured behavioural and emotional ' +
+    (qs.length ? 'questionnaire administered to students' : 'rating scale completed for each student') +
+    (who.length ? ', answered by <strong>' + who.join('</strong>, and <strong>') + '</strong>' : '') +
+    '.</p>' +
+    (respondents.indexOf('student') >= 0
+      ? '<p>Where a child answered for themselves, this report carries what they said about ' +
+        'themselves. That is worth having and is not the same thing as an observation: a child may ' +
+        'not report a difficulty an adult can see, or may report one an adult has missed.</p>'
       : '') +
-    '<table><tr><th>Level</th><th>What it means</th></tr>' +
-    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_BEHAV_LEVELS[lv] +
-      '</td></tr>').join('') + '</table>' +
-    (ix.reversed.length
-      ? '<p class="small"><strong>Read the other way up:</strong> ' +
-        ix.reversed.map(x => _escHtml(x)).join(', ') + ' \u2014 ' +
-        (ix.reversed.length === 1 ? 'this statement is' : 'these statements are') +
-        ' worded so that the last answer is the concern, so ' +
-        (ix.reversed.length === 1 ? 'it is' : 'they are') + ' scored right-to-left. Level 4 ' +
-        'means the behaviour is not a problem, as it does everywhere else in this report.</p>'
-      : '');
+    '<h3>Assessment Framework</h3><p>The evaluation measures multiple psychosocial domains, ' +
+    'including:</p><ul>' +
+    _RPT_BHV_FRAMEWORK.map(d => '<li>' + d + '</li>').join('') + '</ul>' +
+    '<h3>Data Collection Process</h3><ul>' +
+    '<li>Students completed self-reported behavioural screening questionnaires.</li>' +
+    '<li>An in-house school coordinator supervised the screening to ensure clarity and accuracy.</li>' +
+    '<li>Responses were analysed to identify behavioural trends and risk indicators' +
+    (Object.keys(grades).length > 1 ? ', by grade and across the cohort' : '') + '.</li></ul>' +
+    '<h3>Ethical Considerations</h3><ul>' +
+    '<li>Student identities remain confidential; this report names no child.</li>' +
+    '<li>The data is used strictly for institutional wellbeing planning and student support.</li>' +
+    '</ul>';
 
-  // 3. The distribution
-  h += '<h2>3. Summary of the Data</h2><h3>Overall Distribution</h3>' +
-    '<table><tr><th>Level</th><th>What it means</th><th class="num">Results</th><th class="num">Share</th></tr>' +
-    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_BEHAV_LEVELS[lv] +
-      '</td><td class="num">' + tot[lv] + '</td><td class="num">' + _rptPct(tot[lv], n) +
-      '%</td></tr>').join('') + '</table>' +
-    _rptLevelBars(tot, n, _RPT_BEHAV_LEVELS);
-
-  // 4. Area by area, worst first — the order a school reads this in.
-  h += '<div class="pb"></div><h2>4. Area by Area</h2>' +
-    '<p>Ordered by the share at Level 1\u20132, so the areas needing attention come first.</p>' +
-    '<table><tr><th>Area of behaviour</th>' +
-    [1,2,3,4].map(lv => '<th class="num">Level ' + lv + '</th>').join('') +
-    '<th class="num">Screened</th><th class="num">At Level 1\u20132</th></tr>' +
-    areas.slice().sort((x, y) => concernOf(y) - concernOf(x)).map(a => {
-      const d = ix.areas[a];
-      return '<tr><td>' + _escHtml(a) + '</td>' +
-        [1,2,3,4].map(lv => '<td class="num"' +
-          (d.counts[lv] && lv <= 2 ? ' style="color:' + _RPT_LV_COLOR[lv] + ';font-weight:600"' : '') +
-          '>' + (d.counts[lv] || '\u2014') + '</td>').join('') +
-        '<td class="num">' + d.n + '</td>' +
-        '<td class="num"><strong>' + concernOf(a) + '%</strong></td></tr>';
-    }).join('') + '</table>';
-
-  areas.forEach(a => {
-    const d = ix.areas[a];
-    h += '<h3>' + _escHtml(a) + '</h3>' +
-      '<p>' + d.n + ' child' + (d.n === 1 ? '' : 'ren') + ' screened \u00b7 ' +
-      _rptGradeSpan(d.grades) + ' \u00b7 <strong>' + concernOf(a) + '%</strong> at Level 1\u20132.</p>' +
-      _rptLevelBars(d.counts, d.n, _RPT_BEHAV_LEVELS);
+  // ── 5.4 Key Findings, grouped as the issued report groups them ──
+  h += '<div class="pb"></div><h2>5.4 Key Findings</h2>';
+  const byCat = {};
+  qs.forEach(q => { const c = q.cat || 'Other questions';
+                    (byCat[c] = byCat[c] || []).push(q); });
+  const catOrder = _BHV_CATS.filter(c => byCat[c]).concat(byCat['Other questions'] ? ['Other questions'] : []);
+  if (!catOrder.length) h += '<p><em>No question has been grouped under a heading yet.</em></p>';
+  catOrder.forEach((c, ci) => {
+    h += '<h3>' + (ci + 1) + '. ' + _escHtml(c) + '</h3><ul>';
+    byCat[c].forEach(q => {
+      h += '<li><strong>' + _escHtml(q.q) + '</strong> \u2014 ' +
+        (q.concernPct !== null
+          ? q.concernPct + '% answered ' +
+            q.concern.map(a => '\u201c' + _escHtml(a) + '\u201d').join(' or ') +
+            ' (' + q.concernN + ' of ' + q.n + ')'
+          : 'most common answer: \u201c' + _escHtml(q.top ? q.top.a : '\u2014') + '\u201d (' +
+            (q.top ? q.top.pct : 0) + '% of ' + q.n + ')') +
+        '.</li>';
+    });
+    h += '</ul>';
   });
 
-  // 5. By grade, each child once at their overall level
-  h += '<div class="pb"></div><h2>5. Behaviour by Grade</h2>' +
-    '<p>Each child counted once, at their average level across the areas they were screened on.</p>' +
-    '<table style="width:auto;min-width:120mm"><tr><th style="width:34mm">Grade</th>' +
-    [1,2,3,4].map(lv => '<th class="num" style="width:18mm">Level ' + lv + '</th>').join('') +
-    '<th class="num" style="width:20mm">Screened</th>' +
-    '<th class="num" style="width:22mm">At Level 1\u20132</th></tr>' +
-    grades.map(g => {
-      const inG = kids.filter(st => (st.grade || '\u2014') === g);
-      const at = lv => inG.filter(st => st.level === lv).length;
-      return '<tr><td>' + _escHtml(g) + '</td>' +
-        [1,2,3,4].map(lv => '<td class="num"' +
-          (at(lv) && lv <= 2 ? ' style="color:' + _RPT_LV_COLOR[lv] + ';font-weight:600"' : '') +
-          '>' + (at(lv) || '\u2014') + '</td>').join('') +
-        '<td class="num">' + inG.length + '</td><td class="num"><strong>' +
-        _rptPct(at(1) + at(2), inG.length) + '%</strong></td></tr>';
-    }).join('') +
-    '<tr><td><strong>All grades</strong></td>' +
-    [1,2,3,4].map(lv => '<td class="num"><strong>' +
-      kids.filter(st => st.level === lv).length + '</strong></td>').join('') +
-    '<td class="num"><strong>' + kids.length + '</strong></td>' +
-    '<td class="num"><strong>' +
-    _rptPct(kids.filter(st => st.level <= 2 && st.level).length, kids.length) +
-    '%</strong></td></tr></table>';
+  // The Concise Table the issued report closes its findings with.
+  h += '<h3>Concise Table</h3>' +
+    '<table><tr><th>Category</th><th>Indicator</th><th class="num">Percentage / Value</th></tr>' +
+    qs.map(q => '<tr><td>' + _escHtml(q.cat || '\u2014') + '</td><td>' + _escHtml(q.q) + '</td>' +
+      '<td class="num">' + (q.concernPct !== null
+        ? q.concernPct + '%'
+        : _escHtml(q.top ? q.top.a : '\u2014')) + '</td></tr>').join('') + '</table>';
 
-  // 6. What follows from it — named findings, from the areas themselves.
-  h += '<h2>6. Interpretation and Next Steps</h2>';
-  const flagged = areas.filter(a => concernOf(a) >= 50)
-                       .sort((x, y) => concernOf(y) - concernOf(x));
-  if (flagged.length) {
-    flagged.forEach(a => {
-      h += _rptFinding(_escHtml(a),
-        concernOf(a) + '% of the ' + ix.areas[a].n + ' children screened on this are at Level 1 or 2. ' +
-        'Plan for it in the places the behaviour actually happens \u2014 the lesson, the corridor, the ' +
-        'break \u2014 rather than in a separate session, and agree one response the whole staff uses.');
-    });
+  // ── Concerns ──
+  h += '<div class="pb"></div><h3>Concerns</h3>';
+  if (!flagged.length) {
+    h += '<p><em>No answer has been marked as a concern, so there is nothing to list here. ' +
+      'Tag the questions on the Assessment page and this table fills itself.</em></p>';
   } else {
-    h += '<p>No area has half or more of its children at Level 1\u20132. The support indicated is ' +
-      'individual rather than whole-school; the children concerned are listed by name in the ' +
-      'accompanying student-level record, which is not for wider circulation.</p>';
+    h += '<table><tr><th>Concern</th><th>Details of observation</th>' +
+      '<th>Psychological implication</th></tr>' +
+      flagged.map(q => '<tr><td>' + _escHtml(q.q) + '</td>' +
+        '<td>' + q.concernPct + '% of the ' + q.n + ' students who answered chose ' +
+        q.concern.map(a => '\u201c' + _escHtml(a) + '\u201d').join(' or ') + '.</td>' +
+        '<td>' + (q.implication ? _escHtml(q.implication) :
+          '<em style="color:#8a7a5a">Not stated \u2014 add it against this question to print it here.</em>') +
+        '</td></tr>').join('') + '</table>';
   }
-  h += '<p>Screening measures what was observed on the day, in these areas alone. A child at Level 1 ' +
-    'in one area and Level 4 in the others needs that one area supported, not a label \u2014 and a ' +
-    'pattern across many areas is the point at which a psychologist should be asked to look.</p>';
+
+  // ── 5.5 Summary of High-Risk Recurring Behaviours ──
+  h += '<h2>5.5 Summary of High-Risk Recurring Behaviours</h2>';
+  if (flagged.length) {
+    h += '<ul>' + flagged.slice(0, 6).map(q => '<li><strong>' + _escHtml(q.q) + ':</strong> ' +
+      q.concernPct + '% of those who answered' +
+      (q.cat ? ', under ' + _escHtml(q.cat) : '') + '.</li>').join('') + '</ul>';
+    const high = flagged.filter(q => q.concernPct >= 30);
+    h += '<p><strong>Intervention focus.</strong> ' +
+      (high.length
+        ? 'The indicators at 30% or above \u2014 ' +
+          high.map(q => _escHtml(q.q)).join(', ') +
+          ' \u2014 are the ones worth building a programme around. Plan for them where the behaviour ' +
+          'actually happens: the lesson, the corridor, the break; and agree one response the whole ' +
+          'staff uses.'
+        : 'No indicator reaches 30%, so the support indicated is individual rather than whole-school.') +
+      '</p>';
+  } else {
+    h += '<p><em>Mark the concern answers to populate this section.</em></p>';
+  }
+
+  // The level-based areas, where a rubric-style behavioural instrument also
+  // exists. Kept because a school may run both, and a section that silently
+  // dropped one of them would understate the screening.
+  const rAreas = Object.keys(rubricIx.areas)
+    .sort((a, b) => rubricIx.areas[b].n - rubricIx.areas[a].n);
+  if (rAreas.length) {
+    const rConc = a => _rptPct(rubricIx.areas[a].counts[1] + rubricIx.areas[a].counts[2],
+                               rubricIx.areas[a].n);
+    h += '<h3>Rated areas</h3>' +
+      '<p>Where an area was <em>rated</em> on the four-level scale rather than answered as a ' +
+      'question, it is reported here. Level 1 is a barrier to learning; Level 4 is secure.</p>' +
+      '<table><tr><th>Area of behaviour</th><th class="num">Screened</th>' +
+      '<th class="num">At Level 1\u20132</th></tr>' +
+      rAreas.slice().sort((x, y) => rConc(y) - rConc(x)).map(a =>
+        '<tr><td>' + _escHtml(a) + '</td><td class="num">' + rubricIx.areas[a].n +
+        '</td><td class="num"><strong>' + rConc(a) + '%</strong></td></tr>').join('') + '</table>' +
+      (rubricIx.reversed.length
+        ? '<p class="small"><strong>Read the other way up:</strong> ' +
+          rubricIx.reversed.map(x => _escHtml(x)).join(', ') + ' \u2014 worded so that the last answer ' +
+          'is the concern, so scored right-to-left.</p>'
+        : '');
+  }
+
+  // ── The note the issued report closes on ──
+  h += '<div class="note"><strong>Note on subjectivity.</strong> ' +
+    (respondents.indexOf('student') >= 0
+      ? 'These findings are based on <strong>student self-reports</strong> and should be used to guide ' +
+        'administrative wellness policies and targeted counselling programmes. A child may not report a ' +
+        'difficulty an adult can see, or may report one an adult has missed; this is worth having, and ' +
+        'it is not the same thing as an observation.'
+      : 'These findings are based on a screening questionnaire and should be used to guide ' +
+        'administrative wellness policies and targeted counselling programmes.') +
+    ' A screening identifies where support is worth putting in. It names no condition, diagnoses ' +
+    'nothing, and does not replace assessment by a psychologist.</div>';
 
   h += _rptFoot() + '</div>';
   _rptOpen('Behavioural Screening Report \u2014 ' + _rptSchool(), h, false,
-           'Behavioural Screening Report');
+           'Behavioural &amp; Psychosocial Screening Report');
 }
 
 function buildScreeningReport() {
@@ -9135,22 +9275,32 @@ function renderFormalReports() {
   // to fill. A behavioural instrument is an ordinary rubric or assessment
   // carrying the Behavioural Screening type.
   const bh = _rptBehaviourIndex();
+  const bq = _bhvIndex();
   const bhAreas = Object.keys(bh.areas).length;
-  const bhKids = Object.keys(bh.students).length;
+  const bhAny = bq.questions.length || bhAreas;
+  const bhUntagged = bq.questions.filter(q => q.concernPct === null).length;
   h += card('🧠', 'Behavioural Screening Report',
-    'Executive summary, the four-level scale, the overall distribution, every area of behaviour ' +
-    'worst-first with its own breakdown, behaviour by grade, and what follows from it.',
-    (bhAreas
-      ? 'Built from <strong>' + bh.rows.length + '</strong> result' + (bh.rows.length === 1 ? '' : 's') +
-        ' for <strong>' + bhKids + '</strong> student' + (bhKids === 1 ? '' : 's') +
-        ' across <strong>' + bhAreas + '</strong> area' + (bhAreas === 1 ? '' : 's') +
-        ' \u00b7 A4 portrait \u00b7 no names, as the summary format has none'
-      : 'A4 portrait \u00b7 cohort-level, no names'),
-    bhAreas > 0,
-    'No behavioural screening yet. On the Assessment page, add a rubric or an assessment and set its ' +
-    'type to \u201cBehavioural Screening\u201d, then import its responses \u2014 everything else works as ' +
-    'it does for the academic screening.',
-    btn('Generate', 'buildBehaviourReport()', bhAreas > 0));
+    'Section 5 in the issued shape: executive summary, introduction and methodology, the assessment ' +
+    'framework, key findings grouped under their headings, the concise table, the concerns table ' +
+    'with its psychological implications, and the high-risk summary.',
+    (bq.questions.length
+      ? 'Built from <strong>' + bq.n + '</strong> response' + (bq.n === 1 ? '' : 's') +
+        ' across <strong>' + bq.questions.length + '</strong> question' +
+        (bq.questions.length === 1 ? '' : 's') +
+        (bhAreas ? ' and ' + bhAreas + ' rated area' + (bhAreas === 1 ? '' : 's') : '') +
+        ' \u00b7 A4 portrait \u00b7 no names' +
+        (bhUntagged ? '<br><span style="color:#8a5a06">' + bhUntagged + ' question' +
+          (bhUntagged === 1 ? ' has' : 's have') + ' no concern answer marked, so ' +
+          (bhUntagged === 1 ? 'it is' : 'they are') + ' reported by their most common answer and ' +
+          'stay out of the Concerns table.</span>' : '')
+      : bhAreas
+        ? 'Built from <strong>' + bhAreas + '</strong> rated area' + (bhAreas === 1 ? '' : 's') +
+          ' \u00b7 A4 portrait \u00b7 no names'
+        : 'A4 portrait \u00b7 cohort-level, no names'),
+    bhAny > 0,
+    'No behavioural screening yet. On the Assessment page, open \u201c🧠 Behaviour\u201d and upload ' +
+    'the Google Form responses \u2014 the questions and their answers are read straight from the sheet.',
+    btn('Generate', 'buildBehaviourReport()', bhAny > 0));
 
   // The named companion to the summary above, and one child in full.
   const stuAll = _rptStudentList('all', 'all');
@@ -14496,6 +14646,43 @@ let assessEditIdx = null;
 let currentScoreAssessId = null;
 let rubricEditIdx = null;
 let rubricCriteria = [];
+
+// ── Behavioural questionnaires ─────────────────────────
+// The behavioural screening Holistify runs is **not** a rubric. It is a
+// questionnaire the student answers about themselves — "Do you feel alone at
+// school?", "What time do you sleep?", "What do you want to become?" — and
+// the report is built from the **distribution of answers per question**, not
+// from a 1–4 level. "38.0% feel alone at school" and "the most common wake-up
+// is 5:00 AM" are the shapes it reports; neither is a level.
+//
+// So the answers are stored verbatim, exactly as the form recorded them, and
+// every figure in the report is counted from them at render time. Nothing is
+// scored on the way in, because there is no scale to score onto.
+let behaviourSurveys = [];      // [{id, name, respondent, date, questions:[…]}]
+let behaviourResponses = {};    // { surveyId: [ {name, grade, answers:{q:a}} ] }
+
+// The groups the issued report organises its Key Findings under.
+const _BHV_CATS = ['Daily routine & physical health', 'Academic life',
+                   'Social & emotional wellbeing', 'Personal life & career',
+                   'Family relationships'];
+
+function _bhvKey() {
+  return 'hol_behaviour_' + schoolKey((document.getElementById('inp-school')||{}).value||'default');
+}
+function loadBehaviourData() {
+  try {
+    const s = localStorage.getItem(_bhvKey());
+    if (s) { const d = JSON.parse(s);
+      behaviourSurveys = d.surveys || []; behaviourResponses = d.responses || {}; }
+  } catch(e) {}
+}
+function saveBehaviourData() {
+  try {
+    localStorage.setItem(_bhvKey(),
+      JSON.stringify({ surveys: behaviourSurveys, responses: behaviourResponses }));
+  } catch(e) {}
+  if (typeof queueSave === 'function') queueSave();
+}
 var _assessCloudLoaded = false; // true after Supabase (or its localStorage mirror) has populated assessment globals
 
 function loadAssessmentData() {
@@ -14509,6 +14696,7 @@ function loadAssessmentData() {
     } catch(e) {}
   }
   if (typeof loadRubricScores === 'function') loadRubricScores();
+  if (typeof loadBehaviourData === 'function') loadBehaviourData();
 }
 function saveAssessmentData() {
   try {
@@ -14899,6 +15087,9 @@ function setAssessTab(tab, btn) {
   document.getElementById('assess-panel-rubric').style.display = tab==='rubric'?'':'none';
   document.getElementById('assess-panel-grade').style.display = tab==='grade'?'':'none';
   document.getElementById('assess-panel-analytics').style.display = tab==='analytics'?'':'none';
+  const bp = document.getElementById('assess-panel-behaviour');
+  if (bp) bp.style.display = tab==='behaviour'?'':'none';
+  if (tab==='behaviour') renderBehaviourPanel();
   if (tab==='analytics') renderAssessAnalytics();
   if (tab==='grade') _initGradeViewFilters();
   // Repaint on the way in, so the tab reflects an import or an edit made
@@ -18233,6 +18424,333 @@ async function _fetchImportSource(raw) {
   }
   if (drive || !/docs\.google\.com/.test(url)) return _sniffBytes(await res.arrayBuffer());
   return { kind: 'text', text: await res.text() };
+}
+
+// ── Behavioural questionnaire: import, tag, count ─────────────
+// The same three sources the rubric importer takes, and the same parser — a
+// Google Form export is a Google Form export whichever instrument it belongs
+// to, so none of that is written twice.
+let _bhvRows = null, _bhvHeaders = null, _bhvSheets = null;
+
+function _bhvErr(msg) {
+  const el = document.getElementById('bhv-err');
+  if (el) { el.innerHTML = msg; el.style.display = ''; }
+}
+function openBhvImport() {
+  _bhvRows = null; _bhvHeaders = null; _bhvSheets = null;
+  ['bhv-url'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const nm = document.getElementById('bhv-name');
+  if (nm && !nm.value) nm.value = 'Behavioural & Psychosocial Screening';
+  const f = document.getElementById('bhv-file'); if (f) f.value = '';
+  const e1 = document.getElementById('bhv-step1'), e2 = document.getElementById('bhv-step2'),
+        er = document.getElementById('bhv-err');
+  if (e1) e1.style.display = ''; if (e2) e2.style.display = 'none';
+  if (er) er.style.display = 'none';
+  const ov = document.getElementById('bhv-modal'); if (ov) ov.classList.add('open');
+}
+
+function bhvPickFile(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const nm = document.getElementById('bhv-name');
+  if (nm && !nm.value.trim()) nm.value = file.name.replace(/\.[^.]+$/, '');
+  const fr = new FileReader();
+  fr.onload = () => { try { _bhvFromBytes(fr.result); } catch (e) { _bhvErr(e.message); } };
+  fr.readAsArrayBuffer(file);
+}
+
+async function bhvFetchUrl() {
+  const raw = (document.getElementById('bhv-url') || {}).value || '';
+  if (!raw.trim()) { _bhvErr('Paste a link first.'); return; }
+  try {
+    const src = await _fetchImportSource(raw.trim());
+    if (src.kind === 'text') _bhvAccept(_csvParse(src.text));
+    else _bhvFromBytes(src.buf || src.bytes || src);
+  } catch (e) { _bhvErr(e.message); }
+}
+
+// Sniffs the bytes rather than trusting a name, exactly as the rubric import
+// does: a Drive download has no reliable filename and a ".csv" is sometimes
+// really a workbook.
+function _bhvFromBytes(buf) {
+  const src = _sniffBytes(buf);
+  if (src.kind === 'text') { _bhvAccept(_csvParse(src.text)); return; }
+  if (typeof XLSX === 'undefined') {
+    _bhvErr('The spreadsheet reader did not load, so a workbook cannot be opened here. ' +
+            'Save the sheet as <strong>.csv</strong> and upload that.');
+    return;
+  }
+  const wb = XLSX.read(src.data, { type: 'array' });
+  const sheets = _sheetsWithRows(wb);
+  if (!sheets.length) { _bhvErr('Every sheet in that workbook is empty below its headings.'); return; }
+  _bhvSheets = sheets.map(n => ({ name: n, parsed: _csvParse(XLSX.utils.sheet_to_csv(wb.Sheets[n])) }));
+  _bhvAccept(_bhvSheets[0].parsed, 0);
+}
+
+function _bhvAccept(parsed, sheetIdx) {
+  const rows = (parsed && parsed.rows) || [];
+  const headers = (parsed && parsed.headers) || [];
+  if (!rows.length || !headers.length) {
+    _bhvErr('That file has no rows under its headings.'); return;
+  }
+  _bhvRows = rows; _bhvHeaders = headers;
+  const pick = (sel, guess) => {
+    const el = document.getElementById(sel);
+    if (!el) return;
+    el.innerHTML = '<option value="">\u2014 none \u2014</option>' +
+      headers.map(h => '<option value="' + _escHtml(h) + '">' + _escHtml(h) + '</option>').join('');
+    const hit = headers.filter(guess)[0];
+    if (hit) el.value = hit;
+  };
+  pick('bhv-col-name', h => /name/i.test(h) && !/user|file/i.test(h));
+  pick('bhv-col-grade', h => /grade|class|std|standard|section/i.test(h));
+
+  // A sheet picker where there is more than one sheet of data — in step 2,
+  // beside the preview, because loading a file jumps straight here.
+  const sp = document.getElementById('bhv-sheet-pick');
+  if (sp) {
+    sp.innerHTML = (_bhvSheets && _bhvSheets.length > 1)
+      ? '<div class="sip-field" style="margin:0"><label>Sheet</label><select onchange="_bhvAccept(_bhvSheets[this.value].parsed, +this.value)" ' +
+        'style="width:100%;padding:7px 9px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:12px;font-family:\'DM Sans\',sans-serif">' +
+        _bhvSheets.map((sh, i) => '<option value="' + i + '"' +
+          (i === (sheetIdx || 0) ? ' selected' : '') + '>' + _escHtml(sh.name) +
+          ' (' + ((sh.parsed.rows || []).length) + ' rows)</option>').join('') + '</select></div>'
+      : '';
+  }
+  _bhvRenderQuestions();
+  document.getElementById('bhv-step1').style.display = 'none';
+  document.getElementById('bhv-step2').style.display = '';
+}
+
+// A column is offered as a question unless it is obviously not one. The
+// timestamp and email columns Google adds are never questions, and neither is
+// the column chosen as the name or the grade.
+function _bhvIsNotAQuestion(h) {
+  return /^\s*$/.test(h) || /timestamp|email|e-mail|^\s*(sl|sr)\.?\s*no|^\s*#\s*$/i.test(h);
+}
+function _bhvRenderQuestions() {
+  const el = document.getElementById('bhv-qs');
+  if (!el || !_bhvRows) return;
+  const nameCol = (document.getElementById('bhv-col-name') || {}).value || '';
+  const gradeCol = (document.getElementById('bhv-col-grade') || {}).value || '';
+  const headers = (_bhvHeaders || []).filter(h => h !== nameCol && h !== gradeCol);
+  el.innerHTML = headers.map((h, i) =>
+    '<label style="display:flex;align-items:flex-start;gap:8px;padding:4px 2px;font-size:12px;cursor:pointer">' +
+    '<input type="checkbox" class="bhv-q" value="' + _escHtml(h) + '"' +
+    (_bhvIsNotAQuestion(h) ? '' : ' checked') + ' style="margin-top:2px">' +
+    '<span>' + _escHtml(h) + '</span></label>').join('') ||
+    '<div style="font-size:12px;color:var(--ink-f)">No columns left once the name and grade are taken.</div>';
+  const pv = document.getElementById('bhv-preview');
+  if (pv) pv.innerHTML = _bhvRows.length + ' response' + (_bhvRows.length === 1 ? '' : 's') +
+    ' \u00b7 ' + headers.length + ' column' + (headers.length === 1 ? '' : 's') + ' offered as questions' +
+    (nameCol ? '' : ' \u00b7 <strong>no name column chosen</strong>, so responses will be counted but not ' +
+      'attributable to a child');
+}
+
+function bhvImport() {
+  if (!_bhvRows) { _bhvErr('Load a file first.'); return; }
+  const name = ((document.getElementById('bhv-name') || {}).value || '').trim() ||
+               'Behavioural Screening';
+  const respondent = (document.getElementById('bhv-respondent') || {}).value || '';
+  const nameCol = (document.getElementById('bhv-col-name') || {}).value || '';
+  const gradeCol = (document.getElementById('bhv-col-grade') || {}).value || '';
+  const qs = [...document.querySelectorAll('.bhv-q')].filter(c => c.checked).map(c => c.value);
+  if (!qs.length) { _bhvErr('Tick at least one question.'); return; }
+
+  // Re-importing the same screening replaces its responses rather than
+  // appending them: the form keeps collecting and the sheet gets imported
+  // again, and a plain append would double every percentage in the report.
+  const existing = behaviourSurveys.filter(x => x.name === name)[0];
+  const prev = existing ? (existing.questions || []) : [];
+  const survey = existing || { id: 'bh_' + Date.now(), name: name };
+  survey.respondent = respondent;
+  survey.date = new Date().toISOString().slice(0, 10);
+  // A question keeps the category and concern answers it was already given,
+  // so re-importing a fortnight's extra responses does not throw the tagging
+  // away.
+  survey.questions = qs.map(q => {
+    const was = prev.filter(x => x.q === q)[0];
+    return { q: q, cat: (was && was.cat) || '', concern: (was && was.concern) || [],
+             implication: (was && was.implication) || '' };
+  });
+  if (!existing) behaviourSurveys.push(survey);
+
+  behaviourResponses[survey.id] = _bhvRows.map(r => {
+    const answers = {};
+    qs.forEach(q => { answers[q] = _wideNorm(r[q]); });
+    return { name: nameCol ? _wideNorm(r[nameCol]) : '',
+             grade: gradeCol ? _rptGrade(r[gradeCol]) : '',
+             answers: answers };
+  }).filter(r => Object.keys(r.answers).some(k => r.answers[k]));
+
+  saveBehaviourData();
+  document.getElementById('bhv-modal').classList.remove('open');
+  toast(behaviourResponses[survey.id].length + ' response' +
+    (behaviourResponses[survey.id].length === 1 ? '' : 's') + ' imported into \u201c' + name +
+    '\u201d. Tag what each question measures to fill the Concerns table.', 'success');
+  renderBehaviourPanel();
+  openBhvQuestions(survey.id);
+}
+
+// ── Counting ────────────────────────────────────
+// Every figure the report prints comes from here, so the prose, the tables and
+// the concerns cannot disagree about a number.
+//
+// A blank answer is **not counted** — neither in the denominator nor as a
+// response. A question half the cohort skipped should report the share among
+// those who answered it, and say how many that was, rather than quietly
+// reading as though the rest had all said no.
+function renderBehaviourPanel() {
+  const el = document.getElementById('bhv-list');
+  if (!el) return;
+  if (!behaviourSurveys.length) {
+    el.innerHTML = '<div style="padding:26px;text-align:center;color:var(--ink-f);font-size:13px">' +
+      'No behavioural screening yet. Upload the Google Form responses and every question becomes ' +
+      'part of the report.</div>';
+    return;
+  }
+  el.innerHTML = behaviourSurveys.map(sv => {
+    const rows = behaviourResponses[sv.id] || [];
+    const qs = (sv.questions || []);
+    const tagged = qs.filter(q => q.cat).length;
+    const flagged = qs.filter(q => (q.concern || []).length).length;
+    const WHO = { student: 'students, about themselves', staff: 'teachers or staff',
+                  parent: 'parents or carers' };
+    return '<div style="border:0.5px solid var(--bdr);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:220px"><div style="font-weight:600;font-size:14px">' +
+      _escHtml(sv.name) + '</div>' +
+      '<div style="font-size:12px;color:var(--ink-l);margin-top:3px">' + rows.length +
+      ' response' + (rows.length === 1 ? '' : 's') + ' \u00b7 ' + qs.length + ' question' +
+      (qs.length === 1 ? '' : 's') +
+      (sv.respondent && WHO[sv.respondent] ? ' \u00b7 answered by ' + WHO[sv.respondent] : '') +
+      (sv.date ? ' \u00b7 imported ' + _escHtml(sv.date) : '') + '</div></div>' +
+      '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="openBhvQuestions(\'' +
+      sv.id + '\')">\u270e Tag the questions</button>' +
+      '<button class="btn btn-s" style="font-size:12px;padding:5px 11px" onclick="deleteBhvSurvey(\'' +
+      sv.id + '\')">Delete</button></div>' +
+      '<div style="margin-top:9px;font-size:12px;color:' +
+      (tagged === qs.length && flagged ? 'var(--sage)' : '#8a5a06') + '">' +
+      tagged + ' of ' + qs.length + ' question' + (qs.length === 1 ? '' : 's') +
+      ' grouped under a heading \u00b7 ' + flagged + ' with a concern answer marked' +
+      (flagged ? '' : ' \u2014 until at least one is, the Concerns table has nothing to list') +
+      '</div></div>';
+  }).join('');
+}
+
+function deleteBhvSurvey(id) {
+  const sv = behaviourSurveys.filter(x => x.id === id)[0];
+  if (!sv) return;
+  const n = (behaviourResponses[id] || []).length;
+  if (!confirm('Delete \u201c' + sv.name + '\u201d?' +
+    (n ? '\n\n' + n + ' response' + (n === 1 ? '' : 's') + ' will be deleted with it.' : ''))) return;
+  behaviourSurveys = behaviourSurveys.filter(x => x.id !== id);
+  delete behaviourResponses[id];
+  saveBehaviourData();
+  renderBehaviourPanel();
+  toast('Deleted.', 'success');
+}
+
+// What each question measures. Everything here is the author's judgement, not
+// the data's: which group a finding belongs under, which answer is the
+// concern, and what it implies. The counts need none of it — a question with
+// nothing ticked still appears with its distribution.
+let _bhvQSurvey = null;
+function openBhvQuestions(id) {
+  const sv = behaviourSurveys.filter(x => x.id === id)[0];
+  if (!sv) return;
+  _bhvQSurvey = sv;
+  const body = document.getElementById('bhvq-body');
+  if (!body) return;
+  body.innerHTML = (sv.questions || []).map((q, i) => {
+    const st = _bhvQuestionStats(sv, q);
+    return '<div style="border:0.5px solid var(--bdr-s);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px">' +
+      '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + _escHtml(q.q) + '</div>' +
+      '<div style="font-size:11px;color:var(--ink-l);margin-bottom:9px">' + st.n +
+      ' answered \u00b7 most common: <strong>' + (st.top ? _escHtml(st.top.a) + ' (' + st.top.pct + '%)' : '\u2014') +
+      '</strong></div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">' +
+      '<div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--ink-l)">Group it under</label>' +
+      '<select class="bhvq-cat" style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-sm);font-size:12px;font-family:\'DM Sans\',sans-serif">' +
+      '<option value="">\u2014 not grouped \u2014</option>' +
+      _BHV_CATS.map(c => '<option value="' + _escHtml(c) + '"' +
+        (q.cat === c ? ' selected' : '') + '>' + _escHtml(c) + '</option>').join('') +
+      '</select></div></div>' +
+      (st.dist.length > 24
+        ? '<div style="font-size:11px;color:var(--ink-f)">' + st.dist.length + ' different answers \u2014 ' +
+          'this reads as free text, so it is reported by its most common answers rather than by a ' +
+          'concern share.</div>'
+        : '<div><div style="font-size:11px;color:var(--ink-l);margin-bottom:4px">Which answers are the concern?</div>' +
+          st.dist.map(d => '<label style="display:inline-flex;align-items:center;gap:5px;margin:0 10px 5px 0;font-size:11px;cursor:pointer">' +
+            '<input type="checkbox" class="bhvq-con" data-q="' + i + '" value="' + _escHtml(d.a) + '"' +
+            ((q.concern || []).indexOf(d.a) >= 0 ? ' checked' : '') + '>' +
+            '<span>' + _escHtml(d.a) + ' <span style="color:var(--ink-f)">(' + d.pct + '%)</span></span></label>').join('') +
+          '</div>') +
+      '<div style="margin-top:9px"><label style="font-size:11px;color:var(--ink-l)">Psychological implication \u2014 printed in the Concerns table (optional)</label>' +
+      '<input class="bhvq-imp" value="' + _escHtml(q.implication || '') +
+      '" placeholder="e.g. Increased risk of social anxiety and reduced school belonging." ' +
+      'style="width:100%;padding:6px 8px;border:0.5px solid var(--bdr-s);border-radius:var(--r-sm);font-size:12px;font-family:\'DM Sans\',sans-serif"></div>' +
+      '</div>';
+  }).join('');
+  const ov = document.getElementById('bhvq-modal');
+  if (ov) ov.classList.add('open');
+}
+
+function saveBhvQuestions() {
+  const sv = _bhvQSurvey;
+  if (!sv) return;
+  const cats = [...document.querySelectorAll('.bhvq-cat')];
+  const imps = [...document.querySelectorAll('.bhvq-imp')];
+  (sv.questions || []).forEach((q, i) => {
+    if (cats[i]) q.cat = cats[i].value;
+    if (imps[i]) q.implication = imps[i].value.trim();
+    q.concern = [...document.querySelectorAll('.bhvq-con[data-q="' + i + '"]')]
+      .filter(c => c.checked).map(c => c.value);
+  });
+  saveBehaviourData();
+  document.getElementById('bhvq-modal').classList.remove('open');
+  renderBehaviourPanel();
+  toast('Saved.', 'success');
+}
+
+function _bhvQuestionStats(survey, q) {
+  const rows = behaviourResponses[survey.id] || [];
+  const counts = {};
+  let n = 0;
+  rows.forEach(r => {
+    const a = _wideNorm((r.answers || {})[q.q]);
+    if (!a) return;
+    n++; counts[a] = (counts[a] || 0) + 1;
+  });
+  const dist = Object.keys(counts).map(a => ({ a: a, n: counts[a], pct: _rptPct(counts[a], n) }))
+                     .sort((x, y) => y.n - x.n || x.a.localeCompare(y.a));
+  const concernN = (q.concern || []).reduce((t, a) => t + (counts[a] || 0), 0);
+  return { q: q.q, cat: q.cat || '', n: n, dist: dist, top: dist[0] || null,
+           concern: q.concern || [], concernN: concernN,
+           concernPct: (q.concern || []).length ? _rptPct(concernN, n) : null,
+           implication: q.implication || '' };
+}
+
+function _bhvIndex() {
+  const out = { surveys: [], questions: [], students: {}, respondents: [], n: 0 };
+  behaviourSurveys.forEach(sv => {
+    const rows = behaviourResponses[sv.id] || [];
+    if (!rows.length) return;
+    out.surveys.push(sv);
+    if (sv.respondent && out.respondents.indexOf(sv.respondent) < 0) out.respondents.push(sv.respondent);
+    rows.forEach(r => {
+      const nm = _wideNorm(r.name);
+      if (!nm) return;
+      const k = nm.toLowerCase() + '|' + _wideNorm(r.grade).toLowerCase();
+      if (!out.students[k]) out.students[k] = { name: nm, grade: _wideNorm(r.grade) };
+    });
+    out.n += rows.length;
+    (sv.questions || []).forEach(q => {
+      const st = _bhvQuestionStats(sv, q);
+      if (st.n) out.questions.push(st);
+    });
+  });
+  return out;
 }
 
 function _gfiFromBytes(buf, rubricId, label) {
@@ -22361,6 +22879,7 @@ function _buildAuditSnapshot(){
     lpScores:lpScores,journeyRecords:journeyRecords,
     staffData:staffData,studentsData:studentsData,rubricScores:rubricScores,
     assessData:assessments,assessScores:scoreEntries,assessRubrics:rubrics,
+    behaviourSurveys:behaviourSurveys,behaviourResponses:behaviourResponses,
     school:(document.getElementById('inp-school')||{}).value||'',
     date:(document.getElementById('inp-date')||{}).value||'',
     board:(document.getElementById('inp-board')||{}).value||'',
@@ -22398,6 +22917,15 @@ function _applyAuditSnapshot(d, skOverride){
   if(d.assessData){assessments=d.assessData; _assessCloudLoaded=true;}
   if(d.assessScores){scoreEntries=d.assessScores;}
   if(d.assessRubrics){rubrics=d.assessRubrics;}
+  if(d.behaviourSurveys){behaviourSurveys=d.behaviourSurveys;}
+  if(d.behaviourResponses){behaviourResponses=d.behaviourResponses;}
+  // Written back to its own localStorage key, as every other restored module
+  // is: loadBehaviourData() runs again when the page opens and would otherwise
+  // overwrite what just came from the cloud with a stale local copy.
+  if(d.behaviourSurveys||d.behaviourResponses){
+    try{ localStorage.setItem('hol_behaviour_'+(skOverride||schoolKey((document.getElementById('inp-school')||{}).value||'default')),
+      JSON.stringify({surveys:behaviourSurveys,responses:behaviourResponses})); }catch(e){}
+  }
   if(teachers.length){activeTeacher=teachers[0].id;activeLpTeacher=teachers[0].id;}
 
   // Restore the per-module state, then write it to each module's own

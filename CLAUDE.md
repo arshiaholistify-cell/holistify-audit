@@ -1199,6 +1199,77 @@ names a priority. No entry is in that state today.
 
 ### Behavioural screening
 
+The behavioural screening Holistify runs is **not a rubric**. It is a
+questionnaire the student answers about themselves — *"Do you feel alone at
+school?"*, *"What time do you sleep?"*, *"What do you want to become?"* — and
+the issued report is built from the **distribution of answers per question**:
+"38.0% feel alone at school", "the most common wake-up is 5:00 AM", "Kannada is
+the most frequently mentioned difficult subject". None of those is a level, so
+none of it fits the 1–4 model.
+
+So answers are stored **verbatim, as the form recorded them**, in
+`behaviourSurveys` / `behaviourResponses`, and every figure is counted at
+render time by `_bhvQuestionStats()`. Nothing is scored on the way in, because
+there is no scale to score onto. Both stores go through `_buildAuditSnapshot()`
+and `_applyAuditSnapshot()`, and the restore writes back to the module's own
+localStorage key like every other module.
+
+**The 🧠 Behaviour tab** on the Assessment page imports the Google Form
+export through the same three routes and the same parser as the rubric
+importer — a form export is a form export. Step 2 guesses the name and class
+columns, offers **every other column as a question**, and unticks the ones that
+obviously are not (timestamp, email, serial). Re-importing a screening of the
+same name **replaces** its responses rather than appending, and **keeps the
+tagging** each question already had, so pulling a fortnight's extra responses
+does not throw that work away.
+
+**A blank answer is not counted** — not in the numerator and not in the
+denominator. A question half the cohort skipped reports the share among those
+who answered and says how many that was, rather than reading as though the
+rest had all said no.
+
+#### What the author supplies, and what the data supplies
+
+The counts need no configuration: every question appears in the report with
+its distribution and its most common answer the moment it is imported. What
+the author adds in **Tag the questions** is what the number *means*:
+
+- the **group** it belongs under, one of `_BHV_CATS` (the five headings the
+  issued report organises Key Findings by);
+- which answers are the **concern** — "Yes" to being bullied, "No" to feeling
+  you belong. Only questions with a concern answer reach the Concerns table;
+  the rest are reported by their most common answer;
+- the **psychological implication**, printed verbatim in the Concerns table.
+  Where none is given the report prints the observation and says the
+  implication is not stated. That column is a psychologist's reading, not
+  something countable, and inventing one would be the plainest possible breach
+  of "nothing is written in that the data does not support".
+
+A question with more than ~24 distinct answers is treated as free text and
+offered no concern tick, because ticking individual answers of an open
+question is not a measurement.
+
+#### The report
+
+`buildBehaviourReport()` follows the issued document section for section: 5.1
+Executive Summary, 5.2 Introduction & Methodology, 5.3 Assessment Methodology
+(framework, data collection, ethics), 5.4 Key Findings grouped under the five
+headings with the **Concise Table** and the **Concerns** table, 5.5 Summary of
+High-Risk Recurring Behaviours with its intervention focus, and the closing
+note on subjectivity.
+
+The issued document numbers two different sections 5.3. That is a slip in the
+original rather than a feature of the format, so Key Findings is **5.4** here
+and everything after it shifts by one.
+
+Where a school also runs a **rated** behavioural instrument (a rubric typed
+`ASSESS_TYPE_BEHAVIOUR`), its areas appear as a *Rated areas* table inside the
+same report rather than in a second document — `_rptBehaviourIndex()` still
+resolves those, and a report that silently dropped one of the two sources
+would understate the screening.
+
+### Behavioural screening (rated instruments)
+
 Section 5 of the issued audit report is the **Behavioural Report**, and this
 app used to hold nothing to put in it — the section said so in place of the
 content, which was the honest answer while it was true.
