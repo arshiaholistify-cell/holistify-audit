@@ -1056,6 +1056,38 @@ The branch of the school being audited fills the **Campus** line the published
 format has; see **Branches** above for how it is stored. A school with one
 campus prints no campus row at all.
 
+### Editing a report before it goes out
+
+The report window's toolbar carries **✎ Edit text** beside Print. It toggles
+`contenteditable` on `.wrap`, so an auditor can correct a sentence — a name
+spelled two ways, a finding that needs a word changing for this school —
+before the PDF goes out, without a round trip through the audit page.
+
+Four things decided here:
+
+- **It is transient, and says so.** The edit changes the document on screen and
+  therefore the PDF printed from it; nothing is written back to `scores`,
+  `notes` or `audit_states`, and regenerating starts from the data again. The
+  hint swaps to say exactly that the moment editing is switched on, because an
+  edit that *looks* saved and is not would be worse than no editing at all —
+  the same reasoning that removed the sidebar's Save/Load session buttons.
+- **Revert restores the text as generated.** `_rptOrig` is captured once, on
+  first entering edit mode, so Revert goes back to what the data produced
+  rather than to the last time the toggle was pressed. It confirms first,
+  because it discards the auditor's work.
+- **The editing chrome never prints.** The dashed outline and the toolbar are
+  both inside `@media print { display:none / outline:0 }`, and the
+  spellchecker's squiggles do not print either.
+- **The toolbar is what shows the mode**, turning amber with an `EDITING` chip.
+  The outline is drawn around the whole document and scrolls out of sight; the
+  toolbar is fixed, so it is the one place the mode is visible wherever the
+  reader is in the file.
+
+`_RPT_EDIT_JS` is written into the report window, not the app — it is a
+separate document. `_RPT_HINT_PRINT` / `_RPT_HINT_EDIT` are shared between the
+markup and that script through `JSON.stringify`, so the two hints are defined
+once.
+
 ### A recommendation is read after the audit, not before it
 
 `PLAN` serves two documents in two different tenses, and the same sentence is

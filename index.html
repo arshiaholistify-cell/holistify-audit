@@ -7158,10 +7158,74 @@ const _RPT_CSS = `
              display:flex; gap:10px; align-items:center; }
   .toolbar button { font:inherit; padding:5px 14px; border-radius:6px; border:0;
                     background:#fff; color:#1E3A35; font-weight:600; cursor:pointer; }
+  .toolbar button.sec { background:transparent; color:#fff;
+                        border:1px solid rgba(255,255,255,.45); }
   .toolbar .hint { opacity:.75; font-size:12px; }
   .wrap { padding-top:46px; }
-  @media print { .toolbar { display:none; } .wrap { padding-top:0; } }
+  /* While the report is editable it says so on screen and never on paper: the
+     outline and the spellchecker's squiggles are screen furniture.
+     The toolbar changes colour too, because the outline is drawn around the
+     whole document and scrolls out of sight — the toolbar is fixed, so it is
+     the one place the mode is always visible. */
+  .wrap[contenteditable="true"] { outline:2px dashed #C7D5CF; outline-offset:8px; }
+  .wrap[contenteditable="true"]:focus { outline-color:#8FB3A6; }
+  body.editing .toolbar { background:#7A5B16; }
+  .toolbar .mode { display:none; font-weight:600; letter-spacing:.4px;
+                   text-transform:uppercase; font-size:11px; }
+  body.editing .toolbar .mode { display:inline; }
+  @media print { .toolbar { display:none; } .wrap { padding-top:0; }
+                 .wrap[contenteditable="true"] { outline:0; } }
 `;
+
+// The report is generated from the audit's own data, and an auditor still has
+// to be able to correct a sentence before the PDF goes out — a name spelled
+// two ways, a finding that needs a word changing for this school. So the
+// window carries an edit toggle.
+//
+// Editing is deliberately **transient**. It changes the document on screen and
+// therefore the PDF printed from it; nothing is written back to `scores`,
+// `notes` or `audit_states`, and regenerating starts from the data again. The
+// hint says so the moment editing is switched on, because an edit that looks
+// saved and is not would be worse than no editing at all — the same reasoning
+// that removed the sidebar's Save/Load session buttons.
+//
+// Revert restores the text as generated. It is there because a report mangled
+// by a stray keystroke would otherwise have to be regenerated from the audit
+// page, and `_rptOrig` is captured once, on first entering edit mode, so
+// Revert always goes back to what the data produced rather than to the last
+// time the toggle was pressed.
+const _RPT_HINT_PRINT = 'Choose <strong>Save as PDF</strong> as the destination. ' +
+  'Turn on background graphics for the cover.';
+const _RPT_HINT_EDIT = 'Click into the report and type. Edits change <strong>this printout ' +
+  'only</strong> — nothing is written back to the audit, and regenerating starts from ' +
+  'the data again.';
+const _RPT_EDIT_JS =
+  '<script>' +
+  'var _rptOrig = null;' +
+  'function rptEdit() {' +
+  '  var w = document.querySelector(".wrap"),' +
+  '      b = document.getElementById("rpt-edit"),' +
+  '      r = document.getElementById("rpt-revert"),' +
+  '      h = document.getElementById("rpt-hint");' +
+  '  if (!w || !b) return;' +
+  '  var on = w.getAttribute("contenteditable") !== "true";' +
+  '  if (on && _rptOrig === null) _rptOrig = w.innerHTML;' +
+  '  w.setAttribute("contenteditable", on ? "true" : "false");' +
+  '  w.setAttribute("spellcheck", on ? "true" : "false");' +
+  '  b.textContent = on ? "\u2713 Done editing" : "\u270e Edit text";' +
+  '  if (r) r.style.display = on ? "" : "none";' +
+  '  if (h) h.innerHTML = on ? ' + JSON.stringify(_RPT_HINT_EDIT) + ' : ' +
+       JSON.stringify(_RPT_HINT_PRINT) + ';' +
+  '  document.body.classList.toggle("editing", on);' +
+  '  if (on) w.focus();' +
+  '}' +
+  'function rptRevert() {' +
+  '  var w = document.querySelector(".wrap");' +
+  '  if (!w || _rptOrig === null) return;' +
+  '  if (!confirm("Discard every edit and restore the report as it was generated?")) return;' +
+  '  w.innerHTML = _rptOrig;' +
+  '}' +
+  '<\/script>';
 
 // Opens the document in its own window. A blocked pop-up is reported rather
 // than failing silently, which is the usual way a print window "does nothing".
@@ -7176,10 +7240,13 @@ function _rptOpen(title, bodyHtml, landscape, runningHead) {
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' +
     _escHtml(title) + '</title>' + _RPT_FONT_LINK + '<style>' + css + '</style></head><body>' +
     '<div class="toolbar"><button onclick="window.print()">\u2399 Print / Save as PDF</button>' +
-    '<span class="hint">Choose <strong>Save as PDF</strong> as the destination. ' +
-    'Turn on background graphics for the cover.</span></div>' +
+    '<button class="sec" id="rpt-edit" onclick="rptEdit()">\u270e Edit text</button>' +
+    '<button class="sec" id="rpt-revert" onclick="rptRevert()" style="display:none">' +
+      '\u21ba Revert</button>' +
+    '<span class="mode">Editing</span>' +
+    '<span class="hint" id="rpt-hint">' + _RPT_HINT_PRINT + '</span></div>' +
     '<div class="runhead">' + _escHtml(runningHead || title) + '</div>' +
-    '<div class="wrap">' + bodyHtml + '</div></body></html>');
+    '<div class="wrap">' + bodyHtml + '</div>' + _RPT_EDIT_JS + '</body></html>');
   w.document.close();
   w.focus();
   return w;
