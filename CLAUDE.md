@@ -1232,6 +1232,53 @@ area. Everything else matches the academic resolver: the grade goes through
 `_rptGrade()`, a child is `name|grade`, and where an area is recorded twice the
 lower level stands.
 
+#### A self-report, and reverse-worded items
+
+A behavioural instrument is often **answered by the child**, not by an adult
+rating them, and that brings in the one thing that silently inverts a result.
+
+A self-report asks *"I get on well with others"* and *"I lose my temper when
+things go wrong"* on the same `Always … Never` scale, and the top answer means
+the opposite on each. Read straight, a child answering **Never** to losing
+their temper — the best answer there is — scored **Level 1, an area of
+concern**, and a child answering **Always** scored **Level 4, secure**. The
+levels were exactly inverted, the averages built on them were wrong, and
+nothing on screen said so.
+
+So a criterion carries **`reverse`**, ticked in the rubric editor
+("the *last* option is the concern, not the first"), and `_rubricLevel()`
+flips it: `(scale + 1) - level`. It is done **there**, where a stored answer
+becomes a level, so the behaviour report, `_rubricRespAvg()`, analytics and
+every export get the same answer and none of them needs to know.
+
+Two things it deliberately does **not** flip, both already levels rather than
+positions in the descriptor list:
+
+- a **plain number** — that is what the manual scorer writes, and it is the
+  level someone already decided;
+- a descriptor the author **numbered themselves** (`"2: Sometimes"`).
+
+And the **multi-select** rule inverts with it: forward it takes the lowest
+position ticked, because under-crediting is the safer error; reversed it takes
+the **highest**, because that is the position that flips to the lowest level.
+Taking the lowest there would have credited the child with the best level in
+the list.
+
+#### Who answered
+
+`respondent` on a behavioural instrument (`student` / `staff` / `parent`, or
+blank) records who filled it in, and the report's Methodology says so. A child
+reporting that they lose their temper is not the same evidence as a teacher
+reporting it, and the report used to assert flatly that the rating was done
+"by the adults who work with the children" — wrong half the time once
+self-reports exist. **Blank claims nothing**, rather than guessing.
+
+Where a child answered for themselves the report adds that this is worth
+having and is not an observation: a child may not report a difficulty an adult
+can see, or may report one an adult has missed. The Methodology section also
+**names every reverse-scored statement**, so a reader who checks one against
+the raw form can see why the level reads as it does.
+
 `_RPT_BEHAV_LEVELS` is the report's own wording for the four levels, as
 `_RPT_SCREEN_LEVELS` is for the academic one — "area of concern" through
 "secure", not "significant difficulty" through "strong mastery". One document

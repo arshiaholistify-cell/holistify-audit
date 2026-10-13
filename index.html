@@ -2524,6 +2524,14 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="sip-field" style="margin:0"><label>Type</label>
         <select id="rb-type" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)"></select>
       </div>
+      <div class="sip-field" style="margin:0"><label>Who answered</label>
+        <select id="rb-respondent" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
+          <option value="">— not stated —</option>
+          <option value="student">The student, about themselves</option>
+          <option value="staff">A teacher or staff member</option>
+          <option value="parent">A parent or carer</option>
+        </select>
+      </div>
       <div class="sip-field" style="margin:0"><label>Scale</label>
         <select id="rb-scale" style="width:100%;padding:8px 10px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
           <option value="4">4-point (1–4)</option>
@@ -8435,12 +8443,22 @@ function _rptBehaviourIndex() {
     st.level = st.n ? Math.max(1, Math.min(4, Math.round(st.avg))) : 0;
   });
 
-  const instruments = []
+  const used = []
     .concat((typeof rubrics !== 'undefined' ? rubrics : []).filter(_isBehaviour))
-    .concat((typeof assessments !== 'undefined' ? assessments : []).filter(_isBehaviour))
-    .map(x => x.name).filter(Boolean);
+    .concat((typeof assessments !== 'undefined' ? assessments : []).filter(_isBehaviour));
+  const instruments = used.map(x => x.name).filter(Boolean);
+  // Who answered, and which areas are read right-to-left. Both change how a
+  // finding should be read, so the report states them rather than leaving the
+  // reader to assume.
+  const respondents = used.map(x => x.respondent).filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i);
+  const reversed = [];
+  used.forEach(x => (x.criteria || []).forEach(c => {
+    if (c && c.reverse && c.name && reversed.indexOf(c.name) < 0) reversed.push(c.name);
+  }));
 
   return { rows: rows, students: students, areas: areas, instruments: instruments,
+           respondents: respondents, reversed: reversed,
            seen: seen, dropped: dropped, dupes: dupes };
 }
 
@@ -8533,13 +8551,34 @@ function buildBehaviourReport() {
         'children and areas named below rather than a universal programme.') + '</p>';
 
   // 2. Methodology
+  const WHO = { student: 'the students themselves, about their own behaviour',
+                staff: 'the teachers and staff who work with them',
+                parent: 'their parents or carers' };
+  const who = ix.respondents.map(r => WHO[r]).filter(Boolean);
   h += '<h2>2. Assessment Methodology</h2>' +
-    '<p>Each area was rated on a four-level scale by the adults who work with the children. ' +
-    'The instrument' + (ix.instruments.length === 1 ? ' used was' : 's used were') + ': ' +
+    '<p>Each area was rated on a four-level scale' +
+    // Said only where the instrument records it. A child reporting that they
+    // lose their temper is not the same evidence as a teacher reporting it,
+    // and a report that assumes one of them is wrong half the time.
+    (who.length ? ' by <strong>' + who.join('</strong>, and by <strong>') + '</strong>' : '') +
+    '. The instrument' + (ix.instruments.length === 1 ? ' used was' : 's used were') + ': ' +
     ix.instruments.map(x => '<em>' + _escHtml(x) + '</em>').join(', ') + '.</p>' +
+    (ix.respondents.indexOf('student') >= 0
+      ? '<p>Where a child answered for themselves, the report carries what they said about ' +
+        'themselves. That is worth having and is not the same thing as an observation: a child ' +
+        'may not report a difficulty an adult can see, or may report one an adult has missed.</p>'
+      : '') +
     '<table><tr><th>Level</th><th>What it means</th></tr>' +
     [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_BEHAV_LEVELS[lv] +
-      '</td></tr>').join('') + '</table>';
+      '</td></tr>').join('') + '</table>' +
+    (ix.reversed.length
+      ? '<p class="small"><strong>Read the other way up:</strong> ' +
+        ix.reversed.map(x => _escHtml(x)).join(', ') + ' \u2014 ' +
+        (ix.reversed.length === 1 ? 'this statement is' : 'these statements are') +
+        ' worded so that the last answer is the concern, so ' +
+        (ix.reversed.length === 1 ? 'it is' : 'they are') + ' scored right-to-left. Level 4 ' +
+        'means the behaviour is not a problem, as it does everywhere else in this report.</p>'
+      : '');
 
   // 3. The distribution
   h += '<h2>3. Summary of the Data</h2><h3>Overall Distribution</h3>' +
@@ -17847,9 +17886,10 @@ function openCreateRubric() {
   rubricEditIdx = null;
   const del = document.getElementById('rb-delete-btn');
   if (del) del.style.display = 'none';
-  rubricCriteria = [{ name: '', descriptors: ['','','',''] }];
+  rubricCriteria = [{ name: '', descriptors: ['','','',''], reverse: false }];
   document.getElementById('rubric-modal-title').textContent = 'Create Rubric';
-  ['rb-name','rb-subject','rb-skill'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['rb-name','rb-subject','rb-skill','rb-respondent']
+    .forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   _fillSkillOptions(); _updateSkillHint();
   const rbType = document.getElementById('rb-type');
   if (rbType) rbType.innerHTML = _typeSelectOptions('');
@@ -17881,6 +17921,12 @@ function renderRubricCriteriaEditor() {
         <button onclick="rubricCriteria.splice(${ci},1);renderRubricCriteriaEditor()"
           style="flex-shrink:0;padding:4px 8px;border-radius:var(--r-sm);border:0.5px solid var(--red-p);background:var(--red-p);color:var(--red);cursor:pointer;font-size:11px">✕</button>
       </div>
+      <label title="Tick this where the LAST option is the bad one — a self-report asks &quot;I get on well with others&quot; and &quot;I lose my temper&quot; on the same scale, and the top answer means the opposite on each."
+        style="display:flex;align-items:center;gap:7px;margin-bottom:8px;font-size:11px;color:var(--ink-l);cursor:pointer">
+        <input type="checkbox" ${c.reverse?'checked':''} onchange="rubricCriteria[${ci}].reverse=this.checked;renderRubricCriteriaEditor()">
+        <span>Reverse-worded — the <strong>last</strong> option is the concern, not the first${
+          c.reverse?' <span style="color:var(--gold);font-weight:600">(scored right-to-left)</span>':''}</span>
+      </label>
       <div style="display:grid;grid-template-columns:repeat(${Math.min(scale,4)},1fr);gap:6px">
         ${levelLabels.map((lbl,li) => `<div>
           <div style="font-size:10px;font-weight:600;color:var(--ink-f);margin-bottom:3px;text-align:center">${lbl}</div>
@@ -17900,11 +17946,18 @@ function saveRubric() {
   // Keep the id when editing: rubricScores is keyed by it, so a new id on every
   // save orphaned every student response the rubric had — the rubric came back
   // empty and the scores sat in rubricScores unreachable.
+  // `reverse` rides along on each criterion; `_rubricLevel()` is the only
+  // thing that reads it.
+  criteria.forEach(c => { c.reverse = !!c.reverse; });
   const rubric = { id: existing ? existing.id : 'rb_'+Date.now(), name,
     subject: document.getElementById('rb-subject').value.trim(),
     skill: (document.getElementById('rb-skill')||{value:''}).value.trim(),
     grade: _getRubricGrades(), scale: parseInt(document.getElementById('rb-scale').value)||4,
     type: (document.getElementById('rb-type')||{value:''}).value,
+    // Who answered changes how a behavioural finding reads: a child saying
+    // they lose their temper is not the same evidence as a teacher saying it.
+    // Blank means the report claims nothing about it rather than guessing.
+    respondent: (document.getElementById('rb-respondent')||{value:''}).value,
     link: _stdPickerValue('rb'), criteria };
   if (existing) rubrics[rubricEditIdx]=rubric;
   else rubrics.push(rubric);
@@ -17981,7 +18034,28 @@ function _rubricLevel(raw, criterion, scale) {
   const max = scale || 4;
   const txt = String(raw == null ? '' : raw).trim();
   if (!txt) return null;
+  // A **reverse-worded** item is one where the top answer is the bad one. A
+  // self-report asks "I get on well with others" and "I lose my temper when
+  // things go wrong" on the same Always…Never scale, and the fourth option
+  // means secure on the first and a problem on the second. Without this, a
+  // child answering "Never" to losing their temper — the best answer there is
+  // — scored Level 1, and a child answering "Always" scored Level 4: the
+  // levels were exactly inverted, their averages were wrong, and nothing on
+  // screen said so.
+  //
+  // It is flipped **here**, where a stored answer becomes a level, so every
+  // reader — the behaviour report, `_rubricRespAvg()`, analytics, the exports
+  // — gets the same answer and none of them has to know about it.
+  //
+  // Only the answers that arrive as a **descriptor** are flipped. A plain `3`
+  // is what the manual scorer writes, and that is already a level, not an
+  // option number; so is a descriptor the author numbered themselves
+  // (`"2: …"`). Flipping those would invert a level somebody had already
+  // decided. It is the position in the descriptor list that needs reading the
+  // other way up.
+  const rev = !!(criterion && criterion.reverse);
   const inRange = n => (n >= 1 && n <= max) ? n : null;
+  const fromDescriptor = i => { const n = inRange(i); return n === null || !rev ? n : (max + 1) - n; };
 
   // A plain number, as the manual scorer stores it.
   if (/^\d+(\.\d+)?$/.test(txt)) return inRange(Math.round(parseFloat(txt)));
@@ -17996,15 +18070,19 @@ function _rubricLevel(raw, criterion, scale) {
   const ds = (criterion && criterion.descriptors) || [];
   const norm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
   const want = norm(txt);
-  for (let i = 0; i < ds.length; i++) if (norm(ds[i]) === want) return inRange(i + 1);
+  for (let i = 0; i < ds.length; i++) if (norm(ds[i]) === want) return fromDescriptor(i + 1);
 
   // A multi-select answer: the cell holds several descriptors joined by commas.
   // Take the lowest level ticked — on a screening assessment, under-crediting a
-  // student is the safer error.
+  // student is the safer error. On a reverse-worded item the safer error is the
+  // *highest* position ticked, because that is the one that flips to the lowest
+  // level; taking the lowest position there would have credited the child with
+  // the best level in the list.
   if (txt.indexOf(',') >= 0) {
     const hit = [];
     ds.forEach((d, i) => { const n = norm(d); if (n && want.indexOf(n) >= 0) hit.push(i + 1); });
-    if (hit.length) return inRange(Math.min.apply(null, hit));
+    if (hit.length) return fromDescriptor(rev ? Math.max.apply(null, hit)
+                                              : Math.min.apply(null, hit));
   }
   return null;
 }
@@ -18616,6 +18694,8 @@ function openEditRubric(idx) {
   _updateSkillHint();
   _setRubricGrades(r.grade||'all');
   document.getElementById('rb-scale').value = String(r.scale||4);
+  const rbResp = document.getElementById('rb-respondent');
+  if (rbResp) rbResp.value = r.respondent || '';
   renderRubricCriteriaEditor();
   document.getElementById('rubric-modal').classList.add('open');
 }
