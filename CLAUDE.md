@@ -1197,6 +1197,65 @@ printing a titled finding with nothing under it, and the next plan entry for
 the domain takes the slot. The roadmap keeps it either way, because there it
 names a priority. No entry is in that state today.
 
+### Behavioural screening
+
+Section 5 of the issued audit report is the **Behavioural Report**, and this
+app used to hold nothing to put in it — the section said so in place of the
+content, which was the honest answer while it was true.
+
+`ASSESS_TYPE_BEHAVIOUR` (`'Behavioural Screening'`) makes it a third kind of
+instrument beside the academic screening and the school's own tests. A
+behavioural instrument is an **ordinary rubric or marks assessment carrying
+that type**, so it is created, imported, mapped, saved and synced by everything
+that already exists; what it needs of its own is a resolver and a report.
+
+- `_looksLikeBehaviour()` derives the type from the name or subject
+  (`behaviour`, `psychosocial`, `socio-emotional`, `SEL`, `wellbeing`), so an
+  instrument imported before the type existed labels itself. A **stored type
+  always wins**, and `bhv.js` asserts that none of Iqra's existing instruments
+  is reclassified by it.
+- **It is excluded from the academic screening reports at every scope**, not
+  just outside `'screening'`. `_rptScreeningResults()` drops it outright:
+  those reports average a child across the skills they sat and print one
+  overall level, and folding "manages frustration" in with "reads fluently"
+  produces a number describing neither. Analytics gains a
+  `behaviour` scope of its own, and `'own'` excludes it too — a behavioural
+  screening is not the school's own test either.
+
+`_rptBehaviourIndex()` is its resolver, and the unit is different from the
+academic one: an academic screening measures a **skill**, a behavioural one an
+**area of behaviour** — which for a rubric is its *criterion*, the finest
+thing the editor records. So it reads **per criterion** rather than through
+`_skillKey()`, which would collapse a whole instrument onto one card. A
+marks-based instrument has no criteria, so there the assessment itself is the
+area. Everything else matches the academic resolver: the grade goes through
+`_rptGrade()`, a child is `name|grade`, and where an area is recorded twice the
+lower level stands.
+
+`_RPT_BEHAV_LEVELS` is the report's own wording for the four levels, as
+`_RPT_SCREEN_LEVELS` is for the academic one — "area of concern" through
+"secure", not "significant difficulty" through "strong mastery". One document
+never spells the scale two ways.
+
+`buildBehaviourReport()` is **cohort-level, no names**, as the issued Screening
+Report Summary is: a behavioural finding against a named child is a different
+document with a different readership, and this one is written to be circulated.
+Its six sections are Executive Summary, Assessment Methodology, Summary of the
+Data, Area by Area (**ordered worst-first**, which is the order a school reads
+it in), Behaviour by Grade, and Interpretation and Next Steps.
+
+Two things it always says, because these documents travel and a behavioural
+one travels furthest: that **a screening is not a diagnosis** — it records
+what was observed on the day, in the listed areas alone, identifies where
+support is worth putting in, names no condition and replaces no psychologist
+— and that a pattern across many areas, rather than one low area, is the
+point at which a psychologist should be asked to look.
+
+Section 5 of the audit summary now prints the real figures where behaviour data
+exists — the cohort line, an area table ordered worst-first, the level bars,
+and a pointer to the full report — and keeps its stated absence where it does
+not. A stated absence beats an empty frame that reads as "nothing found".
+
 ### Student-level screening reports
 
 The issued Screening Report Summary is cohort-level by design: percentages, no

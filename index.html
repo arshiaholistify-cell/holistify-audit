@@ -2408,6 +2408,7 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <select id="assess-analytics-scope" onchange="renderAssessAnalytics()" style="padding:7px 12px;border:0.5px solid var(--bdr-s);border-radius:var(--r-md);font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--sur-r)">
         <option value="all">Everything</option>
         <option value="screening">🔬 Holistify screening only</option>
+        <option value="behaviour">🧠 Behavioural screening only</option>
         <option value="own">The school's own assessments only</option>
       </select>
       <div style="flex:1"></div>
@@ -7862,11 +7863,41 @@ function buildAuditSummaryReport() {
   _RPT_STAKEHOLDERS.forEach(n => { h += _rptStakeholderSection(n); });
 
   // ── Section 5 — honestly absent
-  h += '<div class="pb"></div><h2>Section 5 \u2014 Behavioural Report</h2>' +
-    '<div class="note"><strong>Not included in this report.</strong> The behavioural and psychosocial ' +
-    'screening is a separate instrument, administered and interpreted by a psychologist, and its responses ' +
-    'are not held in this platform. This section is left for that report to be attached rather than ' +
-    'summarised from data the audit does not hold.</div>';
+  // This section used to say the app held nothing to put in it, which was true
+  // until a behavioural instrument could be typed as one. It still says so
+  // when there is none — a stated absence is the honest answer, and better
+  // than an empty frame that reads as "nothing found".
+  h += '<div class="pb"></div><h2>Section 5 \u2014 Behavioural Report</h2>';
+  const bhx = _rptBehaviourIndex();
+  const bhAreasX = Object.keys(bhx.areas)
+    .sort((a, b) => bhx.areas[b].n - bhx.areas[a].n || a.localeCompare(b));
+  if (!bhAreasX.length) {
+    h += '<div class="note"><strong>Not included in this report.</strong> No behavioural screening is ' +
+      'held in this platform for this school. Where the screening is run as a separate ' +
+      'psychologist-administered instrument, this section is left for that report to be attached ' +
+      'rather than summarised from data the audit does not hold.</div>';
+  } else {
+    const bn = bhAreasX.reduce((t, a) => t + bhx.areas[a].n, 0);
+    const bt = { 1:0, 2:0, 3:0, 4:0 };
+    bhAreasX.forEach(a => [1,2,3,4].forEach(lv => { bt[lv] += bhx.areas[a].counts[lv]; }));
+    const bKids = Object.keys(bhx.students).length;
+    const bConc = a => _rptPct(bhx.areas[a].counts[1] + bhx.areas[a].counts[2], bhx.areas[a].n);
+    h += '<p>' + bKids + ' student' + (bKids === 1 ? '' : 's') + ' were screened across ' +
+      bhAreasX.length + ' area' + (bhAreasX.length === 1 ? '' : 's') + ' of behaviour, giving ' + bn +
+      ' recorded result' + (bn === 1 ? '' : 's') + '. <strong>' + _rptPct(bt[1] + bt[2], bn) +
+      '%</strong> sit at Level 1 or 2, where the behaviour is a barrier to learning or is managed ' +
+      'only with frequent adult support.</p>' +
+      '<table><tr><th>Area of behaviour</th><th class="num">Screened</th>' +
+      '<th class="num">At Level 1\u20132</th></tr>' +
+      bhAreasX.slice().sort((x, y) => bConc(y) - bConc(x)).map(a =>
+        '<tr><td>' + _escHtml(a) + '</td><td class="num">' + bhx.areas[a].n +
+        '</td><td class="num"><strong>' + bConc(a) + '%</strong></td></tr>').join('') + '</table>' +
+      _rptLevelBars(bt, bn, _RPT_BEHAV_LEVELS) +
+      '<p>The <em>Behavioural Screening Report</em> carries this in full \u2014 every area with its own ' +
+      'level breakdown, behaviour by grade, and what follows from it. Screening identifies where ' +
+      'support is worth putting in; it does not name a condition, and it does not replace assessment ' +
+      'by a psychologist.</p>';
+  }
 
   // ── Section 6
   const allStrengths = [], allConcerns = [];
@@ -8139,8 +8170,13 @@ function _rptGrade(raw) {
 }
 
 function _rptScreeningResults(scope) {
-  const inScope = item => !scope || scope === 'all' ||
-    (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
+  // Behaviour is excluded at **every** scope, not just outside 'screening'.
+  // These reports average a child across the skills they sat and print one
+  // overall level; folding "manages frustration" in with "reads fluently"
+  // produces a number describing neither. `buildBehaviourReport()` is where
+  // behaviour is read, and `_rptBehaviourIndex()` is its own resolver.
+  const inScope = item => !_isBehaviour(item) && (!scope || scope === 'all' ||
+    (scope === 'screening' ? _isScreening(item) : !_isScreening(item)));
   const by = {};                    // "name|grade|skill" -> the result kept
   const dupes = {};                 // skill label -> results consolidated away
   let seen = 0, dropped = 0;
@@ -8314,6 +8350,100 @@ function _rptStudentSkills(rows) {
   return Object.keys(seen).sort((a, b) => seen[b] - seen[a] || a.localeCompare(b));
 }
 
+// ── Behavioural screening ───────────────────────────────
+// Section 5 of the issued audit report is the Behavioural Report, and until an
+// instrument typed `ASSESS_TYPE_BEHAVIOUR` exists this app holds nothing to
+// put in it — so the section says so rather than printing an empty frame.
+//
+// A behavioural instrument is an ordinary rubric or marks assessment carrying
+// that type, so it imports, maps and saves through everything that already
+// exists. What it needs of its own is a resolver and a report, because the
+// unit is different: an academic screening measures a **skill** and a
+// behavioural one measures an **area of behaviour** — attention, regulating
+// feelings, working with others — which for a rubric is its *criterion*, the
+// finest thing the editor records. So this reads per criterion rather than
+// through `_skillKey()`, which would collapse a whole instrument onto one card.
+const _RPT_BEHAV_LEVELS = ['',
+  'Area of concern — the behaviour is a barrier to learning',
+  'Emerging — manages with frequent adult support',
+  'Developing — manages independently most of the time',
+  'Secure — consistently managed, and models it for others'];
+
+// One result per child per area, resolved exactly as the academic screening
+// resolves its own: the grade is normalised, a child is `name|grade`, and
+// where one area is recorded twice the lower level stands, because a screening
+// reports what a child could not yet do.
+function _rptBehaviourIndex() {
+  const by = {};            // "name|grade|area" -> result
+  const dupes = {};
+  let seen = 0, dropped = 0;
+
+  const put = (name, grade, area, lv, detail) => {
+    const nm = _wideNorm(name);
+    const ar = _wideNorm(area);
+    if (!nm || !ar || !lv) return;
+    const g = _rptGrade(grade);
+    const key = nm.toLowerCase() + '|' + g.toLowerCase() + '|' + ar.toLowerCase();
+    seen++;
+    const prev = by[key];
+    if (prev) {
+      dropped++; dupes[ar] = (dupes[ar] || 0) + 1;
+      if (lv >= prev.lv) return;
+    }
+    by[key] = { name: nm, grade: g, area: ar, lv: lv, detail: detail || '' };
+  };
+
+  (typeof rubrics !== 'undefined' ? rubrics : []).filter(_isBehaviour).forEach(r => {
+    const scale = r.scale || 4;
+    const crits = (r.criteria || []).map(c => c && c.name).filter(Boolean);
+    ((typeof rubricScores !== 'undefined' && rubricScores[r.id]) || []).forEach(resp => {
+      crits.forEach(cn => {
+        const raw = (resp.scores || {})[cn];
+        const lv = _rubricLevel(raw, (r.criteria || []).filter(c => c.name === cn)[0], scale);
+        if (lv === null || lv === undefined) return;
+        const n = scale === 4 ? Math.max(1, Math.min(4, Math.round(lv)))
+                              : _bandLevel(Math.round(lv / scale * 100));
+        put(resp.name, resp.grade, cn, n, lv + '/' + scale);
+      });
+    });
+  });
+  // A marks-based behavioural instrument has no criteria, so the assessment
+  // itself is the area — its skill where one is set, else its name.
+  (typeof assessments !== 'undefined' ? assessments : []).filter(_isBehaviour).forEach(a => {
+    ((typeof scoreEntries !== 'undefined' && scoreEntries[a.id]) || []).forEach(sc => {
+      if (!a.maxMarks) return;
+      const pct = Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100);
+      put(sc.name, sc.grade || a.grade, a.skill || a.name, _bandLevel(pct),
+          sc.score + '/' + a.maxMarks + ' · ' + pct + '%');
+    });
+  });
+
+  const rows = Object.keys(by).map(k => by[k]);
+  const students = {}, areas = {};
+  rows.forEach(r => {
+    const k = r.name.toLowerCase() + '|' + r.grade.toLowerCase();
+    if (!students[k]) students[k] = { name: r.name, grade: r.grade, areas: {}, n: 0, sum: 0 };
+    students[k].areas[r.area] = r.lv;
+    students[k].n++; students[k].sum += r.lv;
+    if (!areas[r.area]) areas[r.area] = { counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, grades: {} };
+    areas[r.area].counts[r.lv]++; areas[r.area].n++;
+    if (r.grade) areas[r.area].grades[r.grade] = 1;
+  });
+  Object.keys(students).forEach(k => {
+    const st = students[k];
+    st.avg = st.n ? st.sum / st.n : 0;
+    st.level = st.n ? Math.max(1, Math.min(4, Math.round(st.avg))) : 0;
+  });
+
+  const instruments = []
+    .concat((typeof rubrics !== 'undefined' ? rubrics : []).filter(_isBehaviour))
+    .concat((typeof assessments !== 'undefined' ? assessments : []).filter(_isBehaviour))
+    .map(x => x.name).filter(Boolean);
+
+  return { rows: rows, students: students, areas: areas, instruments: instruments,
+           seen: seen, dropped: dropped, dupes: dupes };
+}
+
 // The four screening levels, as the published report words them. Used by the
 // framework table, each skill table and the bars, so the three cannot drift.
 const _RPT_SCREEN_LEVELS = ['',
@@ -8342,6 +8472,155 @@ function _rptSkillProse(label, d) {
       : p(3) + p(4) >= 70
         ? 'With ' + (p(3) + p(4)) + '% at competent or above, this is a relative strength for the cohort.'
         : 'The cohort is spread across the scale, indicating inconsistent attainment rather than a uniform gap.');
+}
+
+// The Behavioural Screening Report. Cohort-level, as the issued Screening
+// Report Summary is: percentages and areas, no names. A behavioural finding
+// against a named child is a different document with a different readership,
+// and this one is written to be circulated.
+function buildBehaviourReport() {
+  const ix = _rptBehaviourIndex();
+  const areas = Object.keys(ix.areas).sort((a, b) => ix.areas[b].n - ix.areas[a].n ||
+                                                     a.localeCompare(b));
+  if (!areas.length) {
+    toast('No behavioural screening results yet. Add an assessment or rubric typed ' +
+          '\u201cBehavioural Screening\u201d on the Assessment page and import its responses.', 'warn');
+    return;
+  }
+  const kids = Object.keys(ix.students).map(k => ix.students[k]);
+  const tot = { 1:0, 2:0, 3:0, 4:0 };
+  let n = 0;
+  areas.forEach(a => { [1,2,3,4].forEach(lv => { tot[lv] += ix.areas[a].counts[lv]; });
+                       n += ix.areas[a].n; });
+  const allGrades = {};
+  areas.forEach(a => Object.keys(ix.areas[a].grades).forEach(g => { allGrades[g] = 1; }));
+  const grades = _rptStudentGrades(kids);
+  const concernOf = a => _rptPct(ix.areas[a].counts[1] + ix.areas[a].counts[2], ix.areas[a].n);
+  const worst = areas.slice().sort((x, y) => concernOf(y) - concernOf(x))[0];
+
+  let h = _rptCover('Holistify.ai', 'Behavioural Screening Report',
+                    _rptGradeSpan(allGrades) || 'All grades',
+                    'How our children manage themselves, and each other');
+
+  h += '<div class="sheet"><h1>Behavioural Screening Report</h1>' +
+    '<p class="lede">' + _escHtml(_rptSchoolFull()) + ' \u00b7 ' + kids.length + ' student' +
+    (kids.length === 1 ? '' : 's') + ' screened across ' + areas.length + ' area' +
+    (areas.length === 1 ? '' : 's') + ' of behaviour \u00b7 ' + n + ' recorded result' +
+    (n === 1 ? '' : 's') + '</p>';
+
+  h += '<div class="note"><strong>This is a screening, not a diagnosis.</strong> It records what was ' +
+    'observed of a child\u2019s behaviour on the day it was administered, in the areas listed below and ' +
+    'no others. It identifies where support is worth putting in; it does not name a condition, and it ' +
+    'does not replace assessment by a psychologist.</div>' +
+    (ix.dropped ? '<p class="small">' + ix.dropped + ' result' + (ix.dropped === 1 ? ' was' : 's were') +
+      ' recorded more than once for the same child and area; one is counted per child per area, the ' +
+      'lower level in each case.</p>' : '');
+
+  // 1. Executive summary — written from the counts, so it cannot drift.
+  const concern = tot[1] + tot[2];
+  h += '<h2>1. Executive Summary</h2><p>' +
+    _escHtml(_rptSchoolFull()) + ' screened <strong>' + kids.length + '</strong> student' +
+    (kids.length === 1 ? '' : 's') + ' across <strong>' + areas.length + '</strong> area' +
+    (areas.length === 1 ? '' : 's') + ' of behaviour. <strong>' + _rptPct(concern, n) +
+    '%</strong> of the results sit at Level 1 or 2, meaning the behaviour is either a barrier to ' +
+    'learning or managed only with frequent adult support. ' +
+    (worst ? 'The area of greatest concern is <strong>' + _escHtml(worst) + '</strong>, where ' +
+      concernOf(worst) + '% of those screened are at Level 1 or 2. ' : '') +
+    (_rptPct(concern, n) >= 50
+      ? 'More than half of what was observed falls below independent management, which makes behaviour ' +
+        'a whole-school priority rather than an individual-casework one.'
+      : 'Most of what was observed is managed independently, so the work is targeted support for the ' +
+        'children and areas named below rather than a universal programme.') + '</p>';
+
+  // 2. Methodology
+  h += '<h2>2. Assessment Methodology</h2>' +
+    '<p>Each area was rated on a four-level scale by the adults who work with the children. ' +
+    'The instrument' + (ix.instruments.length === 1 ? ' used was' : 's used were') + ': ' +
+    ix.instruments.map(x => '<em>' + _escHtml(x) + '</em>').join(', ') + '.</p>' +
+    '<table><tr><th>Level</th><th>What it means</th></tr>' +
+    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_BEHAV_LEVELS[lv] +
+      '</td></tr>').join('') + '</table>';
+
+  // 3. The distribution
+  h += '<h2>3. Summary of the Data</h2><h3>Overall Distribution</h3>' +
+    '<table><tr><th>Level</th><th>What it means</th><th class="num">Results</th><th class="num">Share</th></tr>' +
+    [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_BEHAV_LEVELS[lv] +
+      '</td><td class="num">' + tot[lv] + '</td><td class="num">' + _rptPct(tot[lv], n) +
+      '%</td></tr>').join('') + '</table>' +
+    _rptLevelBars(tot, n, _RPT_BEHAV_LEVELS);
+
+  // 4. Area by area, worst first — the order a school reads this in.
+  h += '<div class="pb"></div><h2>4. Area by Area</h2>' +
+    '<p>Ordered by the share at Level 1\u20132, so the areas needing attention come first.</p>' +
+    '<table><tr><th>Area of behaviour</th>' +
+    [1,2,3,4].map(lv => '<th class="num">Level ' + lv + '</th>').join('') +
+    '<th class="num">Screened</th><th class="num">At Level 1\u20132</th></tr>' +
+    areas.slice().sort((x, y) => concernOf(y) - concernOf(x)).map(a => {
+      const d = ix.areas[a];
+      return '<tr><td>' + _escHtml(a) + '</td>' +
+        [1,2,3,4].map(lv => '<td class="num"' +
+          (d.counts[lv] && lv <= 2 ? ' style="color:' + _RPT_LV_COLOR[lv] + ';font-weight:600"' : '') +
+          '>' + (d.counts[lv] || '\u2014') + '</td>').join('') +
+        '<td class="num">' + d.n + '</td>' +
+        '<td class="num"><strong>' + concernOf(a) + '%</strong></td></tr>';
+    }).join('') + '</table>';
+
+  areas.forEach(a => {
+    const d = ix.areas[a];
+    h += '<h3>' + _escHtml(a) + '</h3>' +
+      '<p>' + d.n + ' child' + (d.n === 1 ? '' : 'ren') + ' screened \u00b7 ' +
+      _rptGradeSpan(d.grades) + ' \u00b7 <strong>' + concernOf(a) + '%</strong> at Level 1\u20132.</p>' +
+      _rptLevelBars(d.counts, d.n, _RPT_BEHAV_LEVELS);
+  });
+
+  // 5. By grade, each child once at their overall level
+  h += '<div class="pb"></div><h2>5. Behaviour by Grade</h2>' +
+    '<p>Each child counted once, at their average level across the areas they were screened on.</p>' +
+    '<table style="width:auto;min-width:120mm"><tr><th style="width:34mm">Grade</th>' +
+    [1,2,3,4].map(lv => '<th class="num" style="width:18mm">Level ' + lv + '</th>').join('') +
+    '<th class="num" style="width:20mm">Screened</th>' +
+    '<th class="num" style="width:22mm">At Level 1\u20132</th></tr>' +
+    grades.map(g => {
+      const inG = kids.filter(st => (st.grade || '\u2014') === g);
+      const at = lv => inG.filter(st => st.level === lv).length;
+      return '<tr><td>' + _escHtml(g) + '</td>' +
+        [1,2,3,4].map(lv => '<td class="num"' +
+          (at(lv) && lv <= 2 ? ' style="color:' + _RPT_LV_COLOR[lv] + ';font-weight:600"' : '') +
+          '>' + (at(lv) || '\u2014') + '</td>').join('') +
+        '<td class="num">' + inG.length + '</td><td class="num"><strong>' +
+        _rptPct(at(1) + at(2), inG.length) + '%</strong></td></tr>';
+    }).join('') +
+    '<tr><td><strong>All grades</strong></td>' +
+    [1,2,3,4].map(lv => '<td class="num"><strong>' +
+      kids.filter(st => st.level === lv).length + '</strong></td>').join('') +
+    '<td class="num"><strong>' + kids.length + '</strong></td>' +
+    '<td class="num"><strong>' +
+    _rptPct(kids.filter(st => st.level <= 2 && st.level).length, kids.length) +
+    '%</strong></td></tr></table>';
+
+  // 6. What follows from it — named findings, from the areas themselves.
+  h += '<h2>6. Interpretation and Next Steps</h2>';
+  const flagged = areas.filter(a => concernOf(a) >= 50)
+                       .sort((x, y) => concernOf(y) - concernOf(x));
+  if (flagged.length) {
+    flagged.forEach(a => {
+      h += _rptFinding(_escHtml(a),
+        concernOf(a) + '% of the ' + ix.areas[a].n + ' children screened on this are at Level 1 or 2. ' +
+        'Plan for it in the places the behaviour actually happens \u2014 the lesson, the corridor, the ' +
+        'break \u2014 rather than in a separate session, and agree one response the whole staff uses.');
+    });
+  } else {
+    h += '<p>No area has half or more of its children at Level 1\u20132. The support indicated is ' +
+      'individual rather than whole-school; the children concerned are listed by name in the ' +
+      'accompanying student-level record, which is not for wider circulation.</p>';
+  }
+  h += '<p>Screening measures what was observed on the day, in these areas alone. A child at Level 1 ' +
+    'in one area and Level 4 in the others needs that one area supported, not a label \u2014 and a ' +
+    'pattern across many areas is the point at which a psychologist should be asked to look.</p>';
+
+  h += _rptFoot() + '</div>';
+  _rptOpen('Behavioural Screening Report \u2014 ' + _rptSchool(), h, false,
+           'Behavioural Screening Report');
 }
 
 function buildScreeningReport() {
@@ -8812,6 +9091,27 @@ function renderFormalReports() {
     '<option value="all">Everything assessed (' + r.allResults + ' results)</option></select>',
     r.allResults > 0, 'No assessment or rubric scores yet. Import or enter scores on the Assessment page.',
     btn('Generate', 'buildScreeningReport()', r.allResults > 0));
+
+  // Section 5 of the issued audit report, which until now this app had nothing
+  // to fill. A behavioural instrument is an ordinary rubric or assessment
+  // carrying the Behavioural Screening type.
+  const bh = _rptBehaviourIndex();
+  const bhAreas = Object.keys(bh.areas).length;
+  const bhKids = Object.keys(bh.students).length;
+  h += card('🧠', 'Behavioural Screening Report',
+    'Executive summary, the four-level scale, the overall distribution, every area of behaviour ' +
+    'worst-first with its own breakdown, behaviour by grade, and what follows from it.',
+    (bhAreas
+      ? 'Built from <strong>' + bh.rows.length + '</strong> result' + (bh.rows.length === 1 ? '' : 's') +
+        ' for <strong>' + bhKids + '</strong> student' + (bhKids === 1 ? '' : 's') +
+        ' across <strong>' + bhAreas + '</strong> area' + (bhAreas === 1 ? '' : 's') +
+        ' \u00b7 A4 portrait \u00b7 no names, as the summary format has none'
+      : 'A4 portrait \u00b7 cohort-level, no names'),
+    bhAreas > 0,
+    'No behavioural screening yet. On the Assessment page, add a rubric or an assessment and set its ' +
+    'type to \u201cBehavioural Screening\u201d, then import its responses \u2014 everything else works as ' +
+    'it does for the academic screening.',
+    btn('Generate', 'buildBehaviourReport()', bhAreas > 0));
 
   // The named companion to the summary above, and one child in full.
   const stuAll = _rptStudentList('all', 'all');
@@ -16456,7 +16756,8 @@ function _band(pct) {
 function _assessBreakdownRows(scope) {
   const rows = [];
   const inScope = a => !scope || scope === 'all' ||
-    (scope === 'screening' ? _isScreening(a) : !_isScreening(a));
+    (scope === 'behaviour' ? _isBehaviour(a) : !_isBehaviour(a) &&
+      (scope === 'screening' ? _isScreening(a) : !_isScreening(a)));
   assessments.filter(inScope).forEach(a => {
     const entries = (scoreEntries[a.id] || []).filter(s => (parseFloat(s.score) || 0) > 0);
     if (!entries.length) return;
@@ -16595,7 +16896,8 @@ function downloadAssessmentBreakdownXlsx() {
     { Metric: 'Overall attainment', Value: _band(overall) },
     { Metric: 'Grades assessed', Value: Object.keys(agg.gradeAvgMap).length },
     { Metric: 'Total assessments', Value: assessments.concat(rubrics).filter(
-        x => scope === 'all' || (scope === 'screening' ? _isScreening(x) : !_isScreening(x))).length },
+        x => scope === 'all' || (scope === 'behaviour' ? _isBehaviour(x) : !_isBehaviour(x) &&
+          (scope === 'screening' ? _isScreening(x) : !_isScreening(x)))).length },
     { Metric: 'Student records', Value: agg.totalCount }
   ]);
 
@@ -16787,8 +17089,15 @@ const _SKILL_SUGGESTIONS = _SKILLS.map(s => s.name);
 // rubrics, so a type that only existed on assessments would have labelled
 // almost nothing.
 const ASSESS_TYPE_SCREENING = 'Holistify Screening';
+// A behavioural screening measures how a child manages attention, feelings and
+// other people — not what they can read or compute. Averaging it in with the
+// academic screening would produce a figure describing neither, which is the
+// same reason `ASSESS_TYPE_SCREENING` exists at all, so it is its own type and
+// its own report.
+const ASSESS_TYPE_BEHAVIOUR = 'Behavioural Screening';
 const ASSESS_TYPES = [
   { name: ASSESS_TYPE_SCREENING, emoji: '🔬', bg: 'var(--sage-p)', ic: 'var(--sage)' },
+  { name: ASSESS_TYPE_BEHAVIOUR, emoji: '🧠', bg: 'var(--gold-p)', ic: 'var(--gold)' },
   { name: 'Skill Profiling',     emoji: '📐', bg: 'var(--blue-p)', ic: 'var(--blue)' },
   { name: 'Unit Test',           emoji: '📝', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
   { name: 'Monthly Test',        emoji: '📅', bg: 'var(--sur-d)',  ic: 'var(--ink-l)' },
@@ -16815,12 +17124,21 @@ function _looksLikeScreening(item) {
   const n = String((item && item.name) || '');
   return /holistify/i.test(n) && /screen|profil/i.test(n);
 }
+// Derived like the academic one, from the name, so instruments imported before
+// this type existed label themselves. The words are the ones a school actually
+// titles these with; a stored type still always wins.
+function _looksLikeBehaviour(item) {
+  const n = String((item && item.name) || '') + ' ' + String((item && item.subject) || '');
+  return /behaviou?r|psychosocial|psycho-social|socio.?emotional|social.?emotional|\bsel\b|wellbeing|well.being/i.test(n);
+}
 function _assessType(item) {
   const t = String((item && item.type) || '').trim();
   if (t) return t;
+  if (_looksLikeBehaviour(item)) return ASSESS_TYPE_BEHAVIOUR;
   return _looksLikeScreening(item) ? ASSESS_TYPE_SCREENING : '';
 }
 function _isScreening(item) { return _assessType(item) === ASSESS_TYPE_SCREENING; }
+function _isBehaviour(item) { return _assessType(item) === ASSESS_TYPE_BEHAVIOUR; }
 
 function _assessTypeChip(item) {
   const name = _assessType(item);
@@ -17096,6 +17414,10 @@ function _subjectNorm(sub) {
 function _assessAggregates(scope) {
   const inScope = item => {
     if (!scope || scope === 'all') return true;
+    if (scope === 'behaviour') return _isBehaviour(item);
+    // A behavioural screening is not "the school's own assessment" either —
+    // it is a third kind of thing, so it only appears under its own scope.
+    if (_isBehaviour(item)) return false;
     return scope === 'screening' ? _isScreening(item) : !_isScreening(item);
   };
   const gradeAvgMap = {}; // grade -> [pct]
@@ -17199,7 +17521,8 @@ function _assessScope() {
   return (document.getElementById('assess-analytics-scope') || { value: 'all' }).value || 'all';
 }
 const _SCOPE_LABEL = { all: 'Everything', screening: 'Holistify screening only',
-                       own: "The school's own assessments only" };
+                       own: "The school's own assessments only",
+                       behaviour: 'Behavioural screening only' };
 
 function renderAssessAnalytics() {
   const el = document.getElementById('assess-analytics-body');
