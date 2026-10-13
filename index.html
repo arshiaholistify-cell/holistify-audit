@@ -8100,6 +8100,25 @@ function buildTeacherIndivReport(tid) {
 // the rule the grids already applied: a screening reports what a child could
 // not yet do. `dropped` carries how many were consolidated, so the reports can
 // say it happened rather than quietly print a smaller number.
+// A grade label is whatever the sheet or the form happened to say. The bulk
+// imports write `Grade 1`; the Google Forms behind the rubrics write a bare
+// `1`. Left alone those are two different grades **and two different
+// children** — a student is keyed `name|grade`, so the same child arrived as
+// a "Grade 2" person holding their Number Sense and Writing results and a "2"
+// person holding their Kannada and English ones, and the grade × level table
+// printed a `Grade 1` row and a separate `1` row beneath every real grade.
+//
+// `_bulkGradeValue()` is the normaliser the importers already use — `3`,
+// `III`, `Class V`, `5th`, `Grade 3`, `UKG` all land on the one label
+// `GRADES_ORDER` uses. A label it cannot resolve is kept **as typed** rather
+// than blanked, so an unusual grade still shows up as itself and can be seen
+// and fixed.
+function _rptGrade(raw) {
+  const t = _wideNorm(raw);
+  if (!t) return '';
+  return (typeof _bulkGradeValue === 'function' && _bulkGradeValue(t)) || t;
+}
+
 function _rptScreeningResults(scope) {
   const inScope = item => !scope || scope === 'all' ||
     (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
@@ -8110,7 +8129,7 @@ function _rptScreeningResults(scope) {
   const put = (name, grade, item, lv, detail) => {
     const nm = _wideNorm(name);
     if (!nm || !lv) return;
-    const g = _wideNorm(grade);
+    const g = _rptGrade(grade);
     const label = _skillKey(item) || 'Unassigned';
     const key = nm.toLowerCase() + '|' + g.toLowerCase() + '|' + label;
     seen++;
@@ -8189,9 +8208,16 @@ function _rptScreeningSkills(scope) {
 // merging. The roll number is filled from the school roster where it knows
 // the name, by the same exact match `_fillFromRoster()` uses.
 function _rptStudentIndex(scope) {
-  const roster = (typeof _rosterIndex === 'function') ? _rosterIndex().idx : {};
   const out = {};
 
+  // Roll numbers are deliberately **not** carried here. The sheets this report
+  // is built from have no roll column, so a roll could only ever come from the
+  // roster by an exact name match — which left most rows showing a dash beside
+  // the few that matched, and a number against one child and not the next reads
+  // as though the blank ones were a different kind of record. The name and the
+  // grade are what identify a child in these documents; the Students page is
+  // where roll numbers live.
+  //
   // The same consolidated results the summary counts, grouped by child rather
   // than by skill — so `st.n` is the number of **skills** this child was
   // screened on, not the number of rows recorded against them. It used to be
@@ -8200,8 +8226,7 @@ function _rptStudentIndex(scope) {
   _rptScreeningResults(scope).rows.forEach(r => {
     const key = r.name.toLowerCase() + '|' + r.grade.toLowerCase();
     if (!out[key]) {
-      const hit = roster[r.name.toLowerCase()];
-      out[key] = { name: r.name, grade: r.grade, roll: (hit && hit.roll) || '',
+      out[key] = { name: r.name, grade: r.grade,
                    skills: {}, counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, sum: 0 };
     }
     const st = out[key];
@@ -8527,6 +8552,45 @@ function buildStudentScreeningReport() {
     '<td class="num"><strong>' + rows.length + '</strong></td>' +
     '<td class="num"><strong>' + _rptPct(tAt(1) + tAt(2), rows.length) + '%</strong></td></tr></table>';
 
+  // ── 2b. The same table, per skill ──
+  // The overall level above is an average across the skills a child was
+  // screened on, and an average hides the thing a school acts on: a cohort
+  // can read at Level 3 and write at Level 1 and come out "Level 2" in both.
+  // So the same grade × level table is repeated for each skill, counting
+  // only the children screened on that skill — which is also why the
+  // Screened column differs between them.
+  h += '<h3>By skill</h3>' +
+    '<p>The table above averages each child across the skills they sat, which can hide a ' +
+    'cohort that reads well and writes poorly. These count the same children one skill at a ' +
+    'time, so a grade appears only where it was screened on that skill.</p>';
+
+  skills.forEach(sk => {
+    const inSk = rows.filter(st => st.skills[sk]);
+    if (!inSk.length) return;
+    const gradesHere = _rptStudentGrades(inSk);
+    const lvOf = st => st.skills[sk].lv;
+    h += '<table style="width:auto;min-width:120mm;page-break-inside:avoid">' +
+      '<tr><th style="width:34mm">' + _escHtml(sk) + '</th>' +
+      [1,2,3,4].map(lv => '<th class="num" style="width:18mm">Level ' + lv + '</th>').join('') +
+      '<th class="num" style="width:20mm">Screened</th>' +
+      '<th class="num" style="width:22mm">At Level 1\u20132</th></tr>';
+    gradesHere.forEach(g => {
+      const inG = inSk.filter(st => (st.grade || '\u2014') === g);
+      const at = lv => inG.filter(st => lvOf(st) === lv);
+      const low = at(1).length + at(2).length;
+      h += '<tr><td>' + _escHtml(g) + '</td>' +
+        [1,2,3,4].map(lv => gradeCell(at(lv), lv)).join('') +
+        '<td class="num">' + inG.length + '</td>' +
+        '<td class="num"><strong>' + _rptPct(low, inG.length) + '%</strong></td></tr>';
+    });
+    const sAt = lv => inSk.filter(st => lvOf(st) === lv).length;
+    h += '<tr><td><strong>All grades</strong></td>' +
+      [1,2,3,4].map(lv => '<td class="num"><strong>' + sAt(lv) + '</strong></td>').join('') +
+      '<td class="num"><strong>' + inSk.length + '</strong></td>' +
+      '<td class="num"><strong>' + _rptPct(sAt(1) + sAt(2), inSk.length) +
+      '%</strong></td></tr></table>';
+  });
+
   // ── 3. One table per grade, holding every skill ──
   // The shape the school already keeps this in by hand — a sheet per class,
   // the children listed under the level they reached. Reading "who in my
@@ -8581,11 +8645,11 @@ function buildStudentScreeningReport() {
     '<p>One row per child: the level reached in each skill screened, and the overall level. ' +
     'A dash means the child was not screened on that skill.</p>';
   let lastGrade = null;
-  h += '<table style="font-size:8.5pt"><tr><th>Roll</th><th>Student</th><th>Grade</th>' +
+  h += '<table style="font-size:8.5pt"><tr><th>Student</th><th>Grade</th>' +
     skills.map(sk => '<th class="num">' + _escHtml(sk) + '</th>').join('') +
     '<th class="num">Overall</th></tr>';
   rows.forEach(st => {
-    h += '<tr><td>' + _escHtml(st.roll || '—') + '</td><td>' + _escHtml(_rptName(st.name)) +
+    h += '<tr><td>' + _escHtml(_rptName(st.name)) +
       '</td><td>' + _escHtml(st.grade || '—') + '</td>' +
       skills.map(sk => {
         const v = st.skills[sk];
@@ -8611,16 +8675,14 @@ function buildStudentIndivReport(key) {
   const skills = Object.keys(st.skills).sort();
 
   let h = _rptCover('Holistify.ai', 'Student Screening Profile', _rptName(st.name),
-                    [st.grade, st.roll ? 'Roll ' + st.roll : ''].filter(Boolean).join(' · '));
+                    st.grade || '');
 
   h += '<div class="sheet"><h1>' + _escHtml(_rptName(st.name)) + '</h1>' +
     '<p class="lede">' + _escHtml(_rptSchoolFull()) +
-    (st.grade ? ' · ' + _escHtml(st.grade) : '') +
-    (st.roll ? ' · Roll ' + _escHtml(st.roll) : '') + '</p>';
+    (st.grade ? ' · ' + _escHtml(st.grade) : '') + '</p>';
 
   h += '<h2>1. Profile</h2><table><tr><th>Indicator</th><th>Value</th></tr>' +
     '<tr><td>Student</td><td>' + _escHtml(_rptName(st.name)) + '</td></tr>' +
-    (st.roll ? '<tr><td>Roll number</td><td>' + _escHtml(st.roll) + '</td></tr>' : '') +
     (st.grade ? '<tr><td>Grade</td><td>' + _escHtml(st.grade) + '</td></tr>' : '') +
     '<tr><td>Skills screened</td><td>' + skills.length + '</td></tr>' +
     '<tr><td>Average level</td><td>' + st.avg.toFixed(1) + ' / 4</td></tr>' +
@@ -8775,7 +8837,7 @@ function _rptStuOptions(rows) {
   return rows.map(st => '<option value="' +
     _escHtml(st.name.toLowerCase() + '|' + st.grade.toLowerCase()) + '">' +
     _escHtml(_rptName(st.name)) + (st.grade ? ' \u2014 ' + _escHtml(st.grade) : '') +
-    (st.roll ? ' (roll ' + _escHtml(st.roll) + ')' : '') + '</option>').join('');
+    '</option>').join('');
 }
 
 // Narrowing the roster report's grade narrows the one-student picker with it.

@@ -1144,7 +1144,7 @@ Two reports sit beside it:
 
 | Report | What it is |
 |---|---|
-| Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix**, then **one grid per grade** with skills across the top, their four levels beneath and the children listed down each column, and a roster of one row per student |
+| Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix** and the same matrix **per skill**, then **one grid per grade** with every skill down the side, its four levels across and the children listed in each cell, and a roster of one row per student |
 | Student Screening Profile | one child in full — level per skill, what that level means, the mark behind it, and which skills need support |
 
 #### One result per child per skill
@@ -1196,6 +1196,39 @@ Analytics (`_assessAggregates()`) still counts **every response**, deliberately:
 its unit is a result, not a child, and it covers the school's own tests as well
 as screening. Only the screening reports consolidate.
 
+#### One grade label, however it was typed
+
+A grade is whatever the sheet or the form happened to say, and on Iqra's live
+data **every grade from 1 to 10 appears both ways** — `Grade 2` and a bare `2`
+— in the bulk imports *and* in the Google Forms behind the rubrics. 22
+distinct labels for 12 grades.
+
+That is not cosmetic, because a student is keyed `name|grade`. The same child
+arrived as a "Grade 2" person holding their Number Sense and Writing results
+and a "2" person holding their Kannada and English ones: **977 students where
+there are 694**, each carrying half their skills, and a grade × level table
+with a `Grade 1` row and a bare `1` row beneath every real grade. The bare rows
+were also unreachable from the report's grade picker, which filters
+`GRADES_ORDER` and so never offered them.
+
+`_rptGrade(raw)` normalises through `_bulkGradeValue()` — the same function the
+importers already use, so `3`, `III`, `Class V`, `5th`, `Grade 3` and `UKG` all
+land on the one label `GRADES_ORDER` uses. It is applied in `put()` inside
+`_rptScreeningResults()`, which is the single point every screening result
+passes through, so the student key, the grade × level table, the per-grade
+grids, the roster and the picker all agree by construction.
+
+**A label it cannot resolve is kept exactly as typed, never blanked.** Iqra has
+22 responses under `Gradeb 10` — a typo. Filing those into Grade 10 would be
+guessing at a child's grade from a misspelling; leaving them as `Gradeb 10`
+puts a visible row in the table that someone can go and fix, which is the same
+choice `repairTeacherNames()` makes. `_rptStudentGrades()` already sorts
+anything outside `GRADES_ORDER` last.
+
+One case does still guess, inherited from `_bulkGradeValue()`: a multi-select
+answer reading `Grade 1, Grade 2` resolves to `Grade 1`. There is one such
+response.
+
 Things decided here that are easy to get wrong:
 
 - **A student is `name|grade`**, lower-cased and whitespace-collapsed. Two
@@ -1204,9 +1237,12 @@ Things decided here that are easy to get wrong:
   the same child — the sheets carry no roll number, so inventing a distinction
   the data cannot support would be worse than merging. The picker's option
   values are those same keys, so the list and the report cannot drift.
-- **The roll number comes from the roster**, by the same exact-name match
-  `_fillFromRoster()` uses. A child the roster does not list still appears,
-  with a dash.
+- **No roll number appears in these documents.** The sheets they are built
+  from have no roll column, so a roll could only come from the roster by exact
+  name match — which put a number against the children whose spelling matched
+  and a dash against the rest, reading as though the blank ones were a
+  different kind of record. The name and the grade identify a child here; the
+  Students page is where roll numbers live.
 - **Where a sheet screens one skill twice, the lower level stands.** A
   screening reports what a child could not yet do.
 - A child's **overall level** is the rounded average of the skills they were
@@ -1252,13 +1288,19 @@ lower-case-then-capitalise would flatten them to `Mcdonald`.
 
 It is presentation only: **the stored name is never rewritten**, because it is
 the key that matches a child to the roster and reconciles this report with the
-summary. The grid cells carry the name alone — the roll number belongs in the
-roster's own column, where there is room for it.
+summary.
 
 Section 2 keeps the compact grade × level matrix — each child counted once at
 their overall level — as the summary that sits above the grids.
 `_rptStudentGrades()` orders the grades as `GRADES_ORDER` does and puts
 anything ungraded last rather than dropping it.
+
+**It then repeats that table once per skill**, because a child's overall level
+is an average across the skills they sat and an average hides what a school
+acts on: a cohort reading at Level 3 and writing at Level 1 comes out "Level 2"
+in both. Each per-skill table counts only the children screened on that skill,
+which is why its `Screened` column differs from the others and from the overall
+matrix, and why a grade appears in it only where it was screened on that skill.
 
 The roster report **says on its first page that it names identifiable
 children** and points at the summary as the version for wider circulation. The
