@@ -1147,11 +1147,54 @@ Two reports sit beside it:
 | Students' Screening Report — Student Details | where the cohort sits, a **grade × level matrix**, then **one grid per grade** with skills across the top, their four levels beneath and the children listed down each column, and a roster of one row per student |
 | Student Screening Profile | one child in full — level per skill, what that level means, the mark behind it, and which skills need support |
 
-Both read `_rptStudentIndex(scope)`, which walks **the same assessments and
-rubrics as `_rptScreeningSkills()` and resolves every result the same way**,
-keyed by student rather than by skill. `stu.js` asserts the two reconcile: each
-result counted in the summary lands on exactly one child. Change one and the
-test will catch the other.
+#### One result per child per skill
+
+`_rptScreeningResults(scope)` is where **every** screening report resolves its
+results, and it returns one row per `(child, skill)`. `_rptScreeningSkills()`
+counts those rows; `_rptStudentIndex()` groups the same rows by child. So the
+summary, the grids and the names cannot disagree — `stu.js` and `dup.js` both
+assert they reconcile.
+
+They did disagree, because a school splits one instrument by grade band:
+`.../KR/1,2`, `/3,4` and `/5-10` are three rubrics measuring one skill, and a
+child who lands in two bands was screened twice in the same thing. On Iqra's
+live data that is **242 duplicate responses** — 164 in Kannada · Reading (106
+children, one of them in nine responses), 55 in English · Speaking, 23 in
+English · Reading. Three things read it three different ways:
+
+- the summary counted every response, so **444 Kannada results for 280
+  children**;
+- the student grids kept one per child and skill, so they showed 280;
+- a child's overall level averaged every *response* rather than every *skill*,
+  so three low Kannada rows pulled that child down three times over. `st.n` is
+  now the number of skills, which is what the overall level has always claimed
+  to average.
+
+**Where a child has the same skill twice, the lower level stands** — the rule
+the grids already applied, because a screening reports what a child could not
+yet do. It is decided in one place now rather than three.
+
+`dropped` and `dupes` carry how many were consolidated and under which skills,
+and `_rptDupeNote(scope)` turns them into the sentence both reports print — on
+the summary's Assessment Methodology page and the student report's first page.
+A total smaller than the number of rows in the sheets has to explain itself, or
+a reader reconciling the two finds the report short and cannot see why. A
+school with no duplicates prints nothing.
+
+**What this does not do is decide which sitting was the *right* one.** On the
+live data the three skills fail differently: 47 of English Speaking's 51 are
+byte-identical answer sets (a sheet imported twice — discarding one loses
+nothing), while **all 106 Kannada duplicates have different answers**, because
+the `/5-10` sheet carries 110 rows for children in Grades 1–4 who cannot have
+sat a Grade 5–10 paper. For those, "the lower level stands" may take the
+wrong-band result and understate the child. Deciding that is the school's call
+about its own forms, not the chart's — the same reasoning as
+`relabelScreening()` and `repairTeacherNames()`. The note names the skills so
+it is visible rather than silent.
+
+Analytics (`_assessAggregates()`) still counts **every response**, deliberately:
+its unit is a result, not a child, and it covers the school's own tests as well
+as screening. Only the screening reports consolidate.
 
 Things decided here that are easy to get wrong:
 

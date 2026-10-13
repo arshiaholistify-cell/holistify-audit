@@ -7118,6 +7118,7 @@ const _RPT_CSS = `
   .kv { display:flex; gap:3mm; margin-bottom:1mm; }
   .note { background:#FDF5E6; border-left:3px solid #D4860B; padding:3mm 4mm; margin:3mm 0;
           font-size:9.5pt; page-break-inside:avoid; }
+  .small { font-size:9pt; color:#5a6a65; margin:2mm 0 4mm; page-break-inside:avoid; }
   .bars { margin:2mm 0 4mm; }
   .bar { display:flex; align-items:center; gap:2.5mm; margin-bottom:1.6mm; font-size:9pt;
          page-break-inside:avoid; }
@@ -8076,22 +8077,58 @@ function buildTeacherIndivReport(tid) {
 // score-based assessment is banded by percentage; a rubric response keeps the
 // level it was actually scored at, because that is the number the teacher
 // recorded and re-deriving it from a percentage would lose it.
-function _rptScreeningSkills(scope) {
+// ── One result per child per skill ──────────────────────────
+// Every screening report resolves its results here, so a child screened twice
+// in one skill is one row for all of them and the summary cannot disagree with
+// the names printed under it.
+//
+// A school splits an instrument by grade band — `.../KR/1,2`, `/3,4`, `/5-10`
+// are three rubrics measuring one skill — and a child who lands in two bands
+// is screened twice in the same thing. On Iqra's live data that is 242
+// responses: 164 in Kannada · Reading (106 children, one of them in nine
+// responses), 55 in English · Speaking and 23 in English · Reading. Counting
+// each of those as a separate child overstates the cohort, and all three of
+// the places that read this disagreed about it:
+//
+//   - the summary counted every response, so 444 Kannada results for 280
+//     children;
+//   - the student grids kept one per child and skill, so they showed 280;
+//   - a child's overall level averaged every response rather than every skill,
+//     so three low Kannada rows pulled that child down three times over.
+//
+// **Where a child has the same skill twice, the lower level stands**, which is
+// the rule the grids already applied: a screening reports what a child could
+// not yet do. `dropped` carries how many were consolidated, so the reports can
+// say it happened rather than quietly print a smaller number.
+function _rptScreeningResults(scope) {
   const inScope = item => !scope || scope === 'all' ||
     (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
-  const skills = {};   // label -> { counts, n, grades:{} }
-  const bump = (item, lv, grade) => {
-    if (!lv) return;
-    const k = _skillKey(item);
-    if (!skills[k]) skills[k] = { counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, grades: {} };
-    skills[k].counts[lv]++; skills[k].n++;
-    if (grade) skills[k].grades[grade] = 1;
+  const by = {};                    // "name|grade|skill" -> the result kept
+  const dupes = {};                 // skill label -> results consolidated away
+  let seen = 0, dropped = 0;
+
+  const put = (name, grade, item, lv, detail) => {
+    const nm = _wideNorm(name);
+    if (!nm || !lv) return;
+    const g = _wideNorm(grade);
+    const label = _skillKey(item) || 'Unassigned';
+    const key = nm.toLowerCase() + '|' + g.toLowerCase() + '|' + label;
+    seen++;
+    const prev = by[key];
+    if (prev) {
+      dropped++;
+      dupes[label] = (dupes[label] || 0) + 1;
+      if (lv >= prev.lv) return;    // the one already held is the lower
+    }
+    by[key] = { name: nm, grade: g, skill: label, lv: lv, detail: detail || '' };
   };
+
   assessments.filter(inScope).forEach(a => {
     (scoreEntries[a.id] || []).forEach(sc => {
       if (!a.maxMarks) return;
       const pct = Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100);
-      bump(a, _bandLevel(pct), sc.grade || a.grade);
+      put(sc.name, sc.grade || a.grade, a, _bandLevel(pct),
+          sc.score + '/' + a.maxMarks + ' · ' + pct + '%');
     });
   });
   rubrics.filter(inScope).forEach(r => {
@@ -8102,8 +8139,35 @@ function _rptScreeningSkills(scope) {
       // A rubric already scores 1-4; anything else is mapped through its band.
       const lv = scale === 4 ? Math.max(1, Math.min(4, Math.round(avg)))
                              : _bandLevel(Math.round(avg / scale * 100));
-      bump(r, lv, resp.grade);
+      put(resp.name, resp.grade, r, lv, avg.toFixed(1) + '/' + scale);
     });
+  });
+
+  const rows = Object.keys(by).map(k => by[k]);
+  return { rows: rows, seen: seen, kept: rows.length, dropped: dropped, dupes: dupes };
+}
+
+// How many results were consolidated, as a sentence a report can print, or ''
+// when every child sat every skill once.
+function _rptDupeNote(scope) {
+  const r = _rptScreeningResults(scope);
+  if (!r.dropped) return '';
+  const names = Object.keys(r.dupes).sort((a, b) => r.dupes[b] - r.dupes[a]);
+  return r.dropped + ' result' + (r.dropped === 1 ? ' was' : 's were') +
+    ' recorded more than once for the same child and skill \u2014 where a school ' +
+    'splits an instrument by grade band, a child can appear in two of them. ' +
+    'One result is counted per child per skill' +
+    (r.dropped === 1 ? '' : ', the lower level in each case') +
+    ', because a screening reports what a child could not yet do. Affected: ' +
+    names.map(n => _escHtml(n) + ' (' + r.dupes[n] + ')').join(', ') + '.';
+}
+
+function _rptScreeningSkills(scope) {
+  const skills = {};   // label -> { counts, n, grades:{} }
+  _rptScreeningResults(scope).rows.forEach(r => {
+    if (!skills[r.skill]) skills[r.skill] = { counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, grades: {} };
+    skills[r.skill].counts[r.lv]++; skills[r.skill].n++;
+    if (r.grade) skills[r.skill].grades[r.grade] = 1;
   });
   return skills;
 }
@@ -8125,47 +8189,24 @@ function _rptScreeningSkills(scope) {
 // merging. The roll number is filled from the school roster where it knows
 // the name, by the same exact match `_fillFromRoster()` uses.
 function _rptStudentIndex(scope) {
-  const inScope = item => !scope || scope === 'all' ||
-    (scope === 'screening' ? _isScreening(item) : !_isScreening(item));
   const roster = (typeof _rosterIndex === 'function') ? _rosterIndex().idx : {};
   const out = {};
-  const put = (name, grade, item, lv, detail) => {
-    const nm = _wideNorm(name);
-    if (!nm || !lv) return;
-    const g = _wideNorm(grade);
-    const key = nm.toLowerCase() + '|' + g.toLowerCase();
+
+  // The same consolidated results the summary counts, grouped by child rather
+  // than by skill — so `st.n` is the number of **skills** this child was
+  // screened on, not the number of rows recorded against them. It used to be
+  // the latter, so a child screened three times in Kannada had that one skill
+  // pull their overall level three times over.
+  _rptScreeningResults(scope).rows.forEach(r => {
+    const key = r.name.toLowerCase() + '|' + r.grade.toLowerCase();
     if (!out[key]) {
-      const hit = roster[nm.toLowerCase()];
-      out[key] = { name: nm, grade: g, roll: (hit && hit.roll) || '',
+      const hit = roster[r.name.toLowerCase()];
+      out[key] = { name: r.name, grade: r.grade, roll: (hit && hit.roll) || '',
                    skills: {}, counts: { 1:0, 2:0, 3:0, 4:0 }, n: 0, sum: 0 };
     }
     const st = out[key];
-    const label = _skillKey(item) || 'Unassigned';
-    // A child sat a skill once; where a sheet repeats it, the lowest stands,
-    // because a screening reports what a child could not yet do.
-    if (!st.skills[label] || lv < st.skills[label].lv) {
-      st.skills[label] = { lv: lv, detail: detail || '' };
-    }
-    st.counts[lv]++; st.n++; st.sum += lv;
-  };
-
-  assessments.filter(inScope).forEach(a => {
-    (scoreEntries[a.id] || []).forEach(sc => {
-      if (!a.maxMarks) return;
-      const pct = Math.round((parseFloat(sc.score) || 0) / a.maxMarks * 100);
-      put(sc.name, sc.grade || a.grade, a, _bandLevel(pct),
-          sc.score + '/' + a.maxMarks + ' · ' + pct + '%');
-    });
-  });
-  rubrics.filter(inScope).forEach(r => {
-    const scale = r.scale || 4;
-    (rubricScores[r.id] || []).forEach(resp => {
-      const avg = _rubricRespAvg(resp, r);
-      if (avg === null) return;
-      const lv = scale === 4 ? Math.max(1, Math.min(4, Math.round(avg)))
-                             : _bandLevel(Math.round(avg / scale * 100));
-      put(resp.name, resp.grade, r, lv, avg.toFixed(1) + '/' + scale);
-    });
+    st.skills[r.skill] = { lv: r.lv, detail: r.detail };
+    st.counts[r.lv]++; st.n++; st.sum += r.lv;
   });
 
   Object.keys(out).forEach(k => {
@@ -8321,7 +8362,10 @@ function buildScreeningReport() {
     '<h3>Evaluation Framework</h3><p>Each skill was evaluated using a four-level proficiency scale:</p>' +
     '<table><tr><th>Level</th><th>Description</th></tr>' +
     [1,2,3,4].map(lv => '<tr><td>Level ' + lv + '</td><td>' + _RPT_SCREEN_LEVELS[lv] +
-      '</td></tr>').join('') + '</table>';
+      '</td></tr>').join('') + '</table>' +
+    // A figure smaller than the number of rows recorded needs explaining, or
+    // the reader reconciles it against the sheets and finds it short.
+    (_rptDupeNote(scope) ? '<p class="small">' + _rptDupeNote(scope) + '</p>' : '');
 
   // 3. Overall distribution
   h += '<h2>3. Summary of the Data</h2>' +
@@ -8437,7 +8481,8 @@ function buildStudentScreeningReport() {
   h += '<div class="note"><strong>This document names individual children.</strong> It is intended for ' +
     'the teachers and coordinators planning their support, and should be handled as a student record. ' +
     'The Screening Report Summary carries the same findings without names, and is the version for ' +
-    'wider circulation.</div>';
+    'wider circulation.</div>' +
+    (_rptDupeNote(scope) ? '<p class="small">' + _rptDupeNote(scope) + '</p>' : '');
 
   // ── 1. How many children sit at each level ──
   const tot = { 1:0, 2:0, 3:0, 4:0 };
