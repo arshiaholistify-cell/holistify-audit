@@ -23453,12 +23453,22 @@ function _applyAuditSnapshot(d, skOverride){
   if(d.assessData){assessments=d.assessData; _assessCloudLoaded=true;}
   if(d.assessScores){scoreEntries=d.assessScores;}
   if(d.assessRubrics){rubrics=d.assessRubrics;}
-  if(d.behaviourSurveys){behaviourSurveys=d.behaviourSurveys;}
-  if(d.behaviourResponses){behaviourResponses=d.behaviourResponses;}
+  // **Length-guarded, as `staffData` and `studentsData` are**, and for the same
+  // reason: these three are imported lists, and `[]` is truthy. A snapshot can
+  // legitimately carry an empty one — `queueSave()` fires from any edit, and
+  // `behaviourSurveys` is only populated once `loadAssessmentData()` has run,
+  // so scoring a standard straight after a page load builds a snapshot with
+  // nothing in it. Restoring that would set the globals to empty **and write
+  // the emptiness through to localStorage below**, destroying an import that
+  // existed only in this browser. A deletion therefore does not propagate from
+  // the cloud, which is the safer of the two errors.
+  if(d.behaviourSurveys&&d.behaviourSurveys.length){behaviourSurveys=d.behaviourSurveys;}
+  if(d.behaviourResponses&&Object.keys(d.behaviourResponses).length){behaviourResponses=d.behaviourResponses;}
   // Written back to its own localStorage key, as every other restored module
   // is: loadBehaviourData() runs again when the page opens and would otherwise
   // overwrite what just came from the cloud with a stale local copy.
-  if(d.behaviourSurveys||d.behaviourResponses){
+  if((d.behaviourSurveys&&d.behaviourSurveys.length)||
+     (d.behaviourResponses&&Object.keys(d.behaviourResponses).length)){
     try{ localStorage.setItem('hol_behaviour_'+(skOverride||schoolKey((document.getElementById('inp-school')||{}).value||'default')),
       JSON.stringify({surveys:behaviourSurveys,responses:behaviourResponses})); }catch(e){}
   }

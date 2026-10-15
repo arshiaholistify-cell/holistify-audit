@@ -1289,6 +1289,16 @@ there is no scale to score onto. Both stores go through `_buildAuditSnapshot()`
 and `_applyAuditSnapshot()`, and the restore writes back to the module's own
 localStorage key like every other module.
 
+**The restore is length-guarded**, as `staffData` and `studentsData` are, and
+for the same reason: all three are imported lists and `[]` is truthy. A
+snapshot can legitimately carry an empty one — `queueSave()` fires from any
+edit, and `behaviourSurveys` is only populated once `loadAssessmentData()` has
+run, so scoring a standard straight after a page load builds a snapshot with
+nothing in it. Restoring that would set the globals to empty *and write the
+emptiness through to localStorage*, destroying an import that existed only in
+that browser. The cost is that deleting every survey does not propagate from
+the cloud, which is the safer of the two errors.
+
 **The 🧠 Behaviour tab** on the Assessment page imports the Google Form
 export through the same three routes and the same parser as the rubric
 importer — a form export is a form export. Step 2 guesses the name and class
