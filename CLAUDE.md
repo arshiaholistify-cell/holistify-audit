@@ -1863,6 +1863,58 @@ commercial data is the last thing to make an exception for. The edge function
 re-checks the role server-side too, because the anon key is itself a valid JWT
 and `verify_jwt` alone is not a check.
 
+### Three documents, one invoice
+
+An invoice **asks** for money, a receipt **acknowledges** it, and a reminder
+asks again for what is still outstanding. One page used to do all three — the
+invoice listed its payments, so it doubled as the receipt — which is fine for a
+file copy and wrong for anything sent out. A school that has paid in full
+should not receive a document headed "Invoice" with a due date on it, and a
+school that has not should not have to infer the chase from a reprint.
+
+| Document | Builder | Shown when |
+|---|---|---|
+| Invoice | `openInvoiceDocument()` | always, from the invoice number |
+| Receipt | `openReceiptDocument(id, paymentId?)` | something has been received |
+| Reminder | `openReminderDocument()` | not void, and a balance remains |
+
+All three read `inv.totals` — one `_blgTotals()` — and share `_blgDocParties()`
+and `_blgDocRow()`, so no two can disagree about what is owed. `doc.js` asserts
+they print the same total and the same balance.
+
+**Nothing new is stored.** A receipt number is derived: `<invoice_no>/R<n>`,
+from `_blgPaymentsInOrder()`.
+
+- **Ordered by `created_at`, not `paid_on`.** A receipt number has to be stable
+  once it is issued, and `paid_on` is editable backdating — recording a cheque
+  today that cleared last month would renumber every receipt issued since.
+  `created_at` is append-only, which is also how a paper receipt book works.
+- **A receipt states the position at its own moment**, not today: it reports
+  what had been received up to and including that payment, so a later payment
+  cannot change what an already-issued receipt says.
+- Called with no payment id it issues the **latest**, which is the case that
+  happens — a payment has just been recorded. Every payment is listed
+  underneath with its number, and the invoice names them too, so an older one
+  can be asked for and reprinted by id.
+
+**The sum is written out in words** (`_blgWords()`, Indian numbering — crore,
+lakh, thousand, hundred), on the receipt and on the reminder's balance. Figures
+on a printed page can be altered and words cannot, which is the whole reason
+the convention exists.
+
+**The reminder states and never threatens**, for the same reason
+`_BLG_FORBIDDEN` governs the drafted messages: nothing about legal action, late
+fees, interest or withholding a report has been agreed with the school, so no
+document generated here may imply it. It leads with the balance and how late it
+is, lists the payments already credited — so "but we paid in April" is answered
+on the page rather than in a reply three days later — and offers the two outs a
+real chase offers: tell us where it has reached, or tell us what needs
+correcting and we will reissue.
+
+Neither can be sent empty: a receipt with no payment behind it is refused, and
+so is a reminder on a settled or voided invoice, each pointing at the document
+that *is* appropriate.
+
 ### Smaller things decided here
 
 - **An issued invoice is voided, never deleted.** Voiding keeps the record and
@@ -1871,10 +1923,9 @@ and `verify_jwt` alone is not a check.
   never handed to a later invoice, which would put two records under one
   identity in the books.
 - **The printed invoice goes through `_rptOpen()`**, like every other document
-  here, and lists the payments received so it is also the receipt. Because it
-  is HTML in a browser window rather than a PDF library, `₹` renders and there
-  is no ASCII fallback to keep in step — the one place this repo's
-  no-dependency reporting is less work than the alternative, not more.
+  here. Because it is HTML in a browser window rather than a PDF library, `₹`
+  renders and there is no ASCII fallback to keep in step — the one place this
+  repo's no-dependency reporting is less work than the alternative, not more.
 - **The invoice stores the school and its campus separately**, through
   `splitBranch()`, so it bills "Shaheen School, Golekhana branch" rather than
   the joined key string. See **Branches**.
