@@ -1881,6 +1881,16 @@ and `verify_jwt` alone is not a check.
 - **The billing contact is saved back onto the school**, so it is typed once
   per client rather than once per invoice, and `_blgPrefillBilling()` never
   overwrites what has already been typed into the form.
+- **The money fields are checked in `saveInvoice()`, not left to Postgres.**
+  `tax_pct` is `numeric(5,2)` and `amount` / `discount` are `numeric(12,2)`, so
+  a figure past those bounds came back as a bare **"numeric field overflow"** —
+  a message naming neither the field nor the fix. The box that gets this wrong
+  is **Tax %**: typing the tax *amount* into it (1000 for ₹1,000 of GST) reads
+  as 1000% and overflows. The ceiling is **100, not the column's 999.99**,
+  because no one invoices a rate above 100% and naming the real bound is more
+  use than naming the storage one. A discount larger than the amount is
+  refused too — `_blgTotals()` clamps it on the way out, so storing it would
+  leave the row and the printed invoice disagreeing.
 - **An overpayment is recorded but reported**, so a transposed figure
   (₹1,50,000 keyed for ₹15,000) is visible as it is entered rather than
   discovered when a refund is asked for.

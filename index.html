@@ -24688,6 +24688,38 @@ function saveInvoice() {
   if (amount <= 0) { toast('The amount must be more than zero.', 'error'); return; }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { toast('A due date is required.', 'error'); return; }
 
+  // The money fields are checked here rather than left to Postgres. `tax_pct`
+  // is numeric(5,2) and `amount`/`discount` are numeric(12,2), so a figure
+  // past those bounds came back as a bare **"numeric field overflow"** — a
+  // message that names neither the field nor what to do about it. The box
+  // that actually gets this wrong is Tax %: typing the tax *amount* into it
+  // (1000 for ₹1,000 of GST) is the easy mistake, and it reads as 1000%.
+  //
+  // The ceiling is 100 rather than the column's 999.99, because a rate above
+  // 100% is not something anyone invoices, and naming the real bound is more
+  // use than naming the storage one.
+  var taxPct = _blgMoney(val('iv-tax'));
+  if (taxPct < 0 || taxPct > 100) {
+    toast('Tax % is a rate, not an amount — enter 18 for 18% GST, not the ' +
+          'tax in rupees. It must be between 0 and 100.', 'error');
+    return;
+  }
+  // A full discount is a legitimate thing to invoice; more than the amount is
+  // a typo that would bill a negative figure. `_blgTotals()` clamps it when
+  // reading, so without this the stored row and the printed invoice disagree.
+  var discount = _blgMoney(val('iv-discount'));
+  if (discount < 0) { toast('A discount cannot be negative.', 'error'); return; }
+  if (discount > amount) {
+    toast('The discount is larger than the amount, so this would invoice a ' +
+          'negative figure. Lower the discount, or raise the amount.', 'error');
+    return;
+  }
+  if (amount > 9999999999.99) {
+    toast('That amount is too large to store — the most an invoice can ' +
+          'carry is 9,999,999,999.99.', 'error');
+    return;
+  }
+
   var u = getCurrentUser();
   var row = {
     school_id: school.id,
@@ -24702,8 +24734,8 @@ function saveInvoice() {
     service: val('iv-service') || null,
     period: val('iv-period') || null,
     amount: amount,
-    discount: _blgMoney(val('iv-discount')),
-    tax_pct: _blgMoney(val('iv-tax')),
+    discount: discount,
+    tax_pct: taxPct,
     due_date: due,
     po_ref: val('iv-po') || null,
     notes: val('iv-notes') || null,
