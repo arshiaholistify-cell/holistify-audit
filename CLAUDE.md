@@ -65,6 +65,9 @@ it, because accounts are created pre-confirmed.
 
 Creating a user needs the service-role key, so it happens in the
 `admin-accounts` edge function (`supabase/functions/`), never in the browser.
+There are three functions now, all there for the same reason — a secret that
+cannot be in a page served to the public: `admin-accounts` (the service-role
+key), `behaviour-prose` and `billing-followups` (the Anthropic key).
 Supabase injects the key into the function runtime. Every action there requires
 a signed-in caller holding an admin role in `profiles`; `verify_jwt` alone is
 not enough, because the anon key is itself a valid JWT.
@@ -1758,6 +1761,134 @@ This app's `totalScore()` is the weighted one throughout, and 2.2 carries the
 raw Score Obtained and Percentage columns beside it, so both figures are on the
 page and neither is hidden.
 
+## Billing the client schools
+
+Holistify invoicing the schools it audits, the enquiries from schools that want
+an audit, and the queue that chases both. Reached from **💰 Billing &
+Enquiries** on the admin hub, which opens `openSectionPage('billing')` —
+the existing full-screen section page, not a modal, because billing is a
+workspace. `supabase_billing.sql` is the schema;
+`supabase/functions/billing-followups/` drafts the wording.
+
+This is the *other* direction of money from the sibling app, which bills
+parents for a child's fees. Here the payer is a school and the contact is
+whoever handles its accounts, so none of the parent-facing shape transfers —
+but the arithmetic does, deliberately, and the thresholds are the one thing
+that had to change.
+
+The split everything rests on:
+
+- **Code does the money.** `_blgTotals()`, `_blgState()` and
+  `_blgNextInvoiceNo()` are the only places a balance, a days-overdue, an
+  escalation stage or an invoice number is computed, so no table, reminder or
+  printed invoice can disagree with another about what a school owes.
+- **The model only writes the sentence.** The figures go to the edge function
+  as finished strings, and `_blgVerify()` checks the draft carries each of
+  them back *unaltered* before it is queued.
+
+### Four properties to preserve
+
+- **`_blgVerify()` is not optional.** A draft that does not carry the balance,
+  the due date and the invoice number back verbatim is discarded, as is one
+  reaching for anything that has not been agreed with the school
+  (`_BLG_FORBIDDEN` — legal action, a late-payment fee, interest, suspending
+  access, withholding a report, terminating the agreement). The plain template
+  is used instead and the run report names which drafts fell back and why. A
+  client can see a blander reminder; never a wrong amount, and never a threat
+  Holistify has no contractual basis to make.
+- **Tax is charged on the discounted figure**, which is the order it is
+  actually levied in: gross → discount → taxable → tax → net. Getting that
+  backwards overstates every discounted invoice.
+- **Overdue is never stored, and neither is a balance.** `service_payments` is
+  the record; `_blgState()` derives everything from it.
+  `service_invoices.status` is kept in step by `_blgRefreshStatus()` as a
+  **cache** for the partial index, and `_blgState()` ignores it except for
+  `void` — so a stale status cannot contradict the ledger.
+- **One pending draft per invoice per stage**, enforced by a partial unique
+  index as well as in `runBillingFollowUps()`. Running it each morning for a
+  week would otherwise leave seven identical unsent reminders for one school.
+  Marking an enquiry follow-up sent also bumps `updated_at` and clears
+  `next_action_on`, or the cadence would redraft it tomorrow.
+
+### The escalation thresholds are longer than the parent-facing ones
+
+`_BLG_STAGES` runs due_soon (7 days before) → reminder (day 1) → overdue
+(day 11) → firm (day 31) → needs a conversation (day 61). The sibling app
+chases a parent from day 1 / 8 / 22 / 46.
+
+That difference is the point, not drift. A school pays through a trust or a
+correspondent on a monthly finance cycle, so a fortnight's silence is a cycle
+rather than a problem, and chasing a client institution on a parent's timetable
+reads as not understanding how they pay. Both sets live in exactly one place in
+their own app, so either can be retuned without hunting for a second copy.
+
+### Nothing sends itself, because there is nothing here to send with
+
+This is a static site with no server. A drafted message is approved and then
+sent **by a person**, from their own mail client (`_blgMailto`) or WhatsApp
+(`_blgWaLink`) — both links prefill and neither sends. That is a smaller
+promise than the sibling app's auto-send option, and an honest one; adding real
+sending would mean an email provider and a second secret in an edge function.
+
+Approval is still a real step: a message cannot be marked sent from `draft`,
+and editing the wording drops the approval, because somebody approved the old
+sentence.
+
+### Billing keeps no local copy
+
+Every other module here auto-saves to `localStorage` and rides along in the
+audit snapshot. Billing deliberately does not: a list of what every client
+school owes should not sit in whichever browser an admin last used, and it
+would be a second source of truth about money — the same reasoning that
+removed the sidebar's Save/Load session buttons.
+
+So billing needs a **real Supabase session**, not the `localStorage` fallback.
+That state is easy to land in, because `authSignIn()` falls back silently, so
+`renderBillingPage()` checks `_authSessionActive` and says what to do rather
+than rendering an empty page that reads as "no invoices" — the same wrong
+answer `pendingMigrationCount()` returns `null` to avoid giving.
+
+### Access is narrower than the audit's
+
+The existing tables are open to any signed-in user, because an auditor and a
+principal both legitimately read the audit. These are not: a principal of one
+school must not read another school's invoices, and an auditor has no business
+in any of it. `supabase_billing.sql` adds `public.is_holistify()` —
+`is_admin()` plus `holistify_member`, same SECURITY DEFINER shape, same
+`revoke`/`grant` hygiene for the same reasons — and every policy is
+`for all to authenticated using (public.is_holistify())`.
+
+**No `anon` policy anywhere.** The published anon key must stay inert, and
+commercial data is the last thing to make an exception for. The edge function
+re-checks the role server-side too, because the anon key is itself a valid JWT
+and `verify_jwt` alone is not a check.
+
+### Smaller things decided here
+
+- **An issued invoice is voided, never deleted.** Voiding keeps the record and
+  stops it being chased, and `_blgNextInvoiceNo()` derives the next number from
+  the numbers already issued rather than from a count — so a voided number is
+  never handed to a later invoice, which would put two records under one
+  identity in the books.
+- **The printed invoice goes through `_rptOpen()`**, like every other document
+  here, and lists the payments received so it is also the receipt. Because it
+  is HTML in a browser window rather than a PDF library, `₹` renders and there
+  is no ASCII fallback to keep in step — the one place this repo's
+  no-dependency reporting is less work than the alternative, not more.
+- **The invoice stores the school and its campus separately**, through
+  `splitBranch()`, so it bills "Shaheen School, Golekhana branch" rather than
+  the joined key string. See **Branches**.
+- **The billing contact is saved back onto the school**, so it is typed once
+  per client rather than once per invoice, and `_blgPrefillBilling()` never
+  overwrites what has already been typed into the form.
+- **An overpayment is recorded but reported**, so a transposed figure
+  (₹1,50,000 keyed for ₹15,000) is visible as it is entered rather than
+  discovered when a refund is asked for.
+- **No email address means no draft.** Rather than queue an unsendable message,
+  those are counted and named so somebody can add the address.
+- Exports go through `_csvRows()` / `_downloadCsv()`, like every other export
+  here.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:
@@ -1765,6 +1896,18 @@ page and neither is hidden.
 - `schools`
 - `audit_states`
 - `journey_records`
+
+`supabase_billing.sql` adds five more, for billing the client schools, plus
+`public.is_holistify()` and the billing contact columns on `schools`:
+
+- `service_invoices`
+- `service_payments`
+- `service_enquiries`
+- `service_enquiry_events`
+- `followup_outbox`
+
+Unlike the three above, these are restricted to the Holistify team rather than
+open to every signed-in user — see **Billing the client schools**.
 
 ## Conventions
 

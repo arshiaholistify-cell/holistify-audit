@@ -977,6 +977,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
         <div class="sa-quick-label">User Management</div>
         <div class="sa-quick-sub" id="sa-quick-users-sub"></div>
       </div>
+      <div class="sa-quick-tile" onclick="openBillingPage()">
+        <div class="sa-quick-icon">💰</div>
+        <div class="sa-quick-label">Billing &amp; Enquiries</div>
+        <div class="sa-quick-sub" id="sa-quick-billing-sub"></div>
+      </div>
     </div>
 
     <!-- Stat detail overlay -->
@@ -1100,6 +1105,101 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
     <div class="mgmt-footer">
       <button class="sa-btn sa-btn-primary" onclick="saveSchool()">Add School</button>
       <button class="sa-btn sa-btn-secondary" onclick="closeAddSchoolModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ INVOICE MODAL ═══════════════════ -->
+<div class="mgmt-modal-overlay" id="invoice-modal">
+  <div class="mgmt-modal">
+    <div class="mgmt-modal-title" id="iv-modal-title">Raise an invoice <button class="mgmt-close" onclick="closeInvoiceModal()">×</button></div>
+    <input type="hidden" id="iv-id">
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>School *</label>
+        <select id="iv-school" onchange="_blgPrefillBilling()"></select>
+      </div>
+      <div class="mgmt-field"><label>Campus / branch</label><input id="iv-branch" placeholder="Taken from the school name if it has one"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Service</label><input id="iv-service" placeholder="e.g. School Audit" value="School Audit"></div>
+      <div class="mgmt-field"><label>Period</label><input id="iv-period" placeholder="e.g. Phase 1, Apr–Jun 2026"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Amount *</label><input id="iv-amount" placeholder="e.g. 150000"></div>
+      <div class="mgmt-field"><label>Discount</label><input id="iv-discount" placeholder="0"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Tax %</label><input id="iv-tax" placeholder="e.g. 18 — charged on the discounted amount"></div>
+      <div class="mgmt-field"><label>Due date *</label><input id="iv-due" type="date"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Billing contact</label><input id="iv-bname" placeholder="Whoever handles the money"></div>
+      <div class="mgmt-field"><label>Billing email</label><input id="iv-bemail" type="email" placeholder="accounts@school.example"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Billing phone</label><input id="iv-bphone" placeholder="Optional — enables the WhatsApp route"></div>
+      <div class="mgmt-field"><label>Their PO reference</label><input id="iv-po" placeholder="Optional"></div>
+    </div>
+    <div class="mgmt-field"><label>Notes</label><textarea id="iv-notes" style="min-height:52px" placeholder="Printed on the invoice. Not sent to the drafting function."></textarea></div>
+    <div style="font-size:11px;color:#8A7F6E;line-height:1.5;margin-bottom:4px">
+      The invoice number is allocated from the ones already issued, in the financial year of the due date.
+      The billing contact is saved back onto the school, so it is typed once per client rather than once per invoice.
+    </div>
+    <div class="mgmt-footer">
+      <button class="sa-btn sa-btn-primary" onclick="saveInvoice()">Save invoice</button>
+      <button class="sa-btn sa-btn-secondary" onclick="closeInvoiceModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ ENQUIRY MODAL ═══════════════════ -->
+<div class="mgmt-modal-overlay" id="enquiry-modal">
+  <div class="mgmt-modal">
+    <div class="mgmt-modal-title">Log an enquiry <button class="mgmt-close" onclick="closeEnquiryModal()">×</button></div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>School name *</label><input id="eq-school" placeholder="e.g. Sunrise Academy"></div>
+      <div class="mgmt-field"><label>City</label><input id="eq-city" placeholder="e.g. Hyderabad"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Board</label><input id="eq-board" placeholder="e.g. CBSE"></div>
+      <div class="mgmt-field"><label>Contact name *</label><input id="eq-contact" placeholder="Who got in touch"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Designation</label><input id="eq-designation" placeholder="Principal, Trustee, Correspondent"></div>
+      <div class="mgmt-field"><label>Email</label><input id="eq-email" type="email" placeholder="principal@school.example"></div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>Phone</label><input id="eq-phone" placeholder="Optional"></div>
+      <div class="mgmt-field"><label>Interested in</label>
+        <select id="eq-interest">
+          <option value="">—</option>
+          <option value="audit">Audit</option>
+          <option value="transformation">Transformation programme</option>
+          <option value="both">Both</option>
+          <option value="undecided">Undecided</option>
+        </select>
+      </div>
+    </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>How they found us</label>
+        <select id="eq-source">
+          <option value="">—</option>
+          <option value="referral">Referral</option>
+          <option value="website">Website</option>
+          <option value="event">Event</option>
+          <option value="call">Cold call</option>
+          <option value="existing client">Existing client</option>
+        </select>
+      </div>
+      <div class="mgmt-field"><label>Amount quoted</label><input id="eq-quoted" placeholder="Optional — only quoted once agreed"></div>
+    </div>
+    <div class="mgmt-field"><label>Notes</label><textarea id="eq-notes" style="min-height:52px" placeholder="Internal. Not sent to the drafting function."></textarea></div>
+    <div style="font-size:11px;color:#8A7F6E;line-height:1.5;margin-bottom:4px">
+      An email address or a phone number is required — there is no way to follow up without one.
+    </div>
+    <div class="mgmt-footer">
+      <button class="sa-btn sa-btn-primary" onclick="saveEnquiry()">Log enquiry</button>
+      <button class="sa-btn sa-btn-secondary" onclick="closeEnquiryModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -12151,6 +12251,12 @@ function openSectionPage(type) {
           '</div>';
       }).join('');
     }
+
+  } else if (type === 'billing') {
+    if (titleEl) titleEl.textContent = 'Billing & Enquiries';
+    // The page's own header carries the actions, because which ones apply
+    // depends on the tab that is open.
+    renderBillingPage();
 
   } else if (type === 'audits') {
     var audited = schoolRegistry.filter(function(sch) {
@@ -23894,6 +24000,1356 @@ document.addEventListener('DOMContentLoaded',()=>{
   // screen at someone who is already signed in.
   authBootstrap().then(function(){ authInit(); });
 });
+
+
+// ══════════════════ BILLING, ENQUIRIES AND FOLLOW-UPS ══════════════════
+// Holistify invoicing the schools it audits, the enquiries from schools that
+// want an audit, and the queue that chases both.
+//
+// Three things decided here, and they are the whole shape of it:
+//
+// 1. **Code does the money.** _blgTotals(), _blgState() and _blgNextInvoiceNo()
+//    are the only places a balance, a days-overdue, an escalation stage or an
+//    invoice number is computed, so no table, reminder or printed invoice can
+//    disagree with another about what a school owes. The rules are the same
+//    ones the sibling app bills parents with — same thresholds, same
+//    settled-within-a-rupee tolerance, same financial-year numbering — so the
+//    two products say the same thing about money even though neither can share
+//    a file with the other.
+//
+// 2. **The model only writes the sentence.** The figures go to the
+//    billing-followups edge function as finished strings, and _blgVerify()
+//    checks the draft carries each of them back unaltered before it is queued.
+//    A draft that lost or changed a figure, or that threatens a client, is
+//    discarded for the plain template and the run says so.
+//
+// 3. **Nothing sends itself, because there is nothing here to send with.**
+//    This is a static site. A drafted message is approved and then sent by a
+//    person from their own mail client or WhatsApp. That is a smaller promise
+//    than auto-sending, and an honest one.
+//
+// Billing data is deliberately NOT cached in localStorage. A copy of what
+// every client school owes would otherwise sit in whichever browser an admin
+// last used, and be a second source of truth about money — the same reasoning
+// that removed the sidebar's Save/Load session buttons. Supabase is the only
+// copy, so this needs a real session, not the localStorage fallback.
+
+// ── Money ────────────────────────────────────────────────────────────────────
+// Supabase returns numeric as a string, so a bare `inv.amount - paid` is a
+// string subtraction waiting to happen. Everything comes through _blgMoney().
+function _blgMoney(v) {
+  if (typeof v === 'number') return isFinite(v) ? _blgRound2(v) : 0;
+  if (typeof v === 'string') {
+    var n = parseFloat(v.replace(/[^0-9.-]/g, ''));
+    return isFinite(n) ? _blgRound2(n) : 0;
+  }
+  return 0;
+}
+
+// Audit fees are whole rupees, but a tax line and a part payment are not, and
+// float drift on a running balance is how a settled invoice ends up a paisa
+// short. Every step rounds.
+function _blgRound2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+function _blgFmt(n) {
+  try {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR',
+      minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(_blgRound2(n));
+  } catch (e) { return '₹' + _blgRound2(n).toFixed(2); }
+}
+
+// The printed invoice is HTML in a browser window, not a canvas or a PDF
+// library, so ₹ renders everywhere and there is no ASCII fallback to keep
+// in step — one of the few places this app's no-dependency reporting is
+// simply less work than the alternative.
+
+/**
+ * gross → discount → tax → net, then the ledger against it. Tax is charged on
+ * the discounted figure, which is the order it is actually levied in.
+ */
+function _blgTotals(inv, pays) {
+  var gross = _blgMoney(inv.amount);
+  var discount = Math.min(_blgMoney(inv.discount), gross);   // cannot exceed the bill
+  var taxable = _blgRound2(gross - discount);
+  var taxPct = _blgMoney(inv.tax_pct);
+  var tax = _blgRound2(taxable * taxPct / 100);
+  var net = _blgRound2(taxable + tax);
+  var paid = _blgRound2((pays || []).reduce(function(s, p) { return s + _blgMoney(p.amount); }, 0));
+  var balance = _blgRound2(Math.max(0, net - paid));
+  var overpaid = _blgRound2(Math.max(0, paid - net));
+  return {
+    gross: gross, discount: discount, taxable: taxable, taxPct: taxPct, tax: tax,
+    net: net, paid: paid, balance: balance, overpaid: overpaid,
+    // Settled within a rupee: a transfer short by rounding is not an unpaid fee.
+    settled: balance <= 0.99
+  };
+}
+
+// ── Dates ────────────────────────────────────────────────────────────────────
+// Date-only strings compared as dates. new Date('2026-04-01') is UTC midnight
+// and new Date() is local, so subtracting them straight shifts a due date by a
+// day either side of midnight in IST. Both go through a UTC noon anchor.
+function _blgAnchor(d) {
+  var s = (typeof d === 'string') ? d.slice(0, 10) : _blgToday(d);
+  var p = s.split('-');
+  return Date.UTC(+p[0], (+p[1] || 1) - 1, +p[2] || 1, 12, 0, 0);
+}
+
+function _blgToday(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+
+function _blgDaysBetween(from, to) {
+  return Math.round((_blgAnchor(to) - _blgAnchor(from)) / 86400000);
+}
+
+/** Positive = this many days past due. Negative = this many days still to go. */
+function _blgDaysOverdue(due, today) { return _blgDaysBetween(due, today || new Date()); }
+
+function _blgLongDate(iso) {
+  if (!iso) return '';
+  var p = String(iso).slice(0, 10).split('-');
+  if (p.length !== 3) return String(iso);
+  return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12)).toLocaleDateString('en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+// ── Escalation ───────────────────────────────────────────────────────────────
+// How late an invoice is decides how firmly it is chased, and the thresholds
+// live here and nowhere else so a reminder, the table and the run report cannot
+// disagree about whether a school is at "firm" or still on a polite nudge.
+//
+// These are LONGER than the parent-facing thresholds in the sibling app, on
+// purpose: a school pays through a trust or a correspondent on a monthly
+// finance cycle, so a fortnight's silence is a cycle, not a problem. Chasing a
+// client institution on a parent's timetable reads as not understanding how
+// they pay.
+var _BLG_STAGES = [
+  { key: 'due_soon', from: -7, label: 'Due soon',
+    tone: 'A courteous note before the due date, for the finance cycle. Assume it is simply not due yet. No mention of consequences.' },
+  { key: 'reminder', from: 1, label: 'Just overdue',
+    tone: 'A light reminder that the date has passed. Assume an oversight or a finance cycle. Warm and brief.' },
+  { key: 'overdue', from: 11, label: 'Overdue',
+    tone: 'Clear and direct that the invoice is outstanding. Ask when it is expected to be processed, and offer to send anything their accounts team needs.' },
+  { key: 'firm', from: 31, label: 'Firm',
+    tone: 'Firm and businesslike. Ask for a payment date in writing and offer a call to sort out whatever is holding it. Still a client relationship.' },
+  { key: 'final', from: 61, label: 'Needs a conversation',
+    tone: 'Do not escalate further in writing. Ask for a call this week with whoever can authorise it, so it can be resolved properly. Never threaten anything that has not been agreed.' }
+];
+
+function _blgStageFor(days) {
+  var found = null;
+  for (var i = 0; i < _BLG_STAGES.length; i++) if (days >= _BLG_STAGES[i].from) found = _BLG_STAGES[i];
+  return found;   // null until a week before the due date — leave the school alone
+}
+
+/**
+ * Where an invoice stands. A void invoice is never chased, and a settled one
+ * reads paid whatever the status column says — the payments are the record and
+ * the column is a cache of them.
+ */
+function _blgState(inv, pays, today) {
+  var totals = _blgTotals(inv, pays);
+  var days = _blgDaysOverdue(inv.due_date, today);
+  if (inv.status === 'void') return { state: 'void', totals: totals, days: days, stage: null };
+  if (totals.settled) return { state: 'paid', totals: totals, days: days, stage: null };
+  var stage = _blgStageFor(days);
+  if (!stage) return { state: 'upcoming', totals: totals, days: days, stage: null };
+  return { state: days > 0 ? 'overdue' : 'due_soon', totals: totals, days: days, stage: stage };
+}
+
+// ── Invoice numbers ──────────────────────────────────────────────────────────
+/** Indian financial year containing a date: April 2026 → "2026-27". */
+function _blgFinYear(d) {
+  var s = (typeof d === 'string') ? d.slice(0, 10) : _blgToday(d);
+  var p = s.split('-');
+  var start = (+p[1] || 1) >= 4 ? +p[0] : +p[0] - 1;
+  return start + '-' + String((start + 1) % 100).padStart(2, '0');
+}
+
+/**
+ * Next number in the series, derived from the numbers already issued rather
+ * than from a count — a voided invoice must not hand its number to the next
+ * one, or two records share an identity in the books.
+ */
+function _blgNextInvoiceNo(existing, date) {
+  var series = 'HOL/' + _blgFinYear(date) + '/';
+  var highest = 0;
+  (existing || []).forEach(function(n) {
+    if (typeof n !== 'string' || n.indexOf(series) !== 0) return;
+    var v = parseInt(n.slice(series.length).replace(/\D/g, ''), 10);
+    if (isFinite(v) && v > highest) highest = v;
+  });
+  return series + String(highest + 1).padStart(4, '0');
+}
+
+// ── Enquiry cadence ──────────────────────────────────────────────────────────
+// An enquiry is chased on a cadence rather than a due date. A stage with no
+// entry here needs no chasing.
+var _BLG_ENQ_CADENCE = {
+  new:           { afterDays: 1, tone: 'First contact. Thank them for the enquiry, say briefly what the next step would be, and offer a call.' },
+  contacted:     { afterDays: 5, tone: 'They have heard from Holistify once. Offer a specific next step — a call with the lead auditor, or a visit.' },
+  proposal_sent: { afterDays: 7, tone: 'A proposal is with them. Check it reached the right people and ask whether anything needs clarifying. Do not re-state the price.' },
+  negotiating:   { afterDays: 4, tone: 'Terms are being discussed. Keep it moving: ask what is outstanding on their side and offer to get it answered.' }
+};
+
+/** Whether an enquiry is due a follow-up today, and why. */
+function _blgEnquiryDue(e, today) {
+  var cadence = _BLG_ENQ_CADENCE[e.stage];
+  if (!cadence) return null;                       // won or lost: leave it
+  // An explicit next_action_on is somebody's decision and outranks the cadence.
+  if (e.next_action_on) {
+    var d = _blgDaysBetween(e.next_action_on, today || new Date());
+    return { due: d >= 0, daysSince: d, tone: cadence.tone };
+  }
+  var last = String(e.updated_at || e.created_at || '').slice(0, 10);
+  if (!last) return null;
+  var since = _blgDaysBetween(last, today || new Date());
+  return { due: since >= cadence.afterDays, daysSince: since, tone: cadence.tone };
+}
+
+// ── Templates, always available ──────────────────────────────────────────────
+// No key, no function, no network. These are the floor, and the reason a
+// drafting failure costs the wording and not the follow-up.
+function _blgTemplate(it) {
+  var who = it.contact || 'Sir/Madam';
+  var what = it.service ? ' for ' + it.service : '';
+  var per = it.period ? ' (' + it.period + ')' : '';
+  if (it.daysOverdue <= 0) {
+    return 'Dear ' + who + ',\n\nThis is a courteous reminder that invoice ' + it.invoiceNo +
+      what + per + ', for ' + it.balanceText + ', falls due on ' + it.dueDateText +
+      '. Please let us know if your accounts team needs anything further from us.\n\nWith thanks,';
+  }
+  if (it.daysOverdue <= 30) {
+    return 'Dear ' + who + ',\n\nInvoice ' + it.invoiceNo + what + per + ', for ' + it.balanceText +
+      ', was due on ' + it.dueDateText + ' and is still showing as outstanding on our records. ' +
+      'Could you let us know when it is expected to be processed? We are happy to resend the ' +
+      'invoice or provide anything else your accounts team needs.\n\nWith thanks,';
+  }
+  return 'Dear ' + who + ',\n\nInvoice ' + it.invoiceNo + what + per + ', for ' + it.balanceText +
+    ', has been outstanding since ' + it.dueDateText + '. Could we arrange a short call this week ' +
+    'with whoever is able to authorise it, so we can resolve it properly between us?\n\nWith thanks,';
+}
+
+function _blgEnqTemplate(it) {
+  var who = it.contact || 'Sir/Madam';
+  var byStage = {
+    new: 'Thank you for your enquiry about a Holistify school audit. We would be glad to tell you ' +
+         'what the process involves and what it would look like for ' + it.school +
+         '. Would a short call suit you this week?',
+    contacted: 'Following up on your enquiry about a Holistify audit for ' + it.school +
+         '. Would you like us to arrange a call with the lead auditor, or a visit to the school?',
+    proposal_sent: 'Following up on the proposal we sent for ' + it.school +
+         '. Did it reach everyone who needs to see it, and is there anything you would like ' +
+         'clarified before you decide?',
+    negotiating: 'Following up on our discussions about the audit for ' + it.school +
+         '. Is there anything outstanding on your side that we can help get answered?'
+  };
+  return 'Dear ' + who + ',\n\n' +
+    (byStage[it.stage] || 'Following up on your enquiry about a Holistify audit for ' + it.school + '.') +
+    '\n\nWith best wishes,';
+}
+
+// ── Verification ─────────────────────────────────────────────────────────────
+// A reminder to a client school must not assert anything that has not been
+// agreed. If a draft reaches for any of this, the template is used instead and
+// the reason reported — the same banner-and-reason shape the rest of this app
+// uses rather than changing stored data or sent wording silently.
+var _BLG_FORBIDDEN = /\b(legal action|lawyer|solicitor|court|debt collect\w*|late (payment )?(fee|penalty|charge|interest)|interest will (be|accrue)|penalt(y|ies)|suspend\w* (your |their |the )?(access|account|service|audit)|withhold\w* (the |your )?(report|results?|certificate)|terminate\w* (the )?(contract|agreement|engagement))\b/i;
+
+/** Plain text for an email: no fences, no markdown emphasis, no runaway length. */
+function _blgTidy(s) {
+  return String(s == null ? '' : s)
+    .replace(/```[a-z]*\n?|```/gi, '')
+    .replace(/^\s*[#>]+\s*/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 2000);
+}
+
+/**
+ * null when the draft is usable, otherwise the reason it is not. `must` holds
+ * the figures exactly as computed, so a draft that re-rounds ₹1,20,000 or
+ * writes the due date its own way fails here rather than reaching a client.
+ */
+function _blgVerify(body, must) {
+  var text = _blgTidy(body);
+  if (text.length < 20) return 'the draft came back empty or too short';
+  if (_BLG_FORBIDDEN.test(text)) return 'the draft asserted something that has not been agreed with the school';
+  var norm = function(s) { return String(s).replace(/ /g, ' ').replace(/\s+/g, ' ').trim(); };
+  var hay = norm(text);
+  for (var i = 0; i < (must || []).length; i++) {
+    var need = norm(must[i]);
+    if (need && hay.indexOf(need) < 0) return 'the draft did not carry "' + must[i] + '" through unaltered';
+  }
+  return null;
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+var _blgInvoices = [];      // each with .payments and .state resolved
+var _blgEnquiries = [];
+var _blgOutbox = [];
+var _blgTab = 'queue';
+var _blgLoaded = false;
+var _blgRunReport = null;
+var _blgEdits = {};         // outbox id → edited body, before it is saved
+
+function _blgCanUse() {
+  var u = getCurrentUser();
+  return !!u && ['holistify_admin', 'holistify_member', 'super_admin'].indexOf(u.role) >= 0;
+}
+
+function _blgOrgSender() {
+  var u = getCurrentUser();
+  return u ? (u.name || u.id || '') : '';
+}
+
+// ── Loading ──────────────────────────────────────────────────────────────────
+function _blgLoad() {
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) return Promise.resolve(false);
+  return Promise.all([
+    sb.from('service_invoices').select('*, service_payments(id,amount,paid_on,method,reference,note)').order('due_date'),
+    sb.from('service_enquiries').select('*').order('created_at', { ascending: false }),
+    sb.from('followup_outbox').select('*').in('status', ['draft', 'approved']).order('created_at', { ascending: false })
+  ]).then(function(res) {
+    var today = _blgToday();
+    if (res[0].error) throw new Error(res[0].error.message);
+    _blgInvoices = (res[0].data || []).map(function(r) {
+      var pays = r.service_payments || [];
+      var st = _blgState(r, pays, today);
+      r.payments = pays;
+      r.state = st.state; r.totals = st.totals; r.days = st.days; r.stage = st.stage;
+      return r;
+    });
+    _blgEnquiries = (res[1].data || []).map(function(e) {
+      var d = _blgEnquiryDue(e, today);
+      e.due = d ? d.due : false;
+      e.daysSince = d ? d.daysSince : null;
+      return e;
+    });
+    _blgOutbox = res[2].data || [];
+    _blgLoaded = true;
+    return true;
+  });
+}
+
+/**
+ * The invoice status column is kept in step as a CACHE, for the partial index
+ * and a cheap "what is open" query. _blgState() ignores it except for `void`,
+ * so a stale value can never contradict the ledger.
+ */
+function _blgRefreshStatus(invoiceId) {
+  var sb = _sbClient();
+  if (!sb) return Promise.resolve();
+  var inv = _blgInvoices.find(function(i) { return i.id === invoiceId; });
+  if (!inv || inv.status === 'void') return Promise.resolve();
+  return sb.from('service_payments').select('amount').eq('invoice_id', invoiceId).then(function(res) {
+    var t = _blgTotals(inv, res.data || []);
+    return sb.from('service_invoices')
+      .update({ status: t.settled ? 'paid' : 'open', updated_at: new Date().toISOString() })
+      .eq('id', invoiceId);
+  });
+}
+
+// ── What is due ──────────────────────────────────────────────────────────────
+function _blgDueInvoices() {
+  return _blgInvoices.filter(function(i) {
+    return i.stage && i.totals.balance > 0 && i.status !== 'void';
+  }).map(function(i) {
+    return {
+      id: i.id,
+      school: _blgSchoolLabel(i),
+      contact: i.billing_name || '',
+      invoiceNo: i.invoice_no,
+      balanceText: _blgFmt(i.totals.balance),
+      dueDateText: _blgLongDate(i.due_date),
+      daysOverdue: i.days,
+      service: i.service || '',
+      period: i.period || '',
+      tone: i.stage.tone,
+      stageKey: i.stage.key,
+      email: i.billing_email || '',
+      phone: i.billing_phone || ''
+    };
+  });
+}
+
+function _blgDueEnquiries() {
+  return _blgEnquiries.filter(function(e) { return e.due; }).map(function(e) {
+    var c = _BLG_ENQ_CADENCE[e.stage];
+    return {
+      id: e.id,
+      school: e.school_name,
+      contact: e.contact_name || '',
+      stage: e.stage,
+      interest: e.interest || '',
+      quotedText: e.quoted_amount ? _blgFmt(_blgMoney(e.quoted_amount)) : '',
+      daysSince: e.daysSince,
+      tone: c ? c.tone : 'Follow up courteously and offer the next step.',
+      email: e.email || '',
+      phone: e.phone || ''
+    };
+  });
+}
+
+function _blgSchoolLabel(i) {
+  return i.school_name + (i.branch ? ', ' + i.branch + ' branch' : '');
+}
+
+// ── The run ──────────────────────────────────────────────────────────────────
+/**
+ * Works out who is due, drafts the wording, and queues it. It decides WHO is
+ * chased and WHAT is said; it never decides that a message goes out.
+ */
+function runBillingFollowUps() {
+  if (!_blgCanUse()) { toast('Only the Holistify team can run billing follow-ups.', 'error'); return; }
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) {
+    toast('Billing needs a Supabase session. Sign in again — a local-only sign-in cannot reach it.', 'error');
+    return;
+  }
+
+  var invoices = _blgDueInvoices();
+  var enquiries = _blgDueEnquiries();
+
+  // A pending draft already queued is not drafted again. Running this every
+  // morning for a week would otherwise leave seven identical unsent reminders
+  // for one school.
+  var held = {};
+  _blgOutbox.forEach(function(m) { held[(m.invoice_id || m.enquiry_id) + '|' + m.stage] = true; });
+
+  var invTodo = invoices.filter(function(x) { return x.email && !held[x.id + '|' + x.stageKey]; });
+  var enqTodo = enquiries.filter(function(x) { return x.email && !held[x.id + '|' + x.stage]; });
+  // No email address means nothing to send. Rather than queue an unsendable
+  // draft, these are reported so somebody can add the address.
+  var noEmail = invoices.filter(function(x) { return !x.email; })
+    .map(function(x) { return x.invoiceNo + ' — ' + x.school; })
+    .concat(enquiries.filter(function(x) { return !x.email; })
+      .map(function(x) { return x.school + ' — ' + (x.contact || 'no contact name'); }));
+
+  if (!invTodo.length && !enqTodo.length) {
+    _blgRunReport = { drafted: 0, fellBack: [], noEmail: noEmail,
+      alreadyQueued: invoices.length + enquiries.length - noEmail.length };
+    renderBillingPage();
+    toast(noEmail.length
+      ? 'Nothing new to draft. ' + noEmail.length + ' have no email address.'
+      : 'Nothing new to draft — everything due is already in the queue.');
+    return;
+  }
+
+  var btn = document.getElementById('blg-run-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Drafting…'; }
+
+  Promise.all([
+    invTodo.length ? _blgDraft('invoice', invTodo) : Promise.resolve({ drafts: [] }),
+    enqTodo.length ? _blgDraft('enquiry', enqTodo) : Promise.resolve({ drafts: [] })
+  ]).then(function(out) {
+    var fellBack = [];
+    var rows = [];
+
+    var build = function(kind, todo, drafted, mustFor, tmpl, subjFor) {
+      var byId = {};
+      (drafted.drafts || []).forEach(function(d) { byId[d.id] = d; });
+      todo.forEach(function(it) {
+        var d = byId[it.id];
+        var body = null, subject = null, by = 'template';
+        if (d) {
+          var problem = _blgVerify(d.message, mustFor(it));
+          if (problem) fellBack.push({ who: it.invoiceNo || it.school, reason: problem });
+          else { body = _blgTidy(d.message); subject = d.subject || subjFor(it); by = 'claude'; }
+        } else {
+          fellBack.push({ who: it.invoiceNo || it.school, reason: drafted.error || 'no draft came back for this one' });
+        }
+        if (!body) { body = tmpl(it); subject = subjFor(it); }
+        rows.push({
+          kind: kind === 'invoice' ? 'invoice_reminder' : 'enquiry_follow_up',
+          invoice_id: kind === 'invoice' ? it.id : null,
+          enquiry_id: kind === 'enquiry' ? it.id : null,
+          to_name: it.contact || null, to_email: it.email || null, to_phone: it.phone || null,
+          subject: subject, stage: kind === 'invoice' ? it.stageKey : it.stage,
+          body: body, status: 'draft', drafted_by: by
+        });
+      });
+    };
+
+    build('invoice', invTodo, out[0],
+      function(it) { return [it.balanceText, it.dueDateText, it.invoiceNo]; },
+      _blgTemplate,
+      function(it) { return 'Invoice ' + it.invoiceNo + ' — ' + it.school; });
+
+    // An enquiry follow-up quotes no figure unless one was given, so there is
+    // nothing to hold it to beyond the language check.
+    build('enquiry', enqTodo, out[1],
+      function(it) { return it.quotedText ? [it.quotedText] : []; },
+      _blgEnqTemplate,
+      function(it) { return 'Holistify audit — ' + it.school; });
+
+    if (!rows.length) return { data: [] };
+    return sb.from('followup_outbox').insert(rows).select('id').then(function(res) {
+      if (res.error) throw new Error(res.error.message);
+      _blgRunReport = { drafted: (res.data || []).length, fellBack: fellBack, noEmail: noEmail, alreadyQueued: 0 };
+      return res;
+    });
+  }).then(function() {
+    return _blgLoad();
+  }).then(function() {
+    renderBillingPage();
+    var n = _blgRunReport ? _blgRunReport.drafted : 0;
+    toast(n + ' message' + (n === 1 ? '' : 's') + ' drafted — review them before anything is sent.', 'success');
+  }).catch(function(e) {
+    toast('The follow-up run failed: ' + (e && e.message ? e.message : e), 'error');
+  }).then(function() {
+    var b = document.getElementById('blg-run-btn');
+    if (b) { b.disabled = false; b.textContent = '✎ Draft follow-ups'; }
+  });
+}
+
+/**
+ * Calls the billing-followups edge function. A failure here is not a failure
+ * of the run: it resolves with an error note, every item falls back to its
+ * template, and the report says why.
+ */
+function _blgDraft(kind, items) {
+  var sb = _sbClient();
+  if (!sb) return Promise.resolve({ drafts: [], error: 'no Supabase client' });
+  return sb.functions.invoke('billing-followups', {
+    body: { kind: kind, org: 'Holistify', sender: _blgOrgSender(), items: items }
+  }).then(function(res) {
+    if (res.error) {
+      // The function answers 503 with the remedy named when no key is set, and
+      // 403 when the caller is not Holistify team. Carry the text through.
+      var msg = (res.data && res.data.error) || (res.error.message || 'the drafting function returned an error');
+      return { drafts: [], error: msg };
+    }
+    return res.data || { drafts: [] };
+  }).catch(function(e) {
+    return { drafts: [], error: e && e.message ? e.message : 'the drafting function could not be reached' };
+  });
+}
+
+// ── Channels ─────────────────────────────────────────────────────────────────
+// There is no server here, so a message is always sent by a person. Both links
+// prefill and neither sends.
+function _blgMailto(email, subject, body) {
+  if (!email) return null;
+  return 'mailto:' + encodeURIComponent(email) +
+    '?subject=' + encodeURIComponent(subject || '') +
+    '&body=' + encodeURIComponent(body || '');
+}
+
+/** Digits only, country code included, no plus — or null rather than a guess. */
+function _blgPhone(raw) {
+  if (!raw) return null;
+  var d = String(raw).replace(/[^\d+]/g, '');
+  if (d.indexOf('+') === 0) d = d.slice(1);
+  else if (d.indexOf('00') === 0) d = d.slice(2);
+  else if (d.indexOf('0') === 0) d = '91' + d.replace(/^0+/, '');
+  else if (d.length <= 10) d = '91' + d;
+  return (d.length >= 8 && d.length <= 15) ? d : null;
+}
+
+function _blgWaLink(phone, body) {
+  var p = _blgPhone(phone);
+  return p ? 'https://wa.me/' + p + '?text=' + encodeURIComponent(body || '') : null;
+}
+
+// ── Outbox actions ───────────────────────────────────────────────────────────
+function _blgOutboxAct(id, action, via) {
+  var sb = _sbClient();
+  if (!sb) return;
+  var msg = _blgOutbox.find(function(m) { return m.id === id; });
+  if (!msg) return;
+  var u = getCurrentUser();
+  var by = u ? (u.name || u.id) : null;
+  var patch = null;
+
+  if (action === 'edit') {
+    var body = _blgTidy(_blgEdits[id] || '');
+    if (body.length < 20) { toast('That message is too short to send.', 'error'); return; }
+    // An edited message loses its approval: somebody approved the old wording.
+    patch = { body: body, status: 'draft', approved_by: null, drafted_by: 'human' };
+  } else if (action === 'approve') {
+    patch = { status: 'approved', approved_by: by };
+  } else if (action === 'skip') {
+    patch = { status: 'skipped', approved_by: by };
+  } else if (action === 'sent') {
+    if (msg.status !== 'approved') { toast('Approve the message first — nothing is marked sent from a draft.', 'warn'); return; }
+    patch = { status: 'sent', sent_at: new Date().toISOString(), sent_via: via || 'email' };
+  } else return;
+
+  sb.from('followup_outbox').update(patch).eq('id', id).then(function(res) {
+    if (res.error) { toast('Could not update that message: ' + res.error.message, 'error'); return; }
+    delete _blgEdits[id];
+    // A sent enquiry follow-up restarts that enquiry's clock. Without this the
+    // cadence sees the same stale updated_at tomorrow and drafts it again.
+    var after = (action === 'sent' && msg.enquiry_id)
+      ? sb.from('service_enquiry_events').insert({
+            enquiry_id: msg.enquiry_id, kind: 'message_sent',
+            detail: String(msg.body).slice(0, 500), created_by: by
+          }).then(function() {
+            return sb.from('service_enquiries')
+              .update({ updated_at: new Date().toISOString(), next_action_on: null })
+              .eq('id', msg.enquiry_id);
+          })
+      : Promise.resolve();
+    return after.then(_blgLoad).then(function() {
+      renderBillingPage();
+      if (action === 'approve') toast('Approved — ready to send.', 'success');
+      if (action === 'sent') toast('Recorded as sent.', 'success');
+      if (action === 'skip') toast('Skipped. It will not be sent.');
+      if (action === 'edit') toast('Wording saved. Approve it when you are happy.', 'success');
+    });
+  });
+}
+
+function _blgOutboxDelete(id) {
+  var sb = _sbClient();
+  if (!sb) return;
+  if (!confirm('Delete this draft? It has not been sent, so nothing is lost but the wording.')) return;
+  sb.from('followup_outbox').delete().eq('id', id).then(function(res) {
+    if (res.error) { toast('Could not delete it: ' + res.error.message, 'error'); return; }
+    _blgLoad().then(function() { renderBillingPage(); toast('Draft removed.'); });
+  });
+}
+
+function _blgEdit(id, v) { _blgEdits[id] = v; }
+
+// ── Invoices ─────────────────────────────────────────────────────────────────
+function openInvoiceModal(id) {
+  if (!_blgCanUse()) { toast('Only the Holistify team can raise invoices.', 'error'); return; }
+  var sel = document.getElementById('iv-school');
+  if (sel) {
+    // The registry is the client list, so an invoice is raised against a school
+    // already on it rather than a name typed afresh each time.
+    sel.innerHTML = '<option value="">— choose a school —</option>' +
+      schoolRegistry.map(function(s) {
+        return '<option value="' + _escHtml(s.id) + '">' + _escHtml(s.name) + '</option>';
+      }).join('');
+  }
+  var inv = id ? _blgInvoices.find(function(i) { return i.id === id; }) : null;
+  var set = function(elId, v) { var el = document.getElementById(elId); if (el) el.value = v == null ? '' : v; };
+  set('iv-id', inv ? inv.id : '');
+  set('iv-school', inv ? (inv.school_id || '') : '');
+  set('iv-branch', inv ? inv.branch : '');
+  set('iv-service', inv ? inv.service : 'School Audit');
+  set('iv-period', inv ? inv.period : '');
+  set('iv-amount', inv ? inv.amount : '');
+  set('iv-discount', inv ? inv.discount : '');
+  set('iv-tax', inv ? inv.tax_pct : '');
+  set('iv-due', inv ? String(inv.due_date).slice(0, 10) : '');
+  set('iv-po', inv ? inv.po_ref : '');
+  set('iv-bname', inv ? inv.billing_name : '');
+  set('iv-bemail', inv ? inv.billing_email : '');
+  set('iv-bphone', inv ? inv.billing_phone : '');
+  set('iv-notes', inv ? inv.notes : '');
+  var t = document.getElementById('iv-modal-title');
+  if (t) t.textContent = inv ? ('Edit ' + inv.invoice_no) : 'Raise an invoice';
+  var ov = document.getElementById('invoice-modal');
+  if (ov) ov.classList.add('open');
+  if (!inv) _blgPrefillBilling();
+}
+
+function closeInvoiceModal() {
+  var ov = document.getElementById('invoice-modal');
+  if (ov) ov.classList.remove('open');
+}
+
+/** Choosing a school fills its billing contact, so it is typed once per client. */
+function _blgPrefillBilling() {
+  var sel = document.getElementById('iv-school');
+  if (!sel || !sel.value) return;
+  var s = schoolRegistry.find(function(x) { return x.id === sel.value; });
+  if (!s) return;
+  var fill = function(elId, v) {
+    var el = document.getElementById(elId);
+    if (el && !el.value && v) el.value = v;        // never overwrite what was typed
+  };
+  fill('iv-bname', s.billing_name || s.principal || '');
+  fill('iv-bemail', s.billing_email || s.email || '');
+  fill('iv-bphone', s.billing_phone || '');
+}
+
+function saveInvoice() {
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) { toast('Billing needs a Supabase session.', 'error'); return; }
+  var val = function(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+
+  var schoolId = val('iv-school');
+  var school = schoolRegistry.find(function(x) { return x.id === schoolId; });
+  var amount = _blgMoney(val('iv-amount'));
+  var due = val('iv-due').slice(0, 10);
+
+  if (!school) { toast('Choose the school this invoice is for.', 'error'); return; }
+  if (amount <= 0) { toast('The amount must be more than zero.', 'error'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { toast('A due date is required.', 'error'); return; }
+
+  var u = getCurrentUser();
+  var row = {
+    school_id: school.id,
+    // The registry name is the joined one (schoolKey() derives from it), so the
+    // invoice stores the school and its campus separately — as the reports
+    // print them — rather than billing "Shaheen School \u2014 Golekhana".
+    school_name: splitBranch(school.name).school || school.name,
+    branch: val('iv-branch') || splitBranch(school.name).branch || null,
+    billing_name: val('iv-bname') || null,
+    billing_email: val('iv-bemail') || null,
+    billing_phone: val('iv-bphone') || null,
+    service: val('iv-service') || null,
+    period: val('iv-period') || null,
+    amount: amount,
+    discount: _blgMoney(val('iv-discount')),
+    tax_pct: _blgMoney(val('iv-tax')),
+    due_date: due,
+    po_ref: val('iv-po') || null,
+    notes: val('iv-notes') || null,
+    updated_at: new Date().toISOString()
+  };
+
+  var existingId = val('iv-id');
+  var p;
+  if (existingId) {
+    p = sb.from('service_invoices').update(row).eq('id', existingId);
+  } else {
+    row.invoice_no = _blgNextInvoiceNo(_blgInvoices.map(function(i) { return i.invoice_no; }), due);
+    row.issued_on = _blgToday();
+    row.created_by = u ? (u.name || u.id) : null;
+    p = sb.from('service_invoices').insert(row);
+  }
+
+  p.then(function(res) {
+    if (res.error) { toast('Could not save the invoice: ' + res.error.message, 'error'); return; }
+    // The billing contact is usually first typed here, so it is written back to
+    // the school registry and typed once per client rather than once per
+    // invoice.
+    var reg = {};
+    if (row.billing_name) reg.billing_name = row.billing_name;
+    if (row.billing_email) reg.billing_email = row.billing_email;
+    if (row.billing_phone) reg.billing_phone = row.billing_phone;
+    var back = Object.keys(reg).length
+      ? sb.from('schools').update(reg).eq('id', school.id)
+      : Promise.resolve();
+    return back.then(function() {
+      closeInvoiceModal();
+      return _blgLoad();
+    }).then(function() {
+      renderBillingPage();
+      toast(existingId ? 'Invoice updated.' : 'Invoice ' + row.invoice_no + ' raised.', 'success');
+    });
+  });
+}
+
+function voidInvoice(id) {
+  var sb = _sbClient();
+  var inv = _blgInvoices.find(function(i) { return i.id === id; });
+  if (!sb || !inv) return;
+  if (!confirm('Void ' + inv.invoice_no + '?\n\nIt stays on the record and stops being chased. ' +
+               'This is what to do instead of deleting an invoice that has been issued.')) return;
+  sb.from('service_invoices').update({ status: 'void', updated_at: new Date().toISOString() })
+    .eq('id', id).then(function(res) {
+      if (res.error) { toast('Could not void it: ' + res.error.message, 'error'); return; }
+      _blgLoad().then(function() { renderBillingPage(); toast(inv.invoice_no + ' voided.'); });
+    });
+}
+
+function recordServicePayment(id) {
+  var sb = _sbClient();
+  var inv = _blgInvoices.find(function(i) { return i.id === id; });
+  if (!sb || !inv) return;
+  var raw = prompt('Payment received against ' + inv.invoice_no + '\n' +
+    _blgFmt(inv.totals.balance) + ' outstanding of ' + _blgFmt(inv.totals.net) +
+    '\n\nAmount received:', String(inv.totals.balance));
+  if (raw === null) return;
+  var amount = _blgMoney(raw);
+  if (amount <= 0) { toast('That is not an amount.', 'error'); return; }
+
+  // An overpayment is allowed but reported, so a transposed figure
+  // (₹1,50,000 keyed for ₹15,000) is visible when it is entered rather than
+  // discovered when a refund is asked for.
+  var over = _blgRound2(Math.max(0, amount - inv.totals.balance));
+  var method = prompt('How was it paid? (neft / upi / cheque / cash / card)', 'neft') || '';
+  var ref = prompt('Reference — UTR or cheque number (optional):', '') || '';
+  var u = getCurrentUser();
+
+  sb.from('service_payments').insert({
+    invoice_id: id, amount: amount, paid_on: _blgToday(),
+    method: method.trim().toLowerCase() || null, reference: ref.trim() || null,
+    recorded_by: u ? (u.name || u.id) : null
+  }).then(function(res) {
+    if (res.error) { toast('Could not record it: ' + res.error.message, 'error'); return; }
+    return _blgRefreshStatus(id).then(_blgLoad).then(function() {
+      renderBillingPage();
+      if (over > 0) toast('Recorded — but that is ' + _blgFmt(over) + ' more than was outstanding. Check the figure.', 'warn');
+      else toast('Payment recorded.', 'success');
+    });
+  });
+}
+
+// ── Enquiries ────────────────────────────────────────────────────────────────
+function openEnquiryModal() {
+  if (!_blgCanUse()) { toast('Only the Holistify team can log enquiries.', 'error'); return; }
+  ['eq-school','eq-city','eq-board','eq-contact','eq-designation','eq-email','eq-phone','eq-quoted','eq-notes']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  var ov = document.getElementById('enquiry-modal');
+  if (ov) ov.classList.add('open');
+}
+
+function closeEnquiryModal() {
+  var ov = document.getElementById('enquiry-modal');
+  if (ov) ov.classList.remove('open');
+}
+
+function saveEnquiry() {
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) { toast('Billing needs a Supabase session.', 'error'); return; }
+  var val = function(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+
+  var school = val('eq-school');
+  var contact = val('eq-contact');
+  var email = val('eq-email');
+  var phone = val('eq-phone');
+  if (!school) { toast('The school name is required.', 'error'); return; }
+  if (!contact) { toast('A contact name is required.', 'error'); return; }
+  if (!email && !phone) { toast('An email address or a phone number is required — there is no way to follow up without one.', 'error'); return; }
+
+  var u = getCurrentUser();
+  sb.from('service_enquiries').insert({
+    school_name: school, city: val('eq-city') || null, board: val('eq-board') || null,
+    contact_name: contact, designation: val('eq-designation') || null,
+    email: email || null, phone: phone || null,
+    interest: val('eq-interest') || null, source: val('eq-source') || null,
+    quoted_amount: val('eq-quoted') ? _blgMoney(val('eq-quoted')) : null,
+    notes: val('eq-notes') || null,
+    owner: u ? (u.name || u.id) : null
+  }).select('id').then(function(res) {
+    if (res.error) { toast('Could not log it: ' + res.error.message, 'error'); return; }
+    var id = res.data && res.data[0] && res.data[0].id;
+    var ev = id ? sb.from('service_enquiry_events').insert({
+      enquiry_id: id, kind: 'note',
+      detail: 'Enquiry logged' + (val('eq-source') ? ' (' + val('eq-source') + ')' : ''),
+      created_by: u ? (u.name || u.id) : null
+    }) : Promise.resolve();
+    return ev.then(function() {
+      closeEnquiryModal();
+      return _blgLoad();
+    }).then(function() {
+      renderBillingPage();
+      toast('Enquiry logged. The first follow-up falls due tomorrow.', 'success');
+    });
+  });
+}
+
+function setEnquiryStage(id, stage) {
+  var sb = _sbClient();
+  var e = _blgEnquiries.find(function(x) { return x.id === id; });
+  if (!sb || !e || e.stage === stage) return;
+  var u = getCurrentUser();
+  var by = u ? (u.name || u.id) : null;
+  var lost = null;
+  if (stage === 'lost') {
+    lost = prompt('Why was it lost? This is worth recording while it is fresh.', '');
+    if (lost === null) { renderBillingPage(); return; }
+  }
+  sb.from('service_enquiries').update({
+    stage: stage, lost_reason: lost || null,
+    // Moving an enquiry on clears a next-action date set for the old stage; the
+    // new stage's cadence decides when it is next due.
+    next_action_on: null, updated_at: new Date().toISOString()
+  }).eq('id', id).then(function(res) {
+    if (res.error) { toast('Could not move it: ' + res.error.message, 'error'); return; }
+    return sb.from('service_enquiry_events').insert({
+      enquiry_id: id, kind: 'stage_change', detail: e.stage + ' → ' + stage, created_by: by
+    }).then(_blgLoad).then(function() {
+      renderBillingPage();
+      toast('Moved to ' + _BLG_STAGE_LABEL[stage] + '.', 'success');
+    });
+  });
+}
+
+var _BLG_STAGE_LABEL = {
+  new: 'New', contacted: 'Contacted', proposal_sent: 'Proposal sent',
+  negotiating: 'Negotiating', won: 'Won', lost: 'Lost'
+};
+var _BLG_PIPELINE = ['new', 'contacted', 'proposal_sent', 'negotiating', 'won', 'lost'];
+
+// ── The printed invoice ──────────────────────────────────────────────────────
+// Through _rptOpen(), as every other document here is: the browser's
+// Print → Save as PDF produces the file, the text stays real and selectable,
+// and the repo keeps its no-dependency promise.
+function openInvoiceDocument(id) {
+  var inv = _blgInvoices.find(function(i) { return i.id === id; });
+  if (!inv) return;
+  var t = inv.totals;
+  var e = _escHtml;
+
+  var row = function(k, v, strong) {
+    return '<tr><td style="border:0;text-align:right;padding-right:4mm">' +
+      (strong ? '<strong>' + e(k) + '</strong>' : e(k)) + '</td>' +
+      '<td style="border:0;text-align:right;width:40mm">' +
+      (strong ? '<strong>' + e(v) + '</strong>' : e(v)) + '</td></tr>';
+  };
+
+  var h = '<div class="sheet">';
+  h += '<h1>Invoice</h1>';
+  h += '<div class="lede">Holistify' + (inv.status === 'void' ?
+        ' &middot; <span style="color:#B03A2E"><strong>VOID</strong></span>' : '') + '</div>';
+
+  h += '<table><tr>' +
+       '<th style="width:50%">Billed to</th><th>Invoice</th></tr><tr>' +
+       '<td>' + '<strong>' + e(_blgSchoolLabel(inv)) + '</strong>' +
+         (inv.billing_name ? '<br>' + e(inv.billing_name) : '') +
+         (inv.billing_email ? '<br>' + e(inv.billing_email) : '') +
+         (inv.billing_phone ? '<br>' + e(inv.billing_phone) : '') +
+       '</td>' +
+       '<td>' + '<strong>' + e(inv.invoice_no) + '</strong>' +
+         '<br>Issued: ' + e(_blgLongDate(inv.issued_on)) +
+         '<br>Due: ' + e(_blgLongDate(inv.due_date)) +
+         (inv.po_ref ? '<br>Your reference: ' + e(inv.po_ref) : '') +
+       '</td></tr></table>';
+
+  h += '<table><tr><th>Service</th><th style="width:40mm;text-align:right">Amount</th></tr>' +
+       '<tr><td>' + e(inv.service || 'Professional services') +
+         (inv.period ? '<br><span class="small">' + e(inv.period) + '</span>' : '') +
+         (inv.description ? '<br><span class="small">' + e(inv.description) + '</span>' : '') +
+       '</td><td style="text-align:right">' + e(_blgFmt(t.gross)) + '</td></tr></table>';
+
+  h += '<table style="margin-top:-2mm">';
+  if (t.discount > 0) {
+    h += row('Subtotal', _blgFmt(t.gross));
+    h += row('Discount', '− ' + _blgFmt(t.discount));
+    h += row('Taxable value', _blgFmt(t.taxable));
+  }
+  if (t.taxPct > 0) h += row('Tax @ ' + t.taxPct + '%', _blgFmt(t.tax));
+  h += row('Total', _blgFmt(t.net), true);
+  if (t.paid > 0) h += row('Received', '− ' + _blgFmt(t.paid));
+  h += row('Balance due', _blgFmt(t.balance), true);
+  if (t.overpaid > 0) h += row('Overpaid', _blgFmt(t.overpaid));
+  h += '</table>';
+
+  // The payments are listed, so the invoice is also the receipt — a school
+  // saying "but we paid in April" can see it on the same page as the balance.
+  if ((inv.payments || []).length) {
+    h += '<h2>Payments received</h2><table><tr><th>Date</th><th>Method</th>' +
+         '<th>Reference</th><th style="text-align:right">Amount</th></tr>';
+    inv.payments.slice().sort(function(a, b) {
+      return String(a.paid_on).localeCompare(String(b.paid_on));
+    }).forEach(function(p) {
+      h += '<tr><td>' + e(_blgLongDate(p.paid_on)) + '</td><td>' + e(p.method || '—') +
+           '</td><td>' + e(p.reference || '—') + '</td>' +
+           '<td style="text-align:right">' + e(_blgFmt(_blgMoney(p.amount))) + '</td></tr>';
+    });
+    h += '</table>';
+  }
+
+  if (inv.status !== 'void' && t.balance > 0 && inv.days > 0) {
+    h += '<div class="note">This invoice is ' + inv.days + ' day' + (inv.days === 1 ? '' : 's') +
+         ' past its due date.</div>';
+  }
+  if (inv.notes) h += '<div class="small" style="margin-top:4mm">' + e(inv.notes) + '</div>';
+
+  h += '<div class="foot">Holistify &middot; ' + e(inv.invoice_no) + '</div></div>';
+
+  _rptOpen('Invoice ' + inv.invoice_no + ' — ' + _blgSchoolLabel(inv), h, false,
+           'Holistify &middot; Invoice ' + inv.invoice_no);
+}
+
+// ── CSV ──────────────────────────────────────────────────────────────────────
+// Through the shared helpers, like every other export here — a school name with
+// a comma in it must round-trip exactly.
+function exportInvoicesCsv() {
+  if (!_blgInvoices.length) { toast('No invoices to export.', 'warn'); return; }
+  var rows = _blgInvoices.map(function(i) {
+    return {
+      'Invoice': i.invoice_no,
+      'School': i.school_name,
+      'Branch': i.branch || '',
+      'Service': i.service || '',
+      'Period': i.period || '',
+      'Issued': i.issued_on || '',
+      'Due': i.due_date,
+      'Amount': i.totals.gross,
+      'Discount': i.totals.discount,
+      'Tax %': i.totals.taxPct,
+      'Tax': i.totals.tax,
+      'Total': i.totals.net,
+      'Received': i.totals.paid,
+      'Balance': i.totals.balance,
+      'Status': i.state,
+      'Days overdue': i.days > 0 ? i.days : '',
+      'Stage': i.stage ? i.stage.label : '',
+      'Billing contact': i.billing_name || '',
+      'Billing email': i.billing_email || '',
+      'PO reference': i.po_ref || ''
+    };
+  });
+  _downloadCsv('holistify-invoices-' + _blgToday() + '.csv', _csvRows(rows));
+}
+
+function exportEnquiriesCsv() {
+  if (!_blgEnquiries.length) { toast('No enquiries to export.', 'warn'); return; }
+  var rows = _blgEnquiries.map(function(e) {
+    return {
+      'School': e.school_name, 'City': e.city || '', 'Board': e.board || '',
+      'Contact': e.contact_name, 'Designation': e.designation || '',
+      'Email': e.email || '', 'Phone': e.phone || '',
+      'Interest': e.interest || '', 'Source': e.source || '',
+      'Stage': _BLG_STAGE_LABEL[e.stage] || e.stage,
+      'Quoted': e.quoted_amount ? _blgMoney(e.quoted_amount) : '',
+      'Days since contact': e.daysSince == null ? '' : e.daysSince,
+      'Follow up due': e.due ? 'yes' : '',
+      'Owner': e.owner || '', 'Lost reason': e.lost_reason || ''
+    };
+  });
+  _downloadCsv('holistify-enquiries-' + _blgToday() + '.csv', _csvRows(rows));
+}
+
+// ── The page ─────────────────────────────────────────────────────────────────
+// Rendered into #sp-content by openSectionPage('billing'), so it sits on the
+// existing full-screen section page (z-index 8500, above the hub) rather than
+// in a modal — billing is a workspace, not a dialog.
+
+var _BLG_STATE_CHIP = {
+  paid:     { bg: '#EDF9F4', fg: '#1B5C30', label: 'Paid' },
+  overdue:  { bg: '#FDECE6', fg: '#B03A2E', label: 'Overdue' },
+  due_soon: { bg: '#FDF5E6', fg: '#8A5A00', label: 'Due soon' },
+  upcoming: { bg: '#F1F0EC', fg: '#8A7F6E', label: 'Upcoming' },
+  void:     { bg: '#F1F0EC', fg: '#8A7F6E', label: 'Void' }
+};
+
+function _blgChip(bg, fg, text, dashed) {
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:100px;background:' + bg +
+    ';color:' + fg + ';font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;' +
+    'border:' + (dashed ? '1px dashed ' + fg : '1px solid transparent') + '">' + _escHtml(text) + '</span>';
+}
+
+function openBillingPage() {
+  openSectionPage('billing');
+}
+
+function setBillingTab(t) {
+  _blgTab = t;
+  renderBillingPage();
+}
+
+function renderBillingPage() {
+  var el = document.getElementById('sp-content');
+  if (!el) return;
+
+  if (!_blgCanUse()) {
+    el.innerHTML = '<div class="stat-detail-empty">Billing is for the Holistify team. ' +
+      'Your account does not have access to it.</div>';
+    return;
+  }
+
+  var sb = _sbClient();
+  if (!sb || !_authSessionActive) {
+    // This is the state the User Management panel calls "local session", and it
+    // is easy to land in: authSignIn() falls back to localStorage silently, so
+    // an admin whose local password differs from their Supabase one is signed
+    // in with no session. Billing is Supabase-only, so say so and say what to
+    // do rather than rendering an empty page that reads as "no invoices".
+    el.innerHTML = '<div class="stat-detail-empty">' +
+      '<div style="font-size:15px;margin-bottom:8px">Billing needs a Supabase session</div>' +
+      '<div style="font-size:12px;line-height:1.6;max-width:520px;margin:0 auto">' +
+      'You are signed in through the local fallback, which cannot reach the billing tables — ' +
+      'and unlike the audit, billing keeps no local copy, deliberately: a list of what every ' +
+      'client school owes should not sit in a browser. Sign out and sign in again with your ' +
+      'Supabase password.</div></div>';
+    return;
+  }
+
+  if (!_blgLoaded) {
+    el.innerHTML = '<div class="stat-detail-empty">Loading billing…</div>';
+    _blgLoad().then(function(ok) {
+      if (ok) renderBillingPage();
+    }).catch(function(e) {
+      var t = document.getElementById('sp-content');
+      if (t) t.innerHTML = '<div class="stat-detail-empty">Could not load billing: ' +
+        _escHtml(e && e.message ? e.message : String(e)) +
+        '<div style="font-size:11px;margin-top:10px">If this says the table does not exist, ' +
+        'run <strong>supabase_billing.sql</strong> in the Supabase SQL editor.</div></div>';
+    });
+    return;
+  }
+
+  var outstanding = _blgInvoices.filter(function(i) {
+    return i.state !== 'void' && i.state !== 'paid';
+  }).reduce(function(s, i) { return s + i.totals.balance; }, 0);
+  var collected = _blgInvoices.reduce(function(s, i) { return s + i.totals.paid; }, 0);
+  var overdueN = _blgInvoices.filter(function(i) { return i.state === 'overdue'; }).length;
+  var dueN = _blgDueInvoices().length + _blgDueEnquiries().length;
+
+  var h = '';
+
+  // Summary
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">';
+  [
+    ['Outstanding', _blgFmt(outstanding), '#B03A2E'],
+    ['Overdue invoices', String(overdueN), '#8A5A00'],
+    ['Collected', _blgFmt(collected), '#1B5C30'],
+    ['Follow-ups due', String(dueN), '#2B5FAD'],
+    ['Awaiting approval', String(_blgOutbox.length), '#4A2D6E']
+  ].forEach(function(s) {
+    h += '<div style="background:#fff;border:0.5px solid #E4DDD2;border-radius:12px;padding:14px 16px;border-top:3px solid ' + s[2] + '">' +
+      '<div style="font-size:18px;font-weight:600;color:' + s[2] + '">' + _escHtml(s[1]) + '</div>' +
+      '<div style="font-size:10px;font-weight:600;color:#8A7F6E;text-transform:uppercase;letter-spacing:0.5px;margin-top:3px">' +
+      _escHtml(s[0]) + '</div></div>';
+  });
+  h += '</div>';
+
+  // Tabs
+  h += '<div style="display:flex;gap:4px;margin-bottom:18px;background:#fff;border:0.5px solid #E4DDD2;border-radius:10px;padding:4px;flex-wrap:wrap">';
+  [
+    ['queue', '✎ Follow-ups' + (_blgOutbox.length ? ' (' + _blgOutbox.length + ')' : '')],
+    ['invoices', '\u{1F9FE} Invoices'],
+    ['enquiries', '\u{1F4DE} Enquiries']
+  ].forEach(function(t) {
+    var on = _blgTab === t[0];
+    h += '<button onclick="setBillingTab(\'' + t[0] + '\')" style="flex-shrink:0;padding:8px 14px;' +
+      'border-radius:100px;border:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;' +
+      'background:' + (on ? '#1A3028' : 'transparent') + ';color:' + (on ? '#fff' : '#8A7F6E') + '">' +
+      t[1] + '</button>';
+  });
+  h += '</div>';
+
+  if (_blgTab === 'queue') h += _blgQueueHtml();
+  else if (_blgTab === 'invoices') h += _blgInvoicesHtml();
+  else h += _blgEnquiriesHtml();
+
+  el.innerHTML = h;
+}
+
+// ── Follow-up queue ──────────────────────────────────────────────────────────
+function _blgQueueHtml() {
+  var dueInv = _blgDueInvoices();
+  var dueEnq = _blgDueEnquiries();
+  var noEmail = dueInv.filter(function(x) { return !x.email; }).length +
+                dueEnq.filter(function(x) { return !x.email; }).length;
+
+  var h = '<div style="background:#fff;border:0.5px solid #E4DDD2;border-radius:12px;padding:16px;margin-bottom:16px">';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">';
+  h += '<div><div style="font-size:14px;font-weight:600;color:#1A3028">' +
+       (dueInv.length + dueEnq.length) + ' follow-up' + (dueInv.length + dueEnq.length === 1 ? '' : 's') +
+       ' due today</div>' +
+       '<div style="font-size:11px;color:#8A7F6E;margin-top:3px">' +
+       dueInv.length + ' invoice reminder' + (dueInv.length === 1 ? '' : 's') + ' · ' +
+       dueEnq.length + ' enquir' + (dueEnq.length === 1 ? 'y' : 'ies') + '</div></div>';
+  h += '<button class="btn btn-p" id="blg-run-btn" onclick="runBillingFollowUps()" style="height:34px">✎ Draft follow-ups</button>';
+  h += '</div>';
+
+  if (noEmail) {
+    h += '<div style="margin-top:12px;padding:9px 12px;border-radius:8px;background:#FDF5E6;' +
+      'border:0.5px solid #E8D9B0;font-size:11px;color:#8A5A00">' + noEmail +
+      ' of these have no billing email address, so nothing can be drafted for them. ' +
+      'Add one on the invoice or the enquiry.</div>';
+  }
+  h += '<div style="margin-top:10px;font-size:10px;color:#8A7F6E;line-height:1.5">' +
+    'Drafting runs in the <strong>billing-followups</strong> edge function, because the API key ' +
+    'cannot live in a page that is served to the public. Without the key the wording comes from ' +
+    'the plain templates instead — the figures are the same either way.</div>';
+  h += '</div>';
+
+  // Where a draft was discarded, the reason is given rather than the swap being
+  // silent — the same shape as the repair banners elsewhere in this app.
+  if (_blgRunReport && _blgRunReport.fellBack && _blgRunReport.fellBack.length) {
+    h += '<div style="background:#FDF5E6;border:0.5px solid #E8D9B0;border-left:3px solid #D4860B;' +
+      'border-radius:12px;padding:14px;margin-bottom:16px">' +
+      '<div style="font-size:12px;font-weight:600;color:#8A5A00">' +
+      _blgRunReport.fellBack.length + ' draft' + (_blgRunReport.fellBack.length === 1 ? '' : 's') +
+      ' used the plain template instead</div>' +
+      '<div style="font-size:11px;color:#8A7F6E;margin:4px 0 8px">The wording is simpler; the ' +
+      'figures are identical. These are safe to send.</div><ul style="margin:0 0 0 18px;font-size:11px;color:#4A4A4A">';
+    _blgRunReport.fellBack.forEach(function(x) {
+      h += '<li style="margin-bottom:2px"><strong>' + _escHtml(x.who) + '</strong> — ' + _escHtml(x.reason) + '</li>';
+    });
+    h += '</ul></div>';
+  }
+
+  if (!_blgOutbox.length) {
+    return h + '<div class="stat-detail-empty">Nothing waiting for approval. Press ' +
+      '<strong>Draft follow-ups</strong> to work out who is due and write the messages.</div>';
+  }
+
+  _blgOutbox.forEach(function(m) {
+    var isInv = m.kind === 'invoice_reminder';
+    var inv = isInv ? _blgInvoices.find(function(i) { return i.id === m.invoice_id; }) : null;
+    var enq = !isInv ? _blgEnquiries.find(function(e) { return e.id === m.enquiry_id; }) : null;
+    var who = inv ? (inv.invoice_no + ' · ' + _blgSchoolLabel(inv))
+                  : (enq ? enq.school_name : (m.to_name || '—'));
+    var body = _blgEdits[m.id] != null ? _blgEdits[m.id] : m.body;
+    var dirty = _blgEdits[m.id] != null && _blgEdits[m.id] !== m.body;
+    var approved = m.status === 'approved';
+    var mail = _blgMailto(m.to_email, m.subject, body);
+    var wa = _blgWaLink(m.to_phone, body);
+
+    h += '<div style="background:#fff;border:0.5px solid #E4DDD2;border-left:3px solid ' +
+      (approved ? '#1B5C30' : '#2B5FAD') + ';border-radius:12px;padding:16px;margin-bottom:12px">';
+
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px">';
+    h += _blgChip(isInv ? '#FDECE6' : '#E8EEF9', isInv ? '#B03A2E' : '#2B5FAD', isInv ? 'Invoice' : 'Enquiry');
+    if (m.stage) h += _blgChip('#F1F0EC', '#8A7F6E', _BLG_STAGE_LABEL[m.stage] || String(m.stage).replace(/_/g, ' '));
+    h += _blgChip(approved ? '#EDF9F4' : '#F1F0EC', approved ? '#1B5C30' : '#8A7F6E', m.status);
+    // Dashed where the model's draft was not used, the way a derived label is
+    // drawn dashed elsewhere in this app.
+    h += _blgChip('#F0EAFA', '#4A2D6E',
+      m.drafted_by === 'claude' ? 'drafted by Claude' : m.drafted_by === 'human' ? 'edited by hand' : 'template',
+      m.drafted_by !== 'claude');
+    h += '<div style="flex:1"></div><div style="font-size:11px;font-weight:600;color:#1A3028">' +
+      _escHtml(who) + '</div></div>';
+
+    h += '<div style="font-size:10px;color:#8A7F6E;margin-bottom:6px">To ' +
+      _escHtml(m.to_name || '—') + ' · ' + _escHtml(m.to_email || 'no email') +
+      (m.to_phone ? ' · ' + _escHtml(m.to_phone) : '') + '</div>';
+
+    h += '<div style="font-size:11px;color:#8A7F6E;margin-bottom:4px">Subject: ' +
+      _escHtml(m.subject || '—') + '</div>';
+
+    h += '<textarea oninput="_blgEdit(\'' + m.id + '\',this.value)" class="ev-area" ' +
+      'style="width:100%;min-height:110px;font-size:12px;line-height:1.55;box-sizing:border-box">' +
+      _escHtml(body) + '</textarea>';
+
+    h += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">';
+    if (dirty) {
+      h += '<button class="btn btn-p" onclick="_blgOutboxAct(\'' + m.id + '\',\'edit\')" style="height:30px">\u{1F4BE} Save wording</button>';
+    } else if (!approved) {
+      h += '<button class="btn btn-p" onclick="_blgOutboxAct(\'' + m.id + '\',\'approve\')" style="height:30px">✓ Approve</button>';
+    } else {
+      if (mail) h += '<a class="btn btn-s" href="' + _escHtml(mail) + '" style="height:30px;line-height:30px;text-decoration:none">✉ Open in email</a>';
+      if (wa) h += '<a class="btn btn-s" href="' + _escHtml(wa) + '" target="_blank" rel="noreferrer" style="height:30px;line-height:30px;text-decoration:none">WhatsApp</a>';
+      h += '<button class="btn btn-p" onclick="_blgOutboxAct(\'' + m.id + '\',\'sent\',\'email\')" style="height:30px">✓ I have sent it</button>';
+    }
+    h += '<button class="btn btn-s" onclick="_blgOutboxAct(\'' + m.id + '\',\'skip\')" style="height:30px">Skip</button>';
+    h += '<button class="btn btn-s" onclick="_blgOutboxDelete(\'' + m.id + '\')" style="height:30px;color:#B03A2E">Delete draft</button>';
+    h += '</div></div>';
+  });
+
+  return h;
+}
+
+// ── Invoices ─────────────────────────────────────────────────────────────────
+function _blgInvoicesHtml() {
+  var h = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<button class="btn btn-p" onclick="openInvoiceModal()" style="height:32px">+ Raise an invoice</button>' +
+    '<button class="btn btn-s" onclick="exportInvoicesCsv()" style="height:32px">⬇ Export CSV</button>' +
+    '</div>';
+
+  if (!_blgInvoices.length) {
+    return h + '<div class="stat-detail-empty">No invoices raised yet. ' +
+      '<strong>+ Raise an invoice</strong> bills a school on the registry.</div>';
+  }
+
+  h += '<div style="overflow-x:auto"><table class="tbl"><thead><tr>' +
+    '<th>Invoice</th><th>School</th><th>Service</th><th>Due</th>' +
+    '<th style="text-align:right">Total</th><th style="text-align:right">Received</th>' +
+    '<th style="text-align:right">Balance</th><th>Status</th><th style="width:160px"></th>' +
+    '</tr></thead><tbody>';
+
+  _blgInvoices.forEach(function(i) {
+    var c = _BLG_STATE_CHIP[i.state] || _BLG_STATE_CHIP.upcoming;
+    h += '<tr>';
+    h += '<td><a href="javascript:void(0)" onclick="openInvoiceDocument(\'' + i.id + '\')" ' +
+      'style="color:#2B5FAD;font-weight:600;text-decoration:none">' + _escHtml(i.invoice_no) + '</a></td>';
+    h += '<td><div style="font-weight:600">' + _escHtml(_blgSchoolLabel(i)) + '</div>' +
+      '<div style="font-size:10px;color:#8A7F6E">' +
+      _escHtml(i.billing_name || 'no billing contact') +
+      (i.billing_email ? ' · ' + _escHtml(i.billing_email) :
+        ' · <span style="color:#B03A2E">no email</span>') + '</div></td>';
+    h += '<td style="font-size:11px">' + _escHtml(i.service || '—') +
+      (i.period ? '<div style="font-size:10px;color:#8A7F6E">' + _escHtml(i.period) + '</div>' : '') + '</td>';
+    h += '<td style="white-space:nowrap;font-size:11px">' + _escHtml(_blgLongDate(i.due_date)) +
+      (i.state === 'overdue' ? '<div style="font-size:10px;color:#B03A2E;font-weight:600">' +
+        i.days + ' day' + (i.days === 1 ? '' : 's') + ' late</div>' : '') + '</td>';
+    h += '<td style="text-align:right;white-space:nowrap">' + _escHtml(_blgFmt(i.totals.net)) +
+      (i.totals.taxPct > 0 ? '<div style="font-size:10px;color:#8A7F6E">incl. ' +
+        _escHtml(_blgFmt(i.totals.tax)) + ' tax</div>' : '') + '</td>';
+    h += '<td style="text-align:right;white-space:nowrap">' + _escHtml(_blgFmt(i.totals.paid)) + '</td>';
+    h += '<td style="text-align:right;white-space:nowrap;font-weight:600;color:' +
+      (i.totals.balance > 0 ? '#B03A2E' : '#1B5C30') + '">' + _escHtml(_blgFmt(i.totals.balance)) +
+      (i.totals.overpaid > 0 ? '<div style="font-size:10px;color:#8A5A00">' +
+        _escHtml(_blgFmt(i.totals.overpaid)) + ' over</div>' : '') + '</td>';
+    h += '<td>' + _blgChip(c.bg, c.fg, c.label) +
+      (i.stage ? '<div style="font-size:10px;color:#8A7F6E;margin-top:3px">' + _escHtml(i.stage.label) + '</div>' : '') + '</td>';
+    h += '<td style="white-space:nowrap">';
+    if (i.state !== 'void' && i.totals.balance > 0) {
+      h += '<button class="btn btn-s" onclick="recordServicePayment(\'' + i.id + '\')" style="height:26px;padding:0 8px;font-size:11px">Payment</button> ';
+    }
+    h += '<button class="btn btn-s" onclick="openInvoiceModal(\'' + i.id + '\')" style="height:26px;padding:0 8px;font-size:11px">Edit</button> ';
+    if (i.state !== 'void') {
+      h += '<button class="btn btn-s" onclick="voidInvoice(\'' + i.id + '\')" style="height:26px;padding:0 8px;font-size:11px;color:#B03A2E">Void</button>';
+    }
+    h += '</td></tr>';
+  });
+
+  h += '</tbody></table></div>';
+  h += '<div style="font-size:10px;color:#8A7F6E;margin-top:10px;line-height:1.5">' +
+    'An issued invoice is <strong>voided</strong>, never deleted — voiding keeps the record and ' +
+    'stops it being chased, and the number is never handed to a later invoice. ' +
+    'Clicking an invoice number opens it for Print → Save as PDF.</div>';
+  return h;
+}
+
+// ── Enquiries ────────────────────────────────────────────────────────────────
+function _blgEnquiriesHtml() {
+  var h = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">' +
+    '<button class="btn btn-p" onclick="openEnquiryModal()" style="height:32px">+ Log an enquiry</button>' +
+    '<button class="btn btn-s" onclick="exportEnquiriesCsv()" style="height:32px">⬇ Export CSV</button>' +
+    '<div style="flex:1"></div>';
+  _BLG_PIPELINE.forEach(function(s) {
+    var n = _blgEnquiries.filter(function(e) { return e.stage === s; }).length;
+    h += '<div style="font-size:11px;color:#8A7F6E;margin-left:10px">' +
+      '<strong style="color:#1A3028;font-size:13px">' + n + '</strong> ' + _escHtml(_BLG_STAGE_LABEL[s]) + '</div>';
+  });
+  h += '</div>';
+
+  if (!_blgEnquiries.length) {
+    return h + '<div class="stat-detail-empty">No enquiries logged yet. These are schools asking ' +
+      'about an audit — logging one starts the follow-up cadence.</div>';
+  }
+
+  h += '<div style="overflow-x:auto"><table class="tbl"><thead><tr>' +
+    '<th>School</th><th>Contact</th><th>Interest</th><th style="text-align:right">Quoted</th>' +
+    '<th>Stage</th><th>Last touched</th><th>Owner</th>' +
+    '</tr></thead><tbody>';
+
+  _blgEnquiries.forEach(function(e) {
+    h += '<tr' + (e.due ? ' style="background:#FFFCF5"' : '') + '>';
+    h += '<td><div style="font-weight:600">' + _escHtml(e.school_name) + '</div>' +
+      (e.city || e.board ? '<div style="font-size:10px;color:#8A7F6E">' +
+        _escHtml([e.city, e.board].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>';
+    h += '<td style="font-size:11px">' + _escHtml(e.contact_name) +
+      (e.designation ? '<div style="font-size:10px;color:#8A7F6E">' + _escHtml(e.designation) + '</div>' : '') +
+      '<div style="font-size:10px;color:' + (e.email ? '#8A7F6E' : '#B03A2E') + '">' +
+      _escHtml(e.email || 'no email') + '</div></td>';
+    h += '<td style="font-size:11px;color:#8A7F6E">' + _escHtml(e.interest || '—') + '</td>';
+    h += '<td style="text-align:right;white-space:nowrap">' +
+      (e.quoted_amount ? _escHtml(_blgFmt(_blgMoney(e.quoted_amount))) : '—') + '</td>';
+    h += '<td><select onchange="setEnquiryStage(\'' + e.id + '\',this.value)" ' +
+      'style="width:130px;height:28px;padding:0 6px;border:0.5px solid #E4DDD2;border-radius:6px;' +
+      'font-size:11px;font-family:inherit;background:#fff">';
+    _BLG_PIPELINE.forEach(function(s) {
+      h += '<option value="' + s + '"' + (e.stage === s ? ' selected' : '') + '>' +
+        _escHtml(_BLG_STAGE_LABEL[s]) + '</option>';
+    });
+    h += '</select>' + (e.due ? '<div style="margin-top:4px">' +
+      _blgChip('#FDF5E6', '#8A5A00', 'follow up') + '</div>' : '') + '</td>';
+    h += '<td style="font-size:11px;color:#8A7F6E;white-space:nowrap">' +
+      (e.daysSince == null ? '—' : e.daysSince === 0 ? 'today' :
+        e.daysSince + ' day' + (e.daysSince === 1 ? '' : 's') + ' ago') + '</td>';
+    h += '<td style="font-size:11px;color:#8A7F6E">' + _escHtml(e.owner || '—') + '</td>';
+    h += '</tr>';
+    if (e.stage === 'lost' && e.lost_reason) {
+      h += '<tr><td colspan="7" style="font-size:10px;color:#8A7F6E;padding-top:0">' +
+        'Lost: ' + _escHtml(e.lost_reason) + '</td></tr>';
+    }
+  });
+
+  h += '</tbody></table></div>';
+  return h;
+}
 
 </script>
 
