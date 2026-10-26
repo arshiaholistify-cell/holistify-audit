@@ -1878,9 +1878,14 @@ school that has not should not have to infer the chase from a reprint.
 | Receipt | `openReceiptDocument(id, paymentId?)` | something has been received |
 | Reminder | `openReminderDocument()` | not void, and a balance remains |
 
-All three read `inv.totals` — one `_blgTotals()` — and share `_blgDocParties()`
-and `_blgDocRow()`, so no two can disagree about what is owed. `doc.js` asserts
-they print the same total and the same balance.
+All three read `inv.totals` — one `_blgTotals()` — so no two can disagree about
+what is owed. The receipt and the reminder also share `_blgDocParties()` and
+`_blgDocRow()`; the invoice has its own layout, because it is the one of the
+three that matches a document Holistify already issues by hand (below).
+`doc.mjs` asserts they print the same total and the same balance.
+
+Each writes out **its own** figure in words: the invoice the total asked for,
+the receipt what was received, the reminder what is still owed.
 
 **Nothing new is stored.** A receipt number is derived: `<invoice_no>/R<n>`,
 from `_blgPaymentsInOrder()`.
@@ -1898,9 +1903,69 @@ from `_blgPaymentsInOrder()`.
   can be asked for and reprinted by id.
 
 **The sum is written out in words** (`_blgWords()`, Indian numbering — crore,
-lakh, thousand, hundred), on the receipt and on the reminder's balance. Figures
-on a printed page can be altered and words cannot, which is the whole reason
-the convention exists.
+lakh, thousand, hundred), on all three documents. Figures on a printed page can
+be altered and words cannot, which is the whole reason the convention exists.
+
+#### The invoice is the issued document
+
+The invoice Holistify already sends was read back into the repo and
+`openInvoiceDocument()` was laid out to match it, so a school receiving one
+generated here and one typed by hand cannot tell them apart: the bordered
+header band with the mark and the entity name, the issuer block beside
+`PAN / Invoice No / Invoice For / Due`, the `To :` block, the
+`SL No | Description | Unit Price | Amount | Total Amount` grid, the sum in
+words, the bank table, the signatory, the footer.
+
+It carries its own `_BLG_INV_CSS` rather than `_RPT_CSS`'s tables, which are
+the report's green on a tinted header row — this document rules everything in
+plain black, as the original does. `_blgInvDate()` writes `1st October, 2026`,
+which is how the issued invoice states the period it covers; **Invoice For** is
+`inv.period`, falling back to the issue date where the invoice names none.
+
+- **The grid is the issued five-column one although an invoice here carries one
+  line.** SL No 1 is the whole of it, and a second line can be added later
+  without the document changing shape.
+- **Discount and tax rows appear only where they apply**, so an invoice with
+  neither reads exactly like the paper one.
+- **The payments already credited are listed by receipt number**, so an older
+  receipt can be asked for and reprinted by id. The invoice *names* them; it
+  does not acknowledge them — that is `openReceiptDocument()`.
+
+#### The issuer's own details are not in this file
+
+`billing_settings` is a one-row table (`id = 1`, enforced by a check) holding
+everything the invoice says about Holistify rather than about the school: the
+entity name, address and PAN, the bank account to pay into, who signs, and the
+footer. `_blgLoad()` reads it alongside the invoices and `_blgSet(key)` returns
+one value or `''`, so a document never prints `undefined`.
+
+**It is a table and not a constant because `index.html` is served to the public
+and committed to a public repository.** None of it is a secret the way a key is
+— it is printed on every invoice Holistify sends — but the schools being billed
+are a narrower audience than the open internet, and an account number sitting
+in a public repo invites fraud attempts. A missing row is not an error: the
+documents fall back to plain labels rather than refusing to print.
+
+The school's own `pan` and `billing_address` are kept on `schools` and
+**copied onto the invoice** as `client_pan` / `client_address`, for the same
+reason `school_name` is: the PAN printed on an invoice that went out must not
+change when the registry row is later corrected. `_blgPrefillBilling()` fills
+them in from the school and never overwrites what has been typed.
+
+#### The invoice number continues the hand-written series
+
+`_blgNextInvoiceNo()` derives `HSTP0027` from the numbers already issued —
+`invoice_prefix` is a setting, because the series is the issuer's — rather than
+the `HOL/<FY>/` scheme it used to invent. An invoice number appears in the
+school's books as well as Holistify's, so a second scheme would put two records
+under one identity.
+
+Which is also why **the number is editable in the modal**. A fresh install
+derives `0001` and would collide with the paper series, so the first invoice is
+typed as the next real number and every one after it follows from that. Left
+blank it continues the series; typed, it wins. The unique index is the backstop,
+and `saveInvoice()` names a duplicate rather than letting Postgres' message
+through.
 
 **The reminder states and never threatens**, for the same reason
 `_BLG_FORBIDDEN` governs the drafted messages: nothing about legal action, late
@@ -1958,7 +2023,7 @@ that *is* appropriate.
 - `audit_states`
 - `journey_records`
 
-`supabase_billing.sql` adds five more, for billing the client schools, plus
+`supabase_billing.sql` adds six more, for billing the client schools, plus
 `public.is_holistify()` and the billing contact columns on `schools`:
 
 - `service_invoices`
@@ -1966,6 +2031,8 @@ that *is* appropriate.
 - `service_enquiries`
 - `service_enquiry_events`
 - `followup_outbox`
+- `billing_settings` — one row, the issuer's own details for the printed
+  documents; see **Billing the client schools**
 
 Unlike the three above, these are restricted to the Holistify team rather than
 open to every signed-in user — see **Billing the client schools**.

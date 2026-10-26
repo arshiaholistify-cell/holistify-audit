@@ -1140,6 +1140,11 @@ html,body{height:100%;background:var(--sur);color:var(--ink);font-family:'Inter'
       <div class="mgmt-field"><label>Billing phone</label><input id="iv-bphone" placeholder="Optional — enables the WhatsApp route"></div>
       <div class="mgmt-field"><label>Their PO reference</label><input id="iv-po" placeholder="Optional"></div>
     </div>
+    <div class="mgmt-grid-2">
+      <div class="mgmt-field"><label>School's PAN</label><input id="iv-cpan" placeholder="Printed in the To block"></div>
+      <div class="mgmt-field"><label>Invoice number</label><input id="iv-no" placeholder="Leave blank to continue the series"></div>
+    </div>
+    <div class="mgmt-field"><label>School's address</label><textarea id="iv-caddr" style="min-height:48px" placeholder="Printed under &quot;Address :&quot; in the To block"></textarea></div>
     <div class="mgmt-field"><label>Notes</label><textarea id="iv-notes" style="min-height:52px" placeholder="Printed on the invoice. Not sent to the drafting function."></textarea></div>
     <div style="font-size:11px;color:#8A7F6E;line-height:1.5;margin-bottom:4px">
       The invoice number is allocated from the ones already issued, in the financial year of the due date.
@@ -24175,7 +24180,15 @@ function _blgFinYear(d) {
  * one, or two records share an identity in the books.
  */
 function _blgNextInvoiceNo(existing, date) {
-  var series = 'HOL/' + _blgFinYear(date) + '/';
+  // The series is the one already written by hand — HSTP0026 — not a scheme
+  // invented here. The prefix is a setting because it is the issuer's, and
+  // because an invoice number appears in the school's books as well as ours:
+  // restarting it at 0001 would put two records under one identity.
+  //
+  // Which is also why the number is EDITABLE in the modal. A fresh install
+  // derives 0001 and collides with the paper series, so the first invoice is
+  // typed (HSTP0027) and every one after it follows from that.
+  var series = (_blgSet('invoice_prefix') || 'HSTP');
   var highest = 0;
   (existing || []).forEach(function(n) {
     if (typeof n !== 'string' || n.indexOf(series) !== 0) return;
@@ -24290,6 +24303,20 @@ function _blgVerify(body, must) {
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
+// The issuer's own details — name, address, PAN, bank, signatory, footer.
+// They live in Supabase and NOT in this file, because index.html is served to
+// the public and committed to a public repository: the PAN, the account number
+// and the IFSC would be indexed by anyone looking. They are printed on every
+// invoice Holistify sends, so they are not secrets the way a key is — but the
+// schools being billed are a narrower audience than the open internet, and an
+// account number in a public repo invites fraud attempts.
+var _blgSettings = null;
+
+/** One setting, or '' — so a document never prints "undefined". */
+function _blgSet(key) {
+  return (_blgSettings && _blgSettings[key] != null) ? String(_blgSettings[key]) : '';
+}
+
 var _blgInvoices = [];      // each with .payments and .state resolved
 var _blgEnquiries = [];
 var _blgOutbox = [];
@@ -24315,7 +24342,8 @@ function _blgLoad() {
   return Promise.all([
     sb.from('service_invoices').select('*, service_payments(id,amount,paid_on,method,reference,note,created_at)').order('due_date'),
     sb.from('service_enquiries').select('*').order('created_at', { ascending: false }),
-    sb.from('followup_outbox').select('*').in('status', ['draft', 'approved']).order('created_at', { ascending: false })
+    sb.from('followup_outbox').select('*').in('status', ['draft', 'approved']).order('created_at', { ascending: false }),
+    sb.from('billing_settings').select('*').eq('id', 1).maybeSingle()
   ]).then(function(res) {
     var today = _blgToday();
     if (res[0].error) throw new Error(res[0].error.message);
@@ -24333,6 +24361,9 @@ function _blgLoad() {
       return e;
     });
     _blgOutbox = res[2].data || [];
+    // A missing settings row is not an error: the documents fall back to
+    // plain labels rather than refusing to print.
+    _blgSettings = (res[3] && res[3].data) || null;
     _blgLoaded = true;
     return true;
   });
@@ -24646,6 +24677,12 @@ function openInvoiceModal(id) {
   set('iv-bname', inv ? inv.billing_name : '');
   set('iv-bemail', inv ? inv.billing_email : '');
   set('iv-bphone', inv ? inv.billing_phone : '');
+  set('iv-cpan', inv ? inv.client_pan : '');
+  set('iv-caddr', inv ? inv.client_address : '');
+  // Blank on a new invoice, so the placeholder's promise holds: leave it and
+  // the series continues. Shown when editing, because the number on an issued
+  // invoice is in the school's books too and must stay visible.
+  set('iv-no', inv ? inv.invoice_no : '');
   set('iv-notes', inv ? inv.notes : '');
   var t = document.getElementById('iv-modal-title');
   if (t) t.textContent = inv ? ('Edit ' + inv.invoice_no) : 'Raise an invoice';
@@ -24672,6 +24709,8 @@ function _blgPrefillBilling() {
   fill('iv-bname', s.billing_name || s.principal || '');
   fill('iv-bemail', s.billing_email || s.email || '');
   fill('iv-bphone', s.billing_phone || '');
+  fill('iv-cpan', s.pan || '');
+  fill('iv-caddr', s.billing_address || '');
 }
 
 function saveInvoice() {
@@ -24738,16 +24777,27 @@ function saveInvoice() {
     tax_pct: taxPct,
     due_date: due,
     po_ref: val('iv-po') || null,
+    client_pan: val('iv-cpan') || null,
+    client_address: val('iv-caddr') || null,
     notes: val('iv-notes') || null,
     updated_at: new Date().toISOString()
   };
 
   var existingId = val('iv-id');
+  var typedNo = val('iv-no');
   var p;
   if (existingId) {
+    // An issued number is in the school's books as well as ours, so it is
+    // only changed when it was deliberately retyped.
+    if (typedNo) row.invoice_no = typedNo;
     p = sb.from('service_invoices').update(row).eq('id', existingId);
   } else {
-    row.invoice_no = _blgNextInvoiceNo(_blgInvoices.map(function(i) { return i.invoice_no; }), due);
+    // Typed wins over derived, which is how the hand-written series is picked
+    // up: the first invoice is entered as HSTP0027 and every one after it
+    // follows from that. Postgres' unique index is the backstop if two people
+    // type the same number.
+    row.invoice_no = typedNo ||
+      _blgNextInvoiceNo(_blgInvoices.map(function(i) { return i.invoice_no; }), due);
     row.issued_on = _blgToday();
     row.created_by = u ? (u.name || u.id) : null;
     p = sb.from('service_invoices').insert(row);
@@ -24762,6 +24812,8 @@ function saveInvoice() {
     if (row.billing_name) reg.billing_name = row.billing_name;
     if (row.billing_email) reg.billing_email = row.billing_email;
     if (row.billing_phone) reg.billing_phone = row.billing_phone;
+    if (row.client_pan) reg.pan = row.client_pan;
+    if (row.client_address) reg.billing_address = row.client_address;
     var back = Object.keys(reg).length
       ? sb.from('schools').update(reg).eq('id', school.id)
       : Promise.resolve();
@@ -24771,6 +24823,13 @@ function saveInvoice() {
     }).then(function() {
       renderBillingPage();
       toast(existingId ? 'Invoice updated.' : 'Invoice ' + row.invoice_no + ' raised.', 'success');
+    }).catch(function(err) {
+      // A duplicate number is the one failure worth naming: it means the
+      // series has been typed over something already issued.
+      var m = String(err && err.message || err);
+      toast(/duplicate|unique/i.test(m)
+        ? 'Invoice ' + row.invoice_no + ' already exists. Use a different number.'
+        : 'Could not save the invoice: ' + m, 'error');
     });
   });
 }
@@ -25199,84 +25258,173 @@ function openReminderDocument(id) {
 // Through _rptOpen(), as every other document here is: the browser's
 // Print → Save as PDF produces the file, the text stays real and selectable,
 // and the repo keeps its no-dependency promise.
+// ── The invoice ────────────────────────────────────────────────
+// Laid out as the issued document is, because a school receiving one generated
+// here and one typed by hand should not be able to tell them apart: the bordered
+// header, the issuer block beside the PAN / Invoice No / Invoice For, the To
+// block, the SL No grid, the sum in words, the bank details, the signatory and
+// the footer.
+//
+// Its own <style> rather than _RPT_CSS's tables, which are the report's green
+// — this document rules everything in plain black, as the original does.
+function _blgOrdinal(n) {
+  var s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/** "1st October, 2026" — how the issued invoice writes the period it covers. */
+function _blgInvDate(iso) {
+  if (!iso) return '';
+  var p = String(iso).slice(0, 10).split('-');
+  if (p.length !== 3) return String(iso);
+  var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  return _blgOrdinal(d.getUTCDate()) + ' ' +
+    d.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' }) + ', ' + d.getUTCFullYear();
+}
+
+var _BLG_INV_CSS =
+  '<style>' +
+  '.inv{font-size:9.5pt;line-height:1.45}' +
+  '.inv table{width:100%;border-collapse:collapse;margin:0 0 3mm}' +
+  '.inv table td,.inv table th{border:0.8pt solid #000;padding:1.8mm 2.2mm;vertical-align:top;' +
+    'background:#fff;color:#000;font-size:9.5pt}' +
+  '.inv table th{font-weight:700;text-align:center}' +
+  '.inv .hdr{display:flex;align-items:center;gap:4mm;border:0.8pt solid #000;padding:3mm}' +
+  '.inv .hdr img{height:11mm}' +
+  '.inv .hdr .nm{font-size:19pt;font-weight:700;color:#7A9A3E;line-height:1.15}' +
+  '.inv .ttl{text-align:center;font-weight:700;font-size:11pt;margin:3mm 0}' +
+  '.inv .nb td{border:0;padding:0.6mm 0}' +
+  '.inv .r{text-align:right}.inv .c{text-align:center}' +
+  '.inv .sig{margin-top:10mm}' +
+  '.inv .sig img{height:16mm;display:block;margin:2mm 0}' +
+  '.inv .ft{border-top:0.8pt solid #000;margin-top:12mm;padding-top:2mm;text-align:center;font-size:8.5pt}' +
+  '.inv .void{color:#B03A2E;font-weight:700;text-align:center;font-size:14pt;margin:2mm 0}' +
+  '</style>';
+
 function openInvoiceDocument(id) {
   var inv = _blgInvoices.find(function(i) { return i.id === id; });
   if (!inv) return;
   var t = inv.totals;
   var e = _escHtml;
+  var nl = function(v) { return e(v || '').replace(/\n/g, '<br>'); };
 
-  var row = function(k, v, strong) {
-    return '<tr><td style="border:0;text-align:right;padding-right:4mm">' +
-      (strong ? '<strong>' + e(k) + '</strong>' : e(k)) + '</td>' +
-      '<td style="border:0;text-align:right;width:40mm">' +
-      (strong ? '<strong>' + e(v) + '</strong>' : e(v)) + '</td></tr>';
-  };
+  var h = _BLG_INV_CSS + '<div class="sheet inv">';
 
-  var h = '<div class="sheet">';
-  h += '<h1>Invoice</h1>';
-  h += '<div class="lede">Holistify' + (inv.status === 'void' ?
-        ' &middot; <span style="color:#B03A2E"><strong>VOID</strong></span>' : '') + '</div>';
+  // Header band: the mark and the issuing entity.
+  h += '<div class="hdr">' +
+       '<img src="holistify-logo.png" alt="" onerror="this.style.display=\'none\'">' +
+       '<div class="nm">' + e(_blgSet('issuer_name') || 'Holistify') + '</div></div>';
 
+  h += '<div class="ttl">Invoice</div>';
+  if (inv.status === 'void') h += '<div class="void">VOID</div>';
+
+  // Issuer, and the invoice's own identity beside it.
   h += '<table><tr>' +
-       '<th style="width:50%">Billed to</th><th>Invoice</th></tr><tr>' +
-       '<td>' + '<strong>' + e(_blgSchoolLabel(inv)) + '</strong>' +
-         (inv.billing_name ? '<br>' + e(inv.billing_name) : '') +
-         (inv.billing_email ? '<br>' + e(inv.billing_email) : '') +
-         (inv.billing_phone ? '<br>' + e(inv.billing_phone) : '') +
-       '</td>' +
-       '<td>' + '<strong>' + e(inv.invoice_no) + '</strong>' +
-         '<br>Issued: ' + e(_blgLongDate(inv.issued_on)) +
-         '<br>Due: ' + e(_blgLongDate(inv.due_date)) +
-         (inv.po_ref ? '<br>Your reference: ' + e(inv.po_ref) : '') +
+       '<td style="width:58%"><strong>' + e(_blgSet('issuer_name') || 'Holistify') + '</strong><br>' +
+         nl(_blgSet('issuer_address')) + '</td>' +
+       '<td><table class="nb">' +
+         (_blgSet('issuer_pan') ? '<tr><td>PAN : ' + e(_blgSet('issuer_pan')) + '</td></tr>' : '') +
+         '<tr><td>Invoice No : <strong>' + e(inv.invoice_no) + '</strong></td></tr>' +
+         // "Invoice For" is the period billed, which is what the issued
+         // document puts here — falling back to the issue date when the
+         // invoice names no period.
+         '<tr><td>Invoice For : ' + e(inv.period || _blgInvDate(inv.issued_on)) + '</td></tr>' +
+         '<tr><td>Due : ' + e(_blgInvDate(inv.due_date)) + '</td></tr>' +
+       '</table></td></tr></table>';
+
+  // Billed to.
+  h += '<table><tr><td>To :<br><strong>' + e(_blgSchoolLabel(inv)) + '</strong>' +
+       (inv.billing_name ? '<br>C/O ' + e(inv.billing_name) : '') +
+       (inv.client_address ? '<br>Address : ' + nl(inv.client_address) : '') +
+       (inv.billing_email ? '<br>' + e(inv.billing_email) : '') +
+       (inv.client_pan ? '<br><br>PAN : ' + e(inv.client_pan) : '') +
        '</td></tr></table>';
 
-  h += '<table><tr><th>Service</th><th style="width:40mm;text-align:right">Amount</th></tr>' +
-       '<tr><td>' + e(inv.service || 'Professional services') +
-         (inv.period ? '<br><span class="small">' + e(inv.period) + '</span>' : '') +
-         (inv.description ? '<br><span class="small">' + e(inv.description) + '</span>' : '') +
-       '</td><td style="text-align:right">' + e(_blgFmt(t.gross)) + '</td></tr></table>';
+  // The line. One row today: an invoice here carries one service and one
+  // amount, so SL No 1 is the whole of it. The grid is the issued one so a
+  // second line can be added without the document changing shape.
+  var line = [inv.service, inv.description].filter(Boolean).join(' - ') || 'Professional services';
+  h += '<table><tr><th style="width:12mm">SL No</th><th>Description</th>' +
+       '<th style="width:28mm">Unit Price</th><th style="width:28mm">Amount</th>' +
+       '<th style="width:30mm">Total Amount</th></tr>' +
+       '<tr><td class="c">1</td><td>' + e(line) + '</td>' +
+       '<td class="r">' + e(_blgFmt(t.gross)) + '</td>' +
+       '<td class="r">' + e(_blgFmt(t.gross)) + '</td>' +
+       '<td class="r">' + e(_blgFmt(t.gross)) + '</td></tr></table>';
 
-  h += '<table style="margin-top:-2mm">';
+  // Discount and tax appear only where they apply, so an invoice without them
+  // reads exactly like the issued one.
+  h += '<table>';
   if (t.discount > 0) {
-    h += row('Subtotal', _blgFmt(t.gross));
-    h += row('Discount', '− ' + _blgFmt(t.discount));
-    h += row('Taxable value', _blgFmt(t.taxable));
+    h += '<tr><td class="r" colspan="2">Discount</td><td class="r" style="width:30mm">− ' +
+         e(_blgFmt(t.discount)) + '</td></tr>';
+    h += '<tr><td class="r" colspan="2">Taxable value</td><td class="r">' + e(_blgFmt(t.taxable)) + '</td></tr>';
   }
-  if (t.taxPct > 0) h += row('Tax @ ' + t.taxPct + '%', _blgFmt(t.tax));
-  h += row('Total', _blgFmt(t.net), true);
-  if (t.paid > 0) h += row('Received', '− ' + _blgFmt(t.paid));
-  h += row('Balance due', _blgFmt(t.balance), true);
-  if (t.overpaid > 0) h += row('Overpaid', _blgFmt(t.overpaid));
+  if (t.taxPct > 0) {
+    h += '<tr><td class="r" colspan="2">Tax @ ' + e(String(t.taxPct)) + '%</td>' +
+         '<td class="r">' + e(_blgFmt(t.tax)) + '</td></tr>';
+  }
+  h += '<tr><td style="width:50%">Amount in Words</td>' +
+       '<td><strong>Total Amount</strong></td>' +
+       '<td class="r" style="width:30mm"><strong>' + e(_blgFmt(t.net)) + '</strong></td></tr>' +
+       // The sum twice: figures on a printed page can be altered and words
+       // cannot, which is why the convention exists.
+       '<tr><td colspan="3">' + e(_blgWords(t.net)) + '</td></tr>';
+  if (t.paid > 0) {
+    h += '<tr><td class="r" colspan="2">Received</td><td class="r">− ' + e(_blgFmt(t.paid)) + '</td></tr>' +
+         '<tr><td class="r" colspan="2"><strong>Balance due</strong></td>' +
+         '<td class="r"><strong>' + e(_blgFmt(t.balance)) + '</strong></td></tr>';
+  }
   h += '</table>';
 
-  // The payments are listed here too, so this copy answers "but we paid in
-  // April" on the same page as the balance. Each row names its **receipt
-  // number**, so an older receipt can be asked for by name — but a document
-  // headed "Invoice", with a due date on it, is not what a school that has
-  // paid should be sent. That is `openReceiptDocument()`.
+  // The payments already credited, each by its receipt number — so an older
+  // receipt can be asked for and reprinted by name. The invoice names them;
+  // it does not acknowledge them. That is openReceiptDocument().
   var paid = _blgPaymentsInOrder(inv);
   if (paid.length) {
-    h += '<h2>Payments received</h2><table><tr><th>Receipt</th><th>Date</th><th>Method</th>' +
-         '<th>Reference</th><th style="text-align:right">Amount</th></tr>';
-    paid.forEach(function(p) {
-      h += '<tr><td>' + e(p.receiptNo) + '</td>' +
-           '<td>' + e(_blgLongDate(p.paid_on)) + '</td><td>' + e(p.method || '—') +
-           '</td><td>' + e(p.reference || '—') + '</td>' +
-           '<td style="text-align:right">' + e(_blgFmt(_blgMoney(p.amount))) + '</td></tr>';
+    h += '<table><tr><th>Receipt</th><th>Date</th><th>Method</th><th>Reference</th>' +
+         '<th style="width:30mm">Amount</th></tr>';
+    paid.forEach(function(pm) {
+      h += '<tr><td>' + e(pm.receiptNo) + '</td><td>' + e(_blgInvDate(pm.paid_on)) + '</td>' +
+           '<td>' + e(pm.method || '—') + '</td><td>' + e(pm.reference || '—') + '</td>' +
+           '<td class="r">' + e(_blgFmt(_blgMoney(pm.amount))) + '</td></tr>';
     });
     h += '</table>';
   }
 
-  if (inv.status !== 'void' && t.balance > 0 && inv.days > 0) {
-    h += '<div class="note">This invoice is ' + inv.days + ' day' + (inv.days === 1 ? '' : 's') +
-         ' past its due date.</div>';
+  // Where to pay. Held in billing_settings, never in this file.
+  if (_blgSet('bank_account') || _blgSet('bank_name')) {
+    h += '<table>' +
+      '<tr><td style="width:28mm">Company Name :</td><td>' + e(_blgSet('bank_company') || _blgSet('issuer_name')) +
+        '</td><td style="width:22mm">Address :</td><td>' + e(_blgSet('bank_branch')) + '</td></tr>' +
+      '<tr><td>Bank Name :</td><td>' + e(_blgSet('bank_name')) + '</td>' +
+        '<td colspan="2"></td></tr>' +
+      '<tr><td>Account Number :</td><td>' + e(_blgSet('bank_account')) + '</td>' +
+        '<td>IFSC Code :</td><td>' + e(_blgSet('bank_ifsc')) + '</td></tr>' +
+      '</table>';
   }
-  if (inv.notes) h += '<div class="small" style="margin-top:4mm">' + e(inv.notes) + '</div>';
 
-  h += '<div class="foot">Holistify &middot; ' + e(inv.invoice_no) + '</div></div>';
+  // The signatory. The name prints whether or not a signature image is set, so
+  // an unsigned invoice still says who issued it.
+  h += '<div class="sig">Authorized Signature' +
+       (_blgSet('signature_url')
+         ? '<img src="' + e(_blgSet('signature_url')) + '" alt="" onerror="this.style.display=\'none\'">'
+         : '<div style="height:14mm"></div>') +
+       (_blgSet('signatory_name') ? '<strong>' + e(_blgSet('signatory_name')) + '</strong><br>' : '') +
+       (_blgSet('signatory_title') ? e(_blgSet('signatory_title')) + ',<br>' : '') +
+       (_blgSet('signatory_org') ? e(_blgSet('signatory_org')) + '<br>' : '') +
+       e(_blgSet('signatory_place')) + '</div>';
+
+  if (inv.po_ref) h += '<div class="small" style="margin-top:4mm">Your reference: ' + e(inv.po_ref) + '</div>';
+  if (inv.notes) h += '<div class="small" style="margin-top:2mm">' + e(inv.notes) + '</div>';
+
+  h += '<div class="ft">' + e(_blgSet('footer_address')) +
+       (_blgSet('footer_contact') ? '<br>' + e(_blgSet('footer_contact')) : '') + '</div>';
+
+  h += '</div>';
 
   _rptOpen('Invoice ' + inv.invoice_no + ' — ' + _blgSchoolLabel(inv), h, false,
-           'Holistify &middot; Invoice ' + inv.invoice_no);
+           (_blgSet('issuer_short') || 'Holistify') + ' &middot; Invoice ' + inv.invoice_no);
 }
 
 // ── CSV ──────────────────────────────────────────────────────────────────────

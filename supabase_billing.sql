@@ -55,6 +55,11 @@ alter table public.schools add column if not exists billing_name  text;
 alter table public.schools add column if not exists billing_email text;
 alter table public.schools add column if not exists billing_phone text;
 
+-- The PAN and the postal address the invoice prints in its "To" block. Kept on
+-- the school rather than typed per invoice, for the same reason the contact is.
+alter table public.schools add column if not exists pan             text;
+alter table public.schools add column if not exists billing_address text;
+
 -- ── Invoices ────────────────────────────────────────────────────────────────
 -- Two things deliberately NOT stored, the same as in the sibling app:
 --   * "overdue" is never a status. It is computed from due_date and the
@@ -85,6 +90,11 @@ create table if not exists public.service_invoices (
   due_date     date not null,
   status       text not null default 'open' check (status in ('open','paid','void')),
   po_ref       text,                  -- the school's purchase-order reference
+  -- Copied onto the invoice for the same reason school_name is: an invoice is
+  -- a record of what was billed to whom, and the PAN printed on the one that
+  -- went out must not change when the school's registry row is corrected.
+  client_pan     text,
+  client_address text,
   notes        text,
   created_at   timestamptz default now(),
   updated_at   timestamptz default now(),
@@ -92,6 +102,57 @@ create table if not exists public.service_invoices (
 );
 create index if not exists service_invoices_due    on public.service_invoices (due_date) where status = 'open';
 create index if not exists service_invoices_school on public.service_invoices (school_id);
+
+-- ── The issuer's own details ────────────────────────────────────────────────
+-- Everything the printed invoice says about Holistify rather than about the
+-- school: the entity name, address and PAN, the bank account to pay into, who
+-- signs, and the footer.
+--
+-- These live here and NOT in index.html, which is served to the public and
+-- committed to a public repository. None of it is a secret the way a key is —
+-- it is printed on every invoice Holistify sends — but the schools being
+-- billed are a narrower audience than the open internet, and an account number
+-- sitting in a public repo invites fraud attempts.
+--
+-- One row, enforced by the check: there is one issuer, and a second row would
+-- be a second answer to "what does our invoice say".
+create table if not exists public.billing_settings (
+  id              integer primary key default 1 check (id = 1),
+  issuer_name     text not null default 'Holistify ED – Initiatives Foundation',
+  issuer_short    text not null default 'Holistify',
+  issuer_address  text,
+  issuer_pan      text,
+  -- The series the paper invoices already use. _blgNextInvoiceNo() continues
+  -- it; the number is also editable per invoice, so a fresh install can be
+  -- started at the next number by hand rather than colliding at 0001.
+  invoice_prefix  text not null default 'HSTP',
+  bank_company    text,
+  bank_name       text,
+  bank_account    text,
+  bank_ifsc       text,
+  bank_branch     text,
+  signatory_name  text,
+  signatory_title text,
+  signatory_org   text,
+  signatory_place text,
+  signature_url   text,               -- optional image; the name prints either way
+  footer_address  text,
+  footer_contact  text,
+  updated_at      timestamptz default now(),
+  updated_by      text
+);
+
+-- Fill it in the SQL Editor, not here: the real values must not be committed.
+-- A missing row is not an error — the documents fall back to plain labels
+-- rather than refusing to print — so an invoice raised before this is run says
+-- "Holistify" and carries no bank block.
+--
+--   insert into public.billing_settings (id, issuer_address, issuer_pan,
+--     bank_company, bank_name, bank_account, bank_ifsc, bank_branch,
+--     signatory_name, signatory_title, signatory_org, signatory_place,
+--     footer_address, footer_contact)
+--   values (1, '…', '…', '…', '…', '…', '…', '…', '…', '…', '…', '…', '…', '…')
+--   on conflict (id) do update set issuer_address = excluded.issuer_address, …;
 
 -- ── Payments ────────────────────────────────────────────────────────────────
 -- Schools pay audit fees in instalments, so this is a ledger, not a flag.
@@ -190,6 +251,7 @@ alter table public.service_payments       enable row level security;
 alter table public.service_enquiries      enable row level security;
 alter table public.service_enquiry_events enable row level security;
 alter table public.followup_outbox        enable row level security;
+alter table public.billing_settings       enable row level security;
 
 -- No anon policies anywhere. The published anon key must stay inert, and
 -- commercial data is the last thing that should have an exception made for it.
@@ -211,6 +273,10 @@ create policy hol_service_enquiry_events on public.service_enquiry_events
 
 drop policy if exists hol_followup_outbox on public.followup_outbox;
 create policy hol_followup_outbox on public.followup_outbox
+  for all to authenticated using (public.is_holistify()) with check (public.is_holistify());
+
+drop policy if exists hol_billing_settings on public.billing_settings;
+create policy hol_billing_settings on public.billing_settings
   for all to authenticated using (public.is_holistify()) with check (public.is_holistify());
 
 -- Check afterwards: a signed-in school principal should get [] from each of
