@@ -37,12 +37,25 @@ leaves the last good deploy live instead of replacing it with a broken one.
 Vercel is the only deploy target: a push to `main` builds `dist/` and publishes
 it to `audit.holistify.ai`.
 
-The repo also published to GitHub Pages via `.github/workflows/deploy.yml` until
-that workflow was removed. The two targets injected the same credentials from
-different places (Vercel environment variables vs. GitHub Actions secrets) and
-served different file sets, so they drifted apart and disagreed about what was
-broken. If you find a stale `arshiaholistify-cell.github.io/holistify-audit/`
-still serving, it is that retired deploy, not this one.
+The repo also published to GitHub Pages via `.github/workflows/deploy.yml`. The
+two targets injected the same credentials from different places (Vercel
+environment variables vs. GitHub Actions secrets) and served different file
+sets, so they drifted apart and disagreed about what was broken.
+
+**Deleting the workflow did not retire that deploy**, and this is the part worth
+remembering. Pages kept serving the artifact of its last successful run for
+weeks after `deploy.yml` was gone — frozen at a pre-October build, which meant
+it was still handing out the four seeded demo accounts that `DEFAULT_USERS`
+exists to have removed, and still serving the **repo root rather than `dist/`**,
+so `build.js`, `package.json` and `supabase_schema.sql` were all reachable. The
+extension allowlist cannot help there: it only governs what the Vercel build
+copies, and Pages never ran it.
+
+Nothing in the repository could stop it, because Pages deploys from an Actions
+artifact and there was no `gh-pages` branch to overwrite. It took the repository
+*setting* — Settings → Pages → Source → None — which was done on 15 November
+2026. `arshiaholistify-cell.github.io/holistify-audit/` now 404s, and Vercel is
+the only deploy target.
 
 ## Environment
 
