@@ -10,8 +10,6 @@ script:
 
 - `index.html` — the audit platform itself
 - `transformation-dashboard.html` — Holistify Transformation Dashboard
-- `mentor-dashboard.html` — a redirect stub pointing at the transformation
-  dashboard; it has no content of its own
 - `build.js` — substitutes Supabase credentials into `index.html`, then copies
   the remaining static files into `dist/`
 - `vercel.json` — `npm run build`, output directory `dist`
@@ -36,6 +34,13 @@ leaves the last good deploy live instead of replacing it with a broken one.
 
 Vercel is the only deploy target: a push to `main` builds `dist/` and publishes
 it to `audit.holistify.ai`.
+
+`mentor-dashboard.html` was a 386-byte meta-refresh stub forwarding to the
+transformation dashboard, kept after the rename so older links still landed
+somewhere. It was deleted on 15 November 2026; `audit.holistify.ai/mentor-dashboard.html`
+now 404s rather than redirecting. Nothing in the repo ever linked to it, and the
+project has no Web Analytics, so whether anything still followed that URL was
+never established. Restoring it is a one-file revert if a stale link turns up.
 
 The repo also published to GitHub Pages via `.github/workflows/deploy.yml`. The
 two targets injected the same credentials from different places (Vercel
