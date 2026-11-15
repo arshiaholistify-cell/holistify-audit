@@ -249,13 +249,12 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .p2-head{margin-bottom:9px}
 .p2-title{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35}
 .p2-hint{font-size:11px;color:var(--inkl);margin-top:2px;line-height:1.4}
-.p2-note{font-size:11px;color:var(--inkl);line-height:1.5;margin-top:12px;padding-top:11px;border-top:1px solid var(--bdr);font-style:italic}
+.p2-note{font-size:11px;color:var(--inkl);line-height:1.5;margin-top:12px;padding-top:12px;font-style:italic}
 .tick-row{display:flex;flex-wrap:wrap;gap:7px}
 .tick{padding:7px 12px;border-radius:20px;background:#fff;border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);line-height:1.2;cursor:pointer}
 .tick:hover{border-color:var(--bdrs)}
 .tick.on{background:var(--gl);border-color:var(--g);color:var(--gd)}
 .tick.on::before{content:'✓ ';font-weight:800}
-.tally{display:inline-block;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:20px}
 .choice-row{display:flex;gap:6px}
 .choice-row.one .choice-btn{flex:0 0 auto;min-width:128px}
 .choice-btn{flex:1;min-height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-size:11.5px;font-weight:700;color:var(--inkl);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px 6px;line-height:1.25}
@@ -268,7 +267,6 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .line-row:last-child{margin-bottom:0}
 .line-n{width:20px;height:20px;border-radius:6px;background:var(--sur);color:var(--inkl);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .line-txt{flex:1;font-size:12.5px;color:var(--inkm);line-height:1.45}
-.commit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
 
 /* Progress bar (sticky while filling a report in) */
 .progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
@@ -365,7 +363,7 @@ details[open] .sec-arrow{transform:rotate(180deg)}
   .page,.wrap{max-width:100%;padding:0}
   .topbar{position:static;box-shadow:none}
   .card,.review-item,.chart-card,.kpi{box-shadow:none!important}
-  .review-score,.score-band,.obs-badge,.tick.on,.choice-btn.on,.tally,.item-code,.sec-bar-fill,.sec-count,.line-n,.seg,.meter-fill,.lg i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .review-score,.score-band,.obs-badge,.tick.on,.choice-btn.on,.item-code,.sec-bar-fill,.sec-count,.line-n,.seg,.meter-fill,.lg i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
 </head>
@@ -908,12 +906,7 @@ const PAGE2 = {
       {type:'choice', key:'effectiveness', title:'Overall, how effective was this lesson?',
         options:[{v:4,label:'Outstanding',css:'r4'},{v:3,label:'Good',css:'r3'},{v:2,label:'Developing',css:'r2'},{v:1,label:'Needs support',css:'r1'}]},
       {type:'lines', key:'strengths', title:'Strengths', hint:'The 3 indicators that made this lesson effective', n:3},
-      {type:'lines', key:'actions', title:'Action points', hint:'What would make this lesson even better?', n:3},
-      {type:'ticks', key:'plan', title:'Plan detective', hint:'Tick each part of the plan you can describe from evidence in the lesson',
-        options:['Outcome','Opening','Activity','Questions','Checking','Closure','Follow-up'],
-        tally:{bands:[{min:6,label:'Carefully planned',css:'r4'},{min:4,label:'Partly planned',css:'r2'},{min:0,label:'Loosely planned',css:'r1'}]}},
-      {type:'commit', key:'commitment', title:'My commitment', hint:'One thing I will plan into my next lesson',
-        fields:[{key:'commitIndicator',label:'Indicator'},{key:'commitLesson',label:'Lesson'},{key:'commitDate',label:'Date',type:'date'}]}
+      {type:'lines', key:'actions', title:'Action points', hint:'What would make this lesson even better?', n:3}
     ]
   },
   mentor: {
@@ -1699,13 +1692,6 @@ function blockDef(o, key){
   const p2 = (PAGE2[inst.page2] || {blocks:[]}).blocks;
   return head.concat(p2).find(b=>b.key===key) || null;
 }
-function tallyBand(b, n){
-  return b.tally.bands.find(x=>n>=x.min) || b.tally.bands[b.tally.bands.length-1];
-}
-function tallyHtml(b, vals){
-  const n = (vals||[]).length, bd = tallyBand(b, n);
-  return `<span class="tally" id="tally-${b.key}" style="color:var(--${bd.css});background:var(--${bd.css}l)">${n} / ${b.options.length} · ${esc(bd.label)}</span>`;
-}
 function renderBlock(id, o, b){
   const v = extraOf(o, b.key);
   const head = `<div class="p2-head"><div class="p2-title">${esc(b.title)}</div>${b.hint?`<div class="p2-hint">${esc(b.hint)}</div>`:''}</div>`;
@@ -1716,8 +1702,7 @@ function renderBlock(id, o, b){
     const other = b.other
       ? `<div class="fld" style="margin:9px 0 0"><input value="${esc(extraOf(o,b.key+'Other')||'')}" placeholder="Other…" oninput="updateExtra('${id}','${b.key}Other',this.value)"></div>`
       : '';
-    const tally = b.tally? `<div style="margin-top:9px">${tallyHtml(b, vals)}</div>` : '';
-    return `<div class="p2-block">${head}<div class="tick-row">${chips}</div>${other}${tally}</div>`;
+    return `<div class="p2-block">${head}<div class="tick-row">${chips}</div>${other}</div>`;
   }
   if(b.type==='choice'){
     const btns = b.options.map((opt,i)=>
@@ -1729,13 +1714,6 @@ function renderBlock(id, o, b){
     const rows = Array.from({length:b.n},(_,i)=>
       `<div class="line-row"><span class="line-n">${i+1}</span><input value="${esc(vals[i]||'')}" oninput="updateExtraLine('${id}','${b.key}',${i},this.value)"></div>`).join('');
     return `<div class="p2-block">${head}${rows}</div>`;
-  }
-  if(b.type==='commit'){
-    const fields = b.fields.map(f=>
-      `<div class="fld" style="margin-bottom:0"><label>${esc(f.label)}</label><input${f.type==='date'?' type="date"':''} value="${esc(extraOf(o,f.key)||'')}" oninput="updateExtra('${id}','${f.key}',this.value)"></div>`).join('');
-    return `<div class="p2-block">${head}
-      <textarea placeholder="${esc(b.hint||'')}…" oninput="updateExtra('${id}','${b.key}',this.value)">${esc(v||'')}</textarea>
-      <div class="commit-grid">${fields}</div></div>`;
   }
   return '';
 }
@@ -1873,13 +1851,6 @@ function toggleTick(el, id, key, idx){
   if(at>=0) cur.splice(at,1); else cur.push(opt);
   o.extras[key] = cur; o.updatedAt = Date.now(); saveObs(OBS);
   el.classList.toggle('on', at<0);
-  const t = document.getElementById('tally-'+key);
-  if(t && b.tally){
-    const bd = tallyBand(b, cur.length);
-    t.textContent = cur.length+' / '+b.options.length+' · '+bd.label;
-    t.style.color = 'var(--'+bd.css+')';
-    t.style.background = 'var(--'+bd.css+'l)';
-  }
 }
 function setChoice(el, id, key, idx){
   const o = findObs(id); if(!o) return;
@@ -1962,8 +1933,7 @@ function renderBlockSummary(o, b){
     if(other && String(other).trim()) picked.push(String(other).trim());
     if(!picked.length) return '';
     const chips = picked.map(t=>`<span class="tick on">${esc(t)}</span>`).join('');
-    const tally = b.tally? `<div style="margin-top:8px">${tallyHtml(b, Array.isArray(v)?v:[])}</div>` : '';
-    return `<div class="p2-block">${title}<div class="tick-row">${chips}</div>${tally}</div>`;
+    return `<div class="p2-block">${title}<div class="tick-row">${chips}</div></div>`;
   }
   if(b.type==='choice'){
     const opt = b.options.find(x=>x.v===v);
@@ -1975,15 +1945,6 @@ function renderBlockSummary(o, b){
     if(!vals.length) return '';
     const rows = vals.map((t,i)=>`<div class="line-row"><span class="line-n">${i+1}</span><div class="line-txt">${esc(t)}</div></div>`).join('');
     return `<div class="p2-block">${title}${rows}</div>`;
-  }
-  if(b.type==='commit'){
-    const txt = (v||'').trim();
-    const meta = b.fields.map(f=>{
-      const x = extraOf(o, f.key);
-      return (x && String(x).trim()) ? esc(f.label)+': '+esc(f.type==='date'? fmtDate(x) : x) : '';
-    }).filter(Boolean).join(' · ');
-    if(!txt && !meta) return '';
-    return `<div class="p2-block">${title}${txt?`<div class="line-txt">${esc(txt)}</div>`:''}${meta?`<div class="p2-hint" style="margin-top:6px">${meta}</div>`:''}</div>`;
   }
   return '';
 }

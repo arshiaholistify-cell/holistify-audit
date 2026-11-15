@@ -2174,11 +2174,22 @@ pooling them would average indicators that are not the same indicators.
 ### Page 2
 
 Both checklists have a second page that is not indicator-by-indicator — tick
-lists, an overall judgement, strengths and next steps, the lesson sheet's "plan
-detective" and commitment, the mentoring sheet's Part C records. `PAGE2` and
-`HEADER_BLOCKS` declare these, and `renderBlock()` / `renderBlockSummary()` are
-the form and read-only halves of one definition, so the form, the summary and
-the share text cannot drift.
+lists, an overall judgement, strengths and next steps, the mentoring sheet's
+Part C records. `PAGE2` and `HEADER_BLOCKS` declare these, and `renderBlock()` /
+`renderBlockSummary()` are the form and read-only halves of one definition, so
+the form, the summary and the share text cannot drift.
+
+The lesson sheet's **"Plan detective" and "My commitment" were removed on 15
+November 2026** at the author's request, so the app's page 2 is deliberately
+shorter than the printed sheet. Their supporting machinery went with them: the
+`commit` block type and the `tally` banding had one user each, and a renderer
+branch nothing can reach is a trap for whoever reads it next. Both are a revert
+away if the sheet wins the argument later. `sc.tally` in `computeScore()` is an
+unrelated thing — the Seen / Partly / Not yet counts — and stays.
+
+A value already typed into either block is still in `localStorage` under
+`extras.plan` / `extras.commitment`; it simply has nothing to render it. Both
+had been live for a matter of hours, so in practice there is none.
 
 Three things decided here:
 
