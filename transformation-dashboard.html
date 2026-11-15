@@ -12,122 +12,238 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --g:#60A500;--gh:#A8D08D;--gd:#4a8000;--gl:#f0f7e6;--gll:#f8fdf2;
+  /* Brand */
+  --g:#60A500;--gh:#A8D08D;--gd:#4a8000;--gl:#f1f7e7;--gll:#f8fcf2;
   --pu:#7030A0;--pul:#f3eaf9;
+  /* Rating / status. These are labelled wherever they appear - a colour never
+     carries the answer on its own. */
   --r4:#4a8000;--r3:#60A500;--r2:#E8A33D;--r1:#D64545;
   --r4l:#eaf3df;--r3l:#eef7e0;--r2l:#fdf1e0;--r1l:#fbe9e9;
-  --na:#948C7F;--nal:#efece7;
-  --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkll:#948C7F;
-  --sur:#F5F2EC;--card:#fff;--bdr:rgba(120,100,70,0.16);--bdrs:rgba(120,100,70,0.28);
-  --rsm:8px;--rmd:12px;--rlg:18px;
-  --sh:0 2px 8px rgba(0,0,0,0.06);--shm:0 8px 24px rgba(0,0,0,0.10);
+  --na:#8d8880;--nal:#efece7;
+  /* Chart ink. A single-hue green ordinal ramp, validated light-end 2.24:1 on
+     white with monotone lightness - never green-against-red, which is four
+     deltaE apart under deuteranopia and would make the charts meaningless for
+     one reader in twelve. Length and position carry magnitude; the ramp only
+     carries order. */
+  --viz-1:#8abc52;--viz-2:#67a124;--viz-3:#4a8400;--viz-4:#2f5a00;
+  --viz-bar:#4a8400;--viz-soft:#dfeacd;--viz-na:#b4afa4;
+  --viz-grid:#e8e5dd;--viz-axis:#c7c3b8;--viz-mut:#827d74;
+  /* Ink and surface */
+  --ink:#17150f;--inkm:#3f3c33;--inkl:#6a655b;--inkll:#938d82;
+  --sur:#F6F4EF;--card:#fff;--bdr:rgba(90,78,52,0.14);--bdrs:rgba(90,78,52,0.26);
+  --rsm:9px;--rmd:13px;--rlg:18px;
+  --sh:0 1px 2px rgba(30,26,16,.05),0 2px 8px rgba(30,26,16,.045);
+  --shm:0 10px 30px rgba(30,26,16,.10);
   --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+  --side:248px;
 }
-html,body{background:var(--sur);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
-body{min-height:100vh;max-width:640px;margin:0 auto;position:relative;padding-bottom:calc(64px + var(--safe-b))}
+html,body{background:var(--sur);color:var(--ink);font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;margin:0}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:10px 12px;width:100%;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
-input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(96,165,0,.12)}
+input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(96,165,0,.14)}
 textarea{resize:vertical;min-height:60px;line-height:1.4}
 label{display:block;font-size:11.5px;font-weight:700;color:var(--inkm);letter-spacing:.02em;text-transform:uppercase;margin-bottom:5px}
 .fld{margin-bottom:12px}
+:focus-visible{outline:2px solid var(--g);outline-offset:2px}
 
-/* Top bar */
-.topbar{position:sticky;top:0;z-index:50;background:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);border-bottom:2.5px solid var(--g)}
+/* ---------- App shell ---------- */
+.app{display:grid;grid-template-columns:1fr;min-height:100vh}
+.main{min-width:0;padding-bottom:calc(66px + var(--safe-b))}
+.side{display:none}
+@media(min-width:1024px){
+  .app{grid-template-columns:var(--side) minmax(0,1fr)}
+  .main{padding-bottom:28px}
+  .side{display:flex;flex-direction:column;gap:3px;position:sticky;top:0;height:100vh;overflow-y:auto;
+        background:#fff;border-right:1px solid var(--bdr);padding:18px 14px 14px}
+}
+.side-brand{display:flex;align-items:center;gap:9px;padding:0 6px 14px}
+.side-brand img{height:26px;display:block}
+.side-brand .bt{font-size:11px;font-weight:800;color:var(--g);letter-spacing:.06em;line-height:1.1}
+.side-brand .bs{font-size:13px;font-weight:800;color:var(--ink);line-height:1.2;margin-top:1px}
+.side-new{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;background:var(--g);color:#fff;
+  font-size:13.5px;font-weight:700;border-radius:var(--rsm);padding:11px 12px;margin-bottom:14px;box-shadow:var(--sh)}
+.side-new:hover{background:var(--gd)}
+.side-sec{font-size:10px;font-weight:800;color:var(--inkll);text-transform:uppercase;letter-spacing:.07em;padding:12px 8px 6px}
+.side-btn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;border-radius:var(--rsm);
+  font-size:13.5px;font-weight:600;color:var(--inkm);line-height:1.2}
+.side-btn .si{width:19px;text-align:center;font-size:15px;flex-shrink:0}
+.side-btn .sn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-btn .sc{font-size:11px;font-weight:700;color:var(--inkll);background:var(--sur);border-radius:20px;padding:2px 7px}
+.side-btn:hover{background:var(--sur)}
+.side-btn.on{background:var(--gl);color:var(--gd);font-weight:700}
+.side-btn.on .sc{background:#fff;color:var(--gd)}
+.side-foot{margin-top:auto;font-size:10.5px;color:var(--inkll);line-height:1.5;padding:14px 8px 0;border-top:1px solid var(--bdr)}
+
+.page{max-width:1280px;margin:0 auto;padding:18px 16px 28px}
+.page.narrow{max-width:880px}
+@media(min-width:1024px){.page{padding:26px 30px 36px}}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.page-h1{font-size:23px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.page-sub{font-size:12.5px;color:var(--inkl);margin-top:3px;line-height:1.45}
+@media(min-width:1024px){.page-h1{font-size:27px}}
+
+/* Top bar - the mobile header, and the back bar on form/summary */
+.topbar{position:sticky;top:0;z-index:50;background:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);border-bottom:2px solid var(--g)}
 .topbar .back{width:34px;height:34px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.topbar h1{font-size:16px;font-weight:800;color:var(--ink);flex:1;line-height:1.25}
+.topbar .back:hover{background:var(--gh)}
+.topbar h1{font-size:16px;font-weight:800;color:var(--ink);flex:1;line-height:1.25;min-width:0}
 .topbar .sub{font-size:11px;color:var(--inkl);font-weight:500}
 .topbar .brand{display:flex;align-items:center;gap:7px}
 .topbar .brand img{height:20px;display:block}
 .topbar .brand-txt{font-size:11px;font-weight:700;color:var(--g);letter-spacing:.03em}
+@media(min-width:1024px){
+  .topbar.only-narrow{display:none}
+  .topbar{padding:14px 30px;border-bottom:1px solid var(--bdr);box-shadow:none}
+  .topbar h1{font-size:17px}
+}
 
-/* Content */
+/* ---------- Content ---------- */
 .wrap{padding:14px 14px 24px}
-.card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px}
+@media(min-width:1024px){.wrap{max-width:880px;margin:0 auto;padding:4px 30px 36px}}
+.card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px;border:1px solid var(--bdr)}
+.grid{display:grid;gap:13px;margin-bottom:13px}
+.g2{grid-template-columns:minmax(0,1fr)}
+.g3{grid-template-columns:minmax(0,1fr)}
+.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:760px){.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.g2,.g3{align-items:start}
+@media(min-width:1024px){.g4{grid-template-columns:repeat(4,minmax(0,1fr))}}
 
-/* Stats strip */
-.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
-.stat{background:var(--card);border-radius:var(--rmd);padding:12px 8px;text-align:center;box-shadow:var(--sh)}
-.stat b{display:block;font-size:20px;font-weight:800;color:var(--g)}
-.stat span{font-size:10px;color:var(--inkl);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+/* ---------- Filters ---------- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters select,.filters input{width:auto;min-width:132px;font-size:12.5px;font-weight:600;padding:8px 10px;background:#fff}
+.filters .fcount{font-size:12px;color:var(--inkl);font-weight:600;margin-left:auto}
+.filters .clearf{font-size:12px;font-weight:700;color:var(--pu);padding:8px 10px;border-radius:var(--rsm)}
+.filters .clearf:hover{background:var(--pul)}
 
-/* Observation list card */
-.obs-card{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+/* ---------- KPI tiles ---------- */
+.kpi{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd);box-shadow:var(--sh);padding:14px 15px}
+.kpi .lab{font-size:10.5px;font-weight:800;color:var(--inkll);text-transform:uppercase;letter-spacing:.05em}
+.kpi b{display:block;font-size:30px;font-weight:800;line-height:1.1;margin-top:6px;color:var(--ink);letter-spacing:-.02em}
+.kpi b small{font-size:15px;font-weight:700;color:var(--inkll);margin-left:1px}
+.kpi .sub{font-size:11.5px;color:var(--inkl);margin-top:5px;line-height:1.4}
+.kpi .spark{margin-top:9px;display:block}
+
+/* ---------- Chart cards ---------- */
+.chart-card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd);box-shadow:var(--sh);padding:15px 16px 13px;min-width:0}
+.chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.chart-title{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25}
+.chart-sub{font-size:11.5px;color:var(--inkl);margin-top:2px;line-height:1.4}
+.chart-toggle{font-size:11px;font-weight:700;color:var(--inkl);border:1px solid var(--bdr);border-radius:20px;padding:4px 10px;white-space:nowrap;flex-shrink:0}
+.chart-toggle:hover{background:var(--sur);color:var(--ink)}
+.viz{display:block;width:100%;height:auto;overflow:visible}
+.viz text{font-family:inherit}
+.viz .ax{fill:var(--viz-mut);font-size:10px;font-weight:600}
+.viz .vlab{fill:var(--inkm);font-size:10.5px;font-weight:700}
+.viz .grid-l{stroke:var(--viz-grid);stroke-width:1}
+.viz .base-l{stroke:var(--viz-axis);stroke-width:1}
+.viz .col{fill:var(--viz-bar)}
+.viz .col:hover,.viz .dot:hover{fill:var(--viz-4)}
+.viz .ln{fill:none;stroke:var(--viz-bar);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.viz .ar{fill:var(--viz-soft);opacity:.55}
+.viz .dot{fill:var(--viz-bar);stroke:#fff;stroke-width:2}
+.viz .hit{fill:transparent}
+.chart-empty{font-size:12.5px;color:var(--inkl);padding:18px 2px;line-height:1.5}
+
+/* Legend - identity is never colour alone; every swatch is named */
+.legend{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:11px}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--inkm)}
+.lg i{width:11px;height:11px;border-radius:3px;display:block;flex-shrink:0}
+
+/* Segmented bar */
+.segbar{display:flex;height:34px;border-radius:7px;overflow:hidden;background:var(--sur);gap:2px}
+.seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
+
+/* Meter list - name, bar, figure; the figures sit beside the bars */
+.meter{display:block;width:100%;text-align:left;padding:8px 6px;border-radius:var(--rsm)}
+.meter+.meter{border-top:1px solid var(--bdr)}
+.meter:hover{background:var(--sur)}
+.meter-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:5px}
+.meter-lab{font-size:12.5px;font-weight:600;color:var(--inkm);line-height:1.3;min-width:0}
+.meter-lab .mq{display:block;font-size:10.5px;color:var(--inkll);font-weight:600;margin-top:1px}
+.meter-val{font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.meter-track{height:8px;background:var(--sur);border-radius:20px;overflow:hidden}
+.meter-fill{height:100%;border-radius:20px;background:var(--viz-bar)}
+
+/* Data-table view behind every time chart */
+.dtable{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.dtable th{text-align:left;font-weight:800;color:var(--inkll);text-transform:uppercase;font-size:10px;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--bdr)}
+.dtable td{padding:6px 8px;border-bottom:1px solid var(--bdr);color:var(--inkm)}
+.dtable td:last-child,.dtable th:last-child{text-align:right}
+.dtable tr:last-child td{border-bottom:none}
+
+/* Wide people table */
+.wtable{width:100%;border-collapse:collapse;font-size:13px}
+.wtable th{text-align:left;font-size:10.5px;font-weight:800;color:var(--inkll);text-transform:uppercase;letter-spacing:.04em;padding:9px 10px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+.wtable td{padding:11px 10px;border-bottom:1px solid var(--bdr);color:var(--inkm);vertical-align:middle}
+.wtable tr:last-child td{border-bottom:none}
+.wtable tbody tr{cursor:pointer}
+.wtable tbody tr:hover td{background:var(--sur)}
+.wtable .nm{font-weight:700;color:var(--ink);font-size:13.5px}
+.wtable .num{text-align:right;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ---------- Report list ---------- */
+.obs-card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.obs-card:hover{border-color:var(--bdrs);box-shadow:var(--shm)}
 .obs-card .info{flex:1;min-width:0}
 .obs-card .name{font-size:14.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .obs-card .meta{font-size:11.5px;color:var(--inkl);margin-top:2px}
-.obs-badge{min-width:44px;height:44px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;line-height:1}
+.obs-badge{min-width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;line-height:1}
 .obs-badge span{font-size:7px;font-weight:700;opacity:.85;margin-top:1px}
 .obs-badge.draft{background:var(--pul);color:var(--pu);font-size:9px}
-.chev{color:var(--inkll);font-size:16px}
-.type-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--pu);background:var(--pul);padding:2px 8px;border-radius:20px;margin-bottom:4px}
+.obs-card .chev{color:var(--inkll);font-size:19px;flex-shrink:0}
+.type-pill{display:inline-block;font-size:10px;font-weight:800;color:var(--gd);background:var(--gl);border-radius:20px;padding:2px 8px;margin-bottom:4px;letter-spacing:.02em}
+.obs-grid{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:900px){.obs-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1400px){.obs-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.obs-grid .obs-card{margin-bottom:0}
 
-.empty{text-align:center;padding:50px 20px;color:var(--inkl)}
-.empty .ico{font-size:40px;margin-bottom:10px}
-.empty h3{color:var(--ink);font-size:15px;margin-bottom:5px}
-.empty p{font-size:13px;line-height:1.5}
+/* ---------- Picker ---------- */
+.type-card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd);box-shadow:var(--sh);padding:15px;margin-bottom:11px;display:flex;align-items:center;gap:13px;cursor:pointer}
+.type-card:hover{border-color:var(--g);box-shadow:var(--shm)}
+.type-card .ico{width:44px;height:44px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.type-card .tt{flex:1;min-width:0}
+.type-card .tt b{display:block;font-size:14.5px;font-weight:700;color:var(--ink)}
+.type-card .tt span{display:block;font-size:11.5px;color:var(--inkl);margin-top:3px;line-height:1.45}
+.type-card .chev{color:var(--inkll);font-size:19px}
 
-/* Buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:var(--rsm);font-size:14px;font-weight:700;width:100%}
-.btn-p{background:var(--g);color:#fff;box-shadow:0 4px 14px rgba(96,165,0,.3)}
-.btn-p:active{background:var(--gd)}
-.btn-s{background:var(--gl);color:var(--gd)}
-.btn-o{background:#fff;border:1.5px solid var(--bdrs);color:var(--inkm)}
-.btn-d{background:var(--r1l);color:var(--r1)}
-.btn-row{display:flex;gap:8px}
-.btn-row .btn{flex:1}
-
-/* FAB */
-.fab{position:fixed;right:18px;bottom:calc(78px + var(--safe-b));width:56px;height:56px;border-radius:50%;background:var(--g);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(96,165,0,.4);z-index:60}
-
-/* Bottom nav */
-.nav{position:fixed;left:0;right:0;bottom:0;max-width:640px;margin:0 auto;background:#fff;border-top:1px solid var(--bdr);display:flex;padding-bottom:var(--safe-b);z-index:55;box-shadow:0 -2px 10px rgba(0,0,0,.05)}
-.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 8px;font-size:10px;font-weight:600;color:var(--inkl)}
-.nav button.on{color:var(--g)}
-.nav button .ic{font-size:19px}
-
-/* Type picker cards */
-.type-card{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);padding:16px;margin-bottom:12px;display:flex;gap:14px;align-items:center}
-.type-card .ico{width:46px;height:46px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.type-card .tt{flex:1}
-.type-card .tt b{font-size:14.5px;font-weight:700;display:block;margin-bottom:2px}
-.type-card .tt span{font-size:11.5px;color:var(--inkl);line-height:1.4}
-
-/* Section (form) */
-details.sec{background:var(--card);border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden}
-details.sec summary{list-style:none;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
-details.sec summary::-webkit-details-marker{display:none}
-.sec-tt{flex:1}
-.sec-grp{font-size:10px;font-weight:700;color:var(--pu);text-transform:uppercase;letter-spacing:.03em}
+/* ---------- Sections and items (the report form) ---------- */
+.sec{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden}
+.sec summary{display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;list-style:none}
+.sec summary::-webkit-details-marker{display:none}
+.sec-tt{flex:1;min-width:0}
+.sec-grp{font-size:10px;font-weight:800;color:var(--pu);text-transform:uppercase;letter-spacing:.03em}
 .sec-name{font-size:14.5px;font-weight:700;color:var(--ink)}
-.sec-count{font-size:11.5px;font-weight:700;color:var(--g);background:var(--gl);padding:3px 9px;border-radius:20px;white-space:nowrap}
+.sec-count{font-size:11.5px;font-weight:700;color:var(--gd);background:var(--gl);padding:3px 9px;border-radius:20px;white-space:nowrap}
 .sec-arrow{color:var(--inkll);transition:transform .2s;font-size:13px}
 details[open] .sec-arrow{transform:rotate(180deg)}
 .sec-body{padding:0 14px 12px;border-top:1px solid var(--bdr)}
 .item{padding:13px 0;border-bottom:1px solid var(--bdr)}
 .item:last-child{border-bottom:none}
 .item-txt{font-size:13.5px;color:var(--inkm);line-height:1.45;margin-bottom:9px}
+.item-code{display:inline-block;font-size:10px;font-weight:800;color:var(--pu);background:var(--pul);border-radius:5px;padding:2px 6px;margin-right:7px;vertical-align:1px;letter-spacing:.02em}
 .rate-group{display:flex;gap:6px;align-items:center}
 .rate-btn{flex:1;height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-weight:800;font-size:15px;color:var(--inkl);display:flex;align-items:center;justify-content:center}
+.rate-btn:hover{border-color:var(--bdrs)}
 .rate-btn.lbl{font-size:11.5px;font-weight:700;letter-spacing:-.01em;padding:0 2px}
 .rate-btn[data-css="r4"].active{background:var(--r4);border-color:var(--r4);color:#fff}
 .rate-btn[data-css="r3"].active{background:var(--r3);border-color:var(--r3);color:#fff}
 .rate-btn[data-css="r2"].active{background:var(--r2);border-color:var(--r2);color:#fff}
 .rate-btn[data-css="r1"].active{background:var(--r1);border-color:var(--r1);color:#fff}
 .rate-btn[data-css="na"].active{background:var(--na);border-color:var(--na);color:#fff}
-.item-code{display:inline-block;font-size:10px;font-weight:800;color:var(--pu);background:var(--pul);border-radius:5px;padding:2px 6px;margin-right:7px;vertical-align:1px;letter-spacing:.02em}
 .cmt-btn{width:40px;height:40px;border-radius:9px;background:var(--sur);border:1.5px solid var(--bdr);font-size:15px;flex-shrink:0}
 .cmt-btn.has{background:var(--pul);border-color:var(--pu)}
 .cmt-wrap{margin-top:8px}
 .scale-hint{display:flex;gap:6px;margin-top:6px}
 .scale-hint span{flex:1;font-size:8.5px;text-align:center;color:var(--inkll);font-weight:600}
-.info-toggle{font-size:11px;font-weight:700;color:var(--pu);margin-top:8px;display:inline-flex;align-items:center;gap:4px}
 .info-wrap{margin-top:8px;background:var(--sur);border-radius:var(--rsm);padding:9px 10px}
 .info-row{display:flex;gap:8px;padding:5px 0;font-size:11.5px;color:var(--inkm);line-height:1.4}
 .info-row b{width:18px;height:18px;border-radius:5px;color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 
 /* Page 2 of the printed checklists */
-.p2-sub{font-size:10.5px;font-weight:700;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.p2-sub{font-size:10.5px;font-weight:800;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
 .p2-block{padding:13px 0;border-bottom:1px solid var(--bdr)}
 .p2-block:last-child{border-bottom:none;padding-bottom:0}
 .p2-head{margin-bottom:9px}
@@ -135,7 +251,8 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .p2-hint{font-size:11px;color:var(--inkl);margin-top:2px;line-height:1.4}
 .p2-note{font-size:11px;color:var(--inkl);line-height:1.5;margin-top:12px;padding-top:11px;border-top:1px solid var(--bdr);font-style:italic}
 .tick-row{display:flex;flex-wrap:wrap;gap:7px}
-.tick{padding:7px 12px;border-radius:20px;background:#fff;border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);line-height:1.2}
+.tick{padding:7px 12px;border-radius:20px;background:#fff;border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);line-height:1.2;cursor:pointer}
+.tick:hover{border-color:var(--bdrs)}
 .tick.on{background:var(--gl);border-color:var(--g);color:var(--gd)}
 .tick.on::before{content:'✓ ';font-weight:800}
 .tally{display:inline-block;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:20px}
@@ -153,31 +270,29 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .line-txt{flex:1;font-size:12.5px;color:var(--inkm);line-height:1.45}
 .commit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
 
-/* Progress bar (sticky) */
+/* Progress bar (sticky while filling a report in) */
 .progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
+@media(min-width:1024px){.progress-wrap{top:57px;padding:10px 30px 8px;max-width:880px;margin:0 auto}}
 .progress-top{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--inkm);margin-bottom:6px}
 .progress-bar{height:7px;background:var(--bdr);border-radius:20px;overflow:hidden}
 .progress-fill{height:100%;width:100%;background:var(--g);border-radius:20px;transform-origin:left;transform:scaleX(0);transition:transform .25s}
 
-/* Score ring / summary */
+/* ---------- Summary document ---------- */
 .report-logo{display:block;height:30px;margin:0 auto 12px}
 .report-title{text-align:center;font-size:11px;font-weight:800;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
 .report-head{text-align:left;margin-bottom:10px}
 .report-teacher{font-size:17px;font-weight:800;color:var(--ink);line-height:1.3}
 .report-date{font-size:12px;font-weight:600;color:var(--inkl);margin-top:1px}
-.report-meta{text-align:center;font-size:14px;font-weight:600;color:var(--inkm);margin-bottom:4px}
-.report-meta b{color:var(--ink);font-weight:800}
-.score-hero{text-align:center;padding:6px 10px 6px}
-.score-num{font-size:46px;font-weight:800;line-height:1}
+.score-hero{text-align:center;padding:6px 10px}
+.score-num{font-size:46px;font-weight:800;line-height:1;letter-spacing:-.02em}
 .score-num small{font-size:19px;font-weight:700;color:var(--inkl)}
 .score-band{font-size:13px;font-weight:700;margin-top:4px;padding:4px 14px;border-radius:20px;display:inline-block}
 .score-sub{font-size:11.5px;color:var(--inkl);margin-top:8px}
 .sec-bar-row{display:flex;align-items:center;gap:10px;padding:9px 0}
 .sec-bar-label{width:150px;font-size:12px;color:var(--inkm);font-weight:600;flex-shrink:0}
-.sec-bar-track{flex:1;height:9px;background:var(--bdr);border-radius:20px;overflow:hidden}
+.sec-bar-track{flex:1;height:9px;background:var(--sur);border-radius:20px;overflow:hidden}
 .sec-bar-fill{height:100%;border-radius:20px}
-.sec-bar-pct{width:38px;text-align:right;font-size:11.5px;font-weight:700;color:var(--inkm)}
-
+.sec-bar-pct{width:38px;text-align:right;font-size:11.5px;font-weight:700;color:var(--inkm);font-variant-numeric:tabular-nums}
 .review-item{padding:10px 0;border-bottom:1px solid var(--bdr)}
 .review-item:last-child{border-bottom:none}
 .review-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
@@ -187,31 +302,25 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .review-cmt{font-size:11.5px;color:var(--inkl);margin-top:5px;font-style:italic;background:var(--sur);padding:6px 8px;border-radius:6px}
 .review-lvl{font-size:11px;color:var(--inkl);margin-top:5px;background:var(--sur);padding:6px 8px;border-radius:6px;line-height:1.4}
 
-.chip-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px}
+/* ---------- Chips, profile, timeline ---------- */
+.chip-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;flex-wrap:wrap}
 .chip-row::-webkit-scrollbar{display:none}
-.chip{flex-shrink:0;padding:7px 13px;border-radius:20px;background:var(--card);border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);white-space:nowrap}
+.chip{flex-shrink:0;padding:7px 13px;border-radius:20px;background:var(--card);border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);white-space:nowrap;cursor:pointer}
+.chip:hover{border-color:var(--bdrs)}
 .chip.on{background:var(--g);border-color:var(--g);color:#fff}
-
-.teacher-row{background:var(--card);border-radius:var(--rmd);box-shadow:var(--sh);padding:13px 14px;margin-bottom:9px}
-.teacher-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.teacher-top .name{font-size:14px;font-weight:700}
-.teacher-top .cnt{font-size:11px;color:var(--inkl)}
-.trend{display:flex;gap:4px;align-items:flex-end;height:34px}
-.trend-bar{flex:1;border-radius:4px 4px 0 0;min-height:4px}
-
+.profile-meta{font-size:12.5px;color:var(--inkm);margin-top:6px;line-height:1.5}
+.profile-meta b{color:var(--ink);font-weight:700}
+.trend{display:flex;gap:3px;align-items:flex-end;height:30px}
+.trend-bar{flex:1;border-radius:3px 3px 0 0;min-height:3px;background:var(--viz-bar)}
 .timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--bdr)}
 .timeline-item:last-child{border-bottom:none}
 .timeline-dot{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:var(--gl)}
 .timeline-body{flex:1;min-width:0}
 .timeline-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .timeline-type{font-size:12.5px;font-weight:700;color:var(--ink)}
-.timeline-date{font-size:10.5px;color:var(--inkl);white-space:nowrap}
-.timeline-avg{font-size:12px;font-weight:800;white-space:nowrap}
+.timeline-avg{font-size:12px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
 .timeline-meta{font-size:11px;color:var(--inkl);margin-top:2px}
 .timeline-score{font-size:11.5px;font-weight:700;margin-top:3px}
-
-.profile-meta{font-size:12.5px;color:var(--inkm);margin-top:6px;line-height:1.5}
-.profile-meta b{color:var(--ink);font-weight:700}
 .day-group{margin-bottom:2px}
 .day-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0 6px;border-top:1px solid var(--bdr)}
 .day-group:first-child .day-head{border-top:none;padding-top:0}
@@ -221,17 +330,48 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .section-title{font-size:12px;font-weight:800;color:var(--inkl);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px}
 .section-title:first-child{margin-top:0}
 
+/* ---------- Buttons, empty states ---------- */
+.btn-row{display:flex;gap:10px}
+.btn{flex:1;padding:13px 14px;border-radius:var(--rsm);font-size:14px;font-weight:700;text-align:center;border:1.5px solid transparent}
+.btn-p{background:var(--g);color:#fff}
+.btn-p:hover{background:var(--gd)}
+.btn-o{background:#fff;border-color:var(--bdr);color:var(--inkm)}
+.btn-o:hover{border-color:var(--bdrs);background:var(--sur)}
+.btn-s{background:var(--gl);color:var(--gd)}
+.btn-s:hover{background:var(--gh)}
+.btn-d{background:var(--r1l);color:var(--r1)}
+.btn-d:hover{background:#f6d9d9}
+.empty{text-align:center;padding:44px 20px;background:var(--card);border:1px solid var(--bdr);border-radius:var(--rmd)}
+.empty .ico{font-size:36px;margin-bottom:10px}
+.empty h3{font-size:15.5px;font-weight:700;color:var(--ink);margin-bottom:5px}
+.empty p{font-size:12.5px;color:var(--inkl);line-height:1.5;max-width:360px;margin:0 auto}
+
+/* ---------- Bottom nav (narrow screens) and FAB ---------- */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff;border-top:1px solid var(--bdr);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:var(--safe-b);box-shadow:0 -2px 10px rgba(30,26,16,.06)}
+.nav button{padding:8px 2px 7px;font-size:9.5px;font-weight:700;color:var(--inkll);display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1}
+.nav button .ic{font-size:17px}
+.nav button.on{color:var(--gd)}
+.fab{position:fixed;right:16px;bottom:calc(76px + var(--safe-b));width:54px;height:54px;border-radius:50%;background:var(--g);color:#fff;font-size:27px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shm);z-index:55;cursor:pointer}
+@media(min-width:1024px){.nav,.fab{display:none}}
+
+/* ---------- Tooltip ---------- */
+#tip{position:fixed;z-index:200;pointer-events:none;background:var(--ink);color:#fff;font-size:11.5px;font-weight:600;
+  line-height:1.4;padding:7px 10px;border-radius:7px;box-shadow:var(--shm);max-width:230px;opacity:0;transition:opacity .1s;white-space:pre-line}
+#tip.on{opacity:1}
+
 @media print{
-  .nav,.fab,.topbar .back,.topbar .brand-txt{display:none!important}
-  .review-score,.score-band,.obs-badge,.tick.on,.choice-btn.on,.tally,.item-code,.sec-bar-fill,.sec-count,.line-n{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body{max-width:100%;padding-bottom:0}
+  .nav,.fab,.side,.topbar .back,.topbar .brand-txt,.chart-toggle,#tip{display:none!important}
+  body,.app,.main{display:block;max-width:100%;padding:0;background:#fff}
+  .page,.wrap{max-width:100%;padding:0}
   .topbar{position:static;box-shadow:none}
-  .card,.review-item{box-shadow:none!important}
+  .card,.review-item,.chart-card,.kpi{box-shadow:none!important}
+  .review-score,.score-band,.obs-badge,.tick.on,.choice-btn.on,.tally,.item-code,.sec-bar-fill,.sec-count,.line-n,.seg,.meter-fill,.lg i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="tip" role="status" aria-live="polite"></div>
 
 <script>
 /* ---------- Rubric data ---------- */
@@ -916,7 +1056,7 @@ function saveSettings(s){ localStorage.setItem(SET_KEY, JSON.stringify(s)); }
 
 let OBS = loadObs();
 let SETTINGS = loadSettings();
-let VIEW = {name:'home', id:null, teacherName:null};
+let VIEW = {name:'overview', id:null, teacherName:null};
 let PEOPLE_KIND = 'teacher';
 function switchPeopleKind(k){ PEOPLE_KIND = k; render(); }
 
@@ -986,9 +1126,333 @@ function fieldSummary(o){
 }
 function logoImg(cls){ return `<img src="holistify-logo.png" alt="Holistify" class="${cls||''}" onerror="this.style.display='none'">`; }
 
+/* ---------- Filters ---------- */
+/* One scope, applied before anything is counted, so every tile, chart and list
+   on a screen describes the same set of reports. */
+const RANGES = [
+  {v:'all', label:'All time'},
+  {v:'365', label:'Last 12 months'},
+  {v:'180', label:'Last 6 months'},
+  {v:'90',  label:'Last 90 days'},
+  {v:'30',  label:'Last 30 days'}
+];
+let FILTERS = {range:'all', type:'all', observer:'all', q:''};
+function cutoffDate(days){
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-days);
+  return d.toISOString().slice(0,10);
+}
+function scopedObs(){
+  const cut = FILTERS.range==='all' ? null : cutoffDate(+FILTERS.range);
+  const q = (FILTERS.q||'').trim().toLowerCase();
+  return OBS.filter(o=>{
+    if(cut && (o.date||'') < cut) return false;
+    if(FILTERS.type!=='all' && o.type!==FILTERS.type) return false;
+    if(FILTERS.observer!=='all' && (o.observer||'').trim()!==FILTERS.observer) return false;
+    if(q){
+      const hay = [o.teacher,o.subject,o.topic,o.grade,o.observer].join(' ').toLowerCase();
+      if(hay.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+}
+function allObservers(){ return [...new Set(OBS.map(o=>(o.observer||'').trim()).filter(Boolean))].sort(); }
+function setFilter(k, v){ FILTERS[k]=v; render(); }
+function setQuery(v){
+  FILTERS.q = v;
+  /* typed into, so the list is repainted without rebuilding the input */
+  const host = document.getElementById('list-host');
+  if(host){ host.innerHTML = reportListHtml(); } else { render(); }
+}
+function filtersActive(){ return FILTERS.range!=='all' || FILTERS.type!=='all' || FILTERS.observer!=='all' || !!(FILTERS.q||'').trim(); }
+function clearFilters(){ FILTERS={range:'all',type:'all',observer:'all',q:''}; render(); }
+function filterBar(shown, total, withSearch){
+  const obs = allObservers();
+  const typeOpts = Object.values(REPORT_TYPES).map(t=>
+    `<option value="${t.key}"${FILTERS.type===t.key?' selected':''}>${esc(currentInstrument(t.key).short)}</option>`).join('');
+  return `<div class="filters">
+    <select aria-label="Date range" onchange="setFilter('range',this.value)">
+      ${RANGES.map(r=>`<option value="${r.v}"${FILTERS.range===r.v?' selected':''}>${r.label}</option>`).join('')}
+    </select>
+    <select aria-label="Report type" onchange="setFilter('type',this.value)">
+      <option value="all"${FILTERS.type==='all'?' selected':''}>All report types</option>${typeOpts}
+    </select>
+    <select aria-label="Observer" onchange="setFilter('observer',this.value)">
+      <option value="all"${FILTERS.observer==='all'?' selected':''}>All observers</option>
+      ${obs.map(n=>`<option value="${esc(n)}"${FILTERS.observer===n?' selected':''}>${esc(n)}</option>`).join('')}
+    </select>
+    ${withSearch?`<input type="search" aria-label="Search reports" placeholder="Search name, subject…" value="${esc(FILTERS.q)}" oninput="setQuery(this.value)">`:''}
+    ${filtersActive()?`<button class="clearf" onclick="clearFilters()">Clear filters</button>`:''}
+    <span class="fcount">${shown} of ${total} report${total===1?'':'s'}</span>
+  </div>`;
+}
+
+/* ---------- Tooltip ---------- */
+/* One node, delegated: an HTML/SVG chart is interactive, and every mark carries
+   its own figures rather than printing a number on every point. */
+function _tipAt(e){
+  const t = document.getElementById('tip'); if(!t) return;
+  const pad = 12, w = t.offsetWidth, h = t.offsetHeight;
+  let x = e.clientX + pad, y = e.clientY - h - pad;
+  if(x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+  if(y < 8) y = e.clientY + pad;
+  t.style.left = Math.max(8,x)+'px'; t.style.top = y+'px';
+}
+function initTips(){
+  const t = document.getElementById('tip'); if(!t) return;
+  document.addEventListener('mouseover', e=>{
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if(!el) return;
+    t.textContent = el.getAttribute('data-tip'); t.classList.add('on'); _tipAt(e);
+  });
+  document.addEventListener('mousemove', e=>{ if(t.classList.contains('on')) _tipAt(e); });
+  document.addEventListener('mouseout', e=>{
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if(el) t.classList.remove('on');
+  });
+  document.addEventListener('touchstart', e=>{
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if(!el){ t.classList.remove('on'); return; }
+    const to = e.touches[0];
+    t.textContent = el.getAttribute('data-tip'); t.classList.add('on');
+    _tipAt({clientX:to.clientX, clientY:to.clientY});
+  }, {passive:true});
+  window.addEventListener('scroll', ()=>t.classList.remove('on'), {passive:true});
+}
+
+/* ---------- Chart primitives (inline SVG, no dependencies) ---------- */
+function chartCard(id, title, sub, chartHtml, tableHtml){
+  return `<div class="chart-card">
+    <div class="chart-head">
+      <div style="min-width:0"><div class="chart-title">${esc(title)}</div>${sub?`<div class="chart-sub">${esc(sub)}</div>`:''}</div>
+      ${tableHtml?`<button class="chart-toggle" onclick="toggleChartTable('${id}',this)">Table</button>`:''}
+    </div>
+    <div id="cv-${id}">${chartHtml}</div>
+    ${tableHtml?`<div id="ct-${id}" style="display:none" class="tbl-wrap">${tableHtml}</div>`:''}
+  </div>`;
+}
+/* Every time chart carries its own numbers behind a toggle, so the figures are
+   reachable without reading a mark. */
+function toggleChartTable(id, btn){
+  const v = document.getElementById('cv-'+id), t = document.getElementById('ct-'+id);
+  if(!v||!t) return;
+  const toTable = t.style.display==='none';
+  t.style.display = toTable?'block':'none';
+  v.style.display = toTable?'none':'block';
+  btn.textContent = toTable?'Chart':'Table';
+}
+function _capRect(x,y,w,h,r){
+  r = Math.max(0, Math.min(r, w/2, h));
+  const b = y+h;
+  return `M${x},${b} L${x},${y+r} Q${x},${y} ${x+r},${y} L${x+w-r},${y} Q${x+w},${y} ${x+w},${y+r} L${x+w},${b} Z`;
+}
+function _ticks(max){
+  if(max<=0) return [0];
+  const step = Math.pow(10, Math.floor(Math.log10(max)));
+  let s = step;
+  if(max/step < 2) s = step/4; else if(max/step < 5) s = step/2;
+  const out=[]; for(let v=0; v<=max+1e-9; v+=s) out.push(Math.round(v*100)/100);
+  if(out.length>6) return [0, max/2, max].map(v=>Math.round(v*100)/100);
+  return out;
+}
+/* Columns: 4px rounded data-ends anchored to the baseline, recessive grid. */
+function vizColumns(rows, opts){
+  opts = opts||{};
+  if(!rows.length) return `<div class="chart-empty">${esc(opts.empty||'Nothing in this range yet.')}</div>`;
+  const W=560, H=176, L=34, R=8, T=10, B=26;
+  const iw = W-L-R, ih = H-T-B;
+  const max = Math.max(1, ...rows.map(r=>r.value));
+  const ticks = _ticks(max), top = Math.max(max, ticks[ticks.length-1]);
+  const slot = iw/rows.length, bw = Math.min(38, slot*0.6);
+  const y = v => T + ih - (v/top)*ih;
+  const grid = ticks.map(t=>`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/>
+      <text class="ax" x="${L-7}" y="${(y(t)+3.5).toFixed(1)}" text-anchor="end">${opts.fmtAxis?opts.fmtAxis(t):t}</text>`).join('');
+  const bars = rows.map((r,i)=>{
+    const x = L + slot*i + (slot-bw)/2;
+    const h = Math.max(r.value>0?2:0, (r.value/top)*ih);
+    const yy = T+ih-h;
+    const tip = r.tip || `${r.label}: ${r.value}`;
+    return `<g data-tip="${esc(tip)}">
+      <rect class="hit" x="${(L+slot*i).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}"/>
+      ${h>0?`<path class="col" d="${_capRect(+x.toFixed(1),+yy.toFixed(1),+bw.toFixed(1),+h.toFixed(1),4)}"/>`:''}
+    </g>`;
+  }).join('');
+  const every = rows.length>9 ? Math.ceil(rows.length/7) : 1;
+  const xlab = rows.map((r,i)=> (i%every===0 || i===rows.length-1)
+    ? `<text class="ax" x="${(L+slot*i+slot/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(r.label)}</text>` : '').join('');
+  return `<svg class="viz" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.alt||'Column chart')}">
+    ${grid}${bars}
+    <line class="base-l" x1="${L}" x2="${W-R}" y1="${T+ih}" y2="${T+ih}"/>${xlab}</svg>`;
+}
+/* A single series over time: area + 2px line + >=8px markers, last point labelled. */
+function vizLine(rows, opts){
+  opts = opts||{};
+  const pts = rows.filter(r=>r.value!==null);
+  if(pts.length<1) return `<div class="chart-empty">${esc(opts.empty||'Nothing in this range yet.')}</div>`;
+  const W=560, H=176, L=34, R=16, T=12, B=26;
+  const iw=W-L-R, ih=H-T-B;
+  const top = opts.max || 100;
+  const slot = rows.length>1 ? iw/(rows.length-1) : 0;
+  const x = i => L + (rows.length>1 ? slot*i : iw/2);
+  const y = v => T + ih - (v/top)*ih;
+  const ticks = opts.ticks || [0,25,50,75,100];
+  const grid = ticks.map(t=>`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/>
+      <text class="ax" x="${L-7}" y="${(y(t)+3.5).toFixed(1)}" text-anchor="end">${t}${opts.unit||''}</text>`).join('');
+  const seg = [];
+  let run = [];
+  rows.forEach((r,i)=>{ if(r.value===null){ if(run.length) seg.push(run); run=[]; } else run.push([x(i),y(r.value)]); });
+  if(run.length) seg.push(run);
+  const lines = seg.map(s=>`<path class="ln" d="${s.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`).join('');
+  const areas = seg.map(s=> s.length>1
+    ? `<path class="ar" d="${s.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')} L${s[s.length-1][0].toFixed(1)},${(T+ih).toFixed(1)} L${s[0][0].toFixed(1)},${(T+ih).toFixed(1)} Z"/>` : '').join('');
+  const dots = rows.map((r,i)=> r.value===null ? '' :
+    `<g data-tip="${esc(r.tip||(r.label+': '+r.value))}">
+      <rect class="hit" x="${(x(i)-slot/2).toFixed(1)}" y="${T}" width="${Math.max(16,slot).toFixed(1)}" height="${ih}"/>
+      <circle class="dot" cx="${x(i).toFixed(1)}" cy="${y(r.value).toFixed(1)}" r="4"/></g>`).join('');
+  const last = [...rows].reverse().find(r=>r.value!==null);
+  const li = rows.lastIndexOf(last);
+  const lab = last ? `<text class="vlab" x="${Math.min(W-4, x(li)+8).toFixed(1)}" y="${(y(last.value)-8).toFixed(1)}" text-anchor="${li>=rows.length-2?'end':'start'}">${last.value}${opts.unit||''}</text>` : '';
+  const every = rows.length>9 ? Math.ceil(rows.length/7) : 1;
+  const xlab = rows.map((r,i)=> (i%every===0 || i===rows.length-1)
+    ? `<text class="ax" x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(r.label)}</text>` : '').join('');
+  return `<svg class="viz" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.alt||'Line chart')}">
+    ${grid}${areas}${lines}${dots}${lab}
+    <line class="base-l" x1="${L}" x2="${W-R}" y1="${T+ih}" y2="${T+ih}"/>${xlab}</svg>`;
+}
+function vizSpark(values){
+  const v = values.filter(n=>n!==null);
+  if(v.length<2) return '';
+  const W=120,H=26,top=100;
+  const slot = W/(values.length-1);
+  const pts = values.map((n,i)=> n===null?null:[i*slot,(H-2)-(n/top)*(H-4)]).filter(Boolean);
+  return `<svg class="spark viz" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+    <path class="ln" d="${pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/></svg>`;
+}
+/* Ordered classes: one block each, a 2px surface gap between fills, share
+   printed where it fits, names carried by the legend below. */
+function segBar(parts, total){
+  if(!total) return `<div class="chart-empty">No answers recorded in this range yet.</div>`;
+  const segs = parts.filter(p=>p.n>0).map(p=>{
+    const pct = p.n/total*100;
+    return `<div class="seg" style="flex:${p.n};background:${p.color}" data-tip="${esc(p.label+': '+p.n+' of '+total+' ('+Math.round(pct)+'%)')}">${pct>=11?Math.round(pct)+'%':''}</div>`;
+  }).join('');
+  const legend = parts.map(p=>`<span class="lg"><i style="background:${p.color}"></i>${esc(p.label)} · ${p.n}</span>`).join('');
+  return `<div class="segbar">${segs}</div><div class="legend">${legend}</div>`;
+}
+/* Name, bar and figure per row, bars aligned, each against the same 100%. */
+function meterList(rows, opts){
+  opts = opts||{};
+  if(!rows.length) return `<div class="chart-empty">${esc(opts.empty||'Nothing to show yet.')}</div>`;
+  return rows.map(r=>{
+    const tag = r.onclick ? 'button' : 'div';
+    return `<${tag} class="meter"${r.onclick?` onclick="${r.onclick}"`:''}${r.tip?` data-tip="${esc(r.tip)}"`:''}>
+      <div class="meter-top">
+        <span class="meter-lab">${esc(r.label)}${r.qual?`<span class="mq">${esc(r.qual)}</span>`:''}</span>
+        <span class="meter-val">${esc(r.value)}</span>
+      </div>
+      <div class="meter-track"><div class="meter-fill" style="width:${Math.max(0,Math.min(100,r.pct)).toFixed(1)}%"></div></div>
+    </${tag}>`;
+  }).join('');
+}
+
+/* Days since is a duration, not a share of anything, so it gets no bar. A
+   filled meter would read as "more is better" next to the score meters, where
+   a long bar means exactly the opposite. */
+function plainList(rows, opts){
+  opts = opts||{};
+  if(!rows.length) return `<div class="chart-empty">${esc(opts.empty||'Nothing to show yet.')}</div>`;
+  return rows.map(r=>`<button class="meter" onclick="${r.onclick||''}"${r.tip?` data-tip="${esc(r.tip)}"`:''}>
+    <div class="meter-top">
+      <span class="meter-lab">${esc(r.label)}${r.qual?`<span class="mq">${esc(r.qual)}</span>`:''}</span>
+      <span class="meter-val"${r.warn?' style="color:var(--r1)"':''}>${esc(r.value)}</span>
+    </div></button>`).join('');
+}
+
+/* ---------- Aggregation ---------- */
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthLabel(key){
+  const [y,m] = key.split('-');
+  return MONTH_ABBR[(+m)-1] + " '" + y.slice(2);
+}
+/* An empty month comes back at zero rather than being left out: a gap in the
+   line would read as a gap in the record, when it means no report was done. */
+function monthlyBuckets(list, months){
+  const now = new Date(); now.setDate(1);
+  const keys = [];
+  for(let i=months-1;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    keys.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+  }
+  const by = {}; keys.forEach(k=>by[k]={key:k, list:[]});
+  list.forEach(o=>{ const k=(o.date||'').slice(0,7); if(by[k]) by[k].list.push(o); });
+  return keys.map(k=>by[k]);
+}
+function monthsInRange(){
+  if(FILTERS.range==='all'){
+    const dates = OBS.map(o=>o.date).filter(Boolean).sort();
+    if(!dates.length) return 6;
+    const first = new Date(dates[0]+'T00:00:00'), now = new Date();
+    const n = (now.getFullYear()-first.getFullYear())*12 + (now.getMonth()-first.getMonth()) + 1;
+    return Math.max(3, Math.min(24, n));
+  }
+  return Math.max(2, Math.min(24, Math.ceil(+FILTERS.range/30)));
+}
+/* The answers themselves, across every checklist report in scope. */
+function answerTally(list){
+  const parts = [
+    {v:'seen',   label:'Seen',    color:'var(--viz-4)', n:0},
+    {v:'partly', label:'Partly',  color:'var(--viz-2)', n:0},
+    {v:'not',    label:'Not yet', color:'var(--viz-1)', n:0}
+  ];
+  let na = 0, any = false;
+  list.forEach(o=>{
+    const inst = instrumentFor(o);
+    if(scaleOf(inst).key!=='checklist') return;
+    any = true;
+    instItems(inst).forEach(it=>{
+      const a = answerOf(inst, o.ratings[it.id]);
+      if(!a) return;
+      if(a.score===null){ na++; return; }
+      const p = parts.find(x=>x.v===a.v); if(p) p.n++;
+    });
+  });
+  return {parts, na, total: parts.reduce((s,p)=>s+p.n,0), any};
+}
+function instrumentsInUse(list){
+  const seen = {};
+  list.forEach(o=>{ const k=o.type+'|'+rubricOf(o); seen[k]=(seen[k]||0)+1; });
+  return Object.keys(seen).map(k=>({key:k, n:seen[k]})).sort((a,b)=>b.n-a.n);
+}
+function peopleSummary(kind, list){
+  const by = {};
+  list.filter(o=>o.status==='complete' && typeOf(o).subjectType===kind).forEach(o=>{
+    const n = (o.teacher||'').trim() || 'Unnamed';
+    (by[n]=by[n]||[]).push(o);
+  });
+  return Object.keys(by).map(name=>{
+    const rs = by[name].slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+    const pcts = rs.map(o=>computeScore(o).pct);
+    return {
+      name, list:rs, n:rs.length,
+      pct: pooledPct(rs) || 0,
+      latest: pcts[pcts.length-1],
+      pcts,
+      last: rs[rs.length-1].date,
+      observers: uniqueObservers(rs)
+    };
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+function daysSince(d){
+  if(!d) return null;
+  return Math.round((Date.now() - new Date(d+'T00:00:00').getTime())/86400000);
+}
+/* Names reach a handler by index, never spliced into an onclick: a name with an
+   apostrophe in it would otherwise break the attribute it was written into. */
+let _PEOPLE = [];
+function openPersonAt(i){ const p=_PEOPLE[i]; if(p) openTeacherProfile(p.name); }
+
 /* ---------- Router ---------- */
 function go(name, id){ VIEW = {name, id, teacherName: name==='teacherProfile'?VIEW.teacherName:null}; render(); window.scrollTo(0,0); }
-function goHome(){ go('home'); }
+function goHome(){ go('overview'); }
 function openPicker(){ go('picker'); }
 function createReport(typeKey){ const o=newObsObj(typeKey); OBS.unshift(o); saveObs(OBS); go('form', o.id); }
 function openObservation(id){ const o=findObs(id); go(o.status==='draft'?'form':'summary', id); }
@@ -1000,44 +1464,187 @@ function deleteObservation(id){
 function openTeacherProfile(name){ VIEW={name:'teacherProfile', id:null, teacherName:name}; render(); window.scrollTo(0,0); }
 
 /* ---------- Render: shell ---------- */
+/* Wide screens get a sidebar; narrow ones keep the bottom nav and the FAB. One
+   render path produces both - the layout is CSS, not a second set of views. */
 function render(){
   const app = document.getElementById('app');
   let html = '';
-  if(VIEW.name==='home') html = renderHome();
-  else if(VIEW.name==='picker') html = renderPicker();
-  else if(VIEW.name==='form') html = renderForm(VIEW.id);
-  else if(VIEW.name==='summary') html = renderSummary(VIEW.id);
-  else if(VIEW.name==='teachers') html = renderTeachers();
-  else if(VIEW.name==='teacherProfile') html = renderTeacherProfile(VIEW.teacherName);
-  else if(VIEW.name==='settings') html = renderSettings();
-  app.innerHTML = html + renderNav();
+  const v = VIEW.name==='home' ? 'overview' : VIEW.name;
+  if(v==='overview') html = renderOverview();
+  else if(v==='reports') html = renderReports();
+  else if(v==='picker') html = renderPicker();
+  else if(v==='form') html = renderForm(VIEW.id);
+  else if(v==='summary') html = renderSummary(VIEW.id);
+  else if(v==='teachers') html = renderTeachers();
+  else if(v==='teacherProfile') html = renderTeacherProfile(VIEW.teacherName);
+  else if(v==='settings') html = renderSettings();
+  app.innerHTML = `<div class="app">${renderSide(v)}<div class="main">${html}</div></div>${renderNav(v)}${v==='form'||v==='summary'?'':'<div class="fab" onclick="openPicker()" title="New report">+</div>'}`;
 }
-
-function renderNav(){
-  const n = (v)=>VIEW.name===v?'on':'';
+function navCounts(){
+  return {
+    reports: OBS.length,
+    teachers: new Set(OBS.filter(o=>o.status==='complete' && typeOf(o).subjectType==='teacher').map(o=>(o.teacher||'').trim()||'Unnamed')).size,
+    mentors:  new Set(OBS.filter(o=>o.status==='complete' && typeOf(o).subjectType==='mentor').map(o=>(o.teacher||'').trim()||'Unnamed')).size
+  };
+}
+function renderSide(v){
+  const c = navCounts();
+  const btn = (view, icon, label, count, onclick, active)=>
+    `<button class="side-btn${(active===undefined? v===view : active)?' on':''}" onclick="${onclick}">
+      <span class="si" aria-hidden="true">${icon}</span><span class="sn">${label}</span>
+      ${count!==undefined?`<span class="sc">${count}</span>`:''}</button>`;
+  return `<nav class="side" aria-label="Main">
+    <div class="side-brand">${logoImg()}<div><div class="bt">HOLISTIFY</div><div class="bs">Transformation</div></div></div>
+    <button class="side-new" onclick="openPicker()"><span aria-hidden="true">＋</span> New report</button>
+    <div class="side-sec">Overview</div>
+    ${btn('overview','📊','Dashboard',undefined,"go('overview')")}
+    ${btn('reports','🗂','Reports',c.reports,"go('reports')")}
+    <div class="side-sec">People</div>
+    ${btn('teachers','👩‍🏫','Teachers',c.teachers,"goPeople('teacher')", v==='teachers'&&PEOPLE_KIND==='teacher')}
+    ${btn('teachers','🧭','Mentors',c.mentors,"goPeople('mentor')", v==='teachers'&&PEOPLE_KIND==='mentor')}
+    <div class="side-sec">Settings</div>
+    ${btn('settings','⚙️','Settings',undefined,"go('settings')")}
+    <div class="side-foot">Reports are stored in this browser only. Export a backup from Settings before switching device.</div>
+  </nav>`;
+}
+function renderNav(v){
+  const n = (x)=> v===x ? 'on' : '';
   return `<div class="nav">
-    <button class="${n('home')}" onclick="goHome()"><span class="ic">🏠</span>Home</button>
+    <button class="${n('overview')}" onclick="go('overview')"><span class="ic">📊</span>Dashboard</button>
+    <button class="${n('reports')}" onclick="go('reports')"><span class="ic">🗂</span>Reports</button>
     <button class="${n('picker')}" onclick="openPicker()"><span class="ic">➕</span>New</button>
-    <button class="${n('teachers')}" onclick="go('teachers')"><span class="ic">👩‍🏫</span>Teachers</button>
+    <button class="${n('teachers')}" onclick="go('teachers')"><span class="ic">👩‍🏫</span>People</button>
     <button class="${n('settings')}" onclick="go('settings')"><span class="ic">⚙️</span>Settings</button>
   </div>`;
 }
+function goPeople(kind){ PEOPLE_KIND = kind; go('teachers'); }
+function pageHead(title, sub, right){
+  return `<div class="page-head"><div style="min-width:0">
+    <div class="page-h1">${esc(title)}</div>${sub?`<div class="page-sub">${esc(sub)}</div>`:''}
+  </div>${right||''}</div>`;
+}
+/* Shown on narrow screens only - on wide ones the sidebar carries the brand.
+   The page title lives in pageHead(), so it is never printed twice. */
 function brandBar(title){
-  return `<div class="topbar"><div class="brand">${logoImg()}<div><div class="brand-txt">HOLISTIFY</div><h1 style="margin-top:1px">${title}</h1></div></div></div>`;
+  return `<div class="topbar only-narrow"><div class="brand">${logoImg()}<div><div class="brand-txt">HOLISTIFY</div><h1 style="margin-top:1px">${esc(title||'Transformation')}</h1></div></div></div>`;
 }
 
-/* ---------- Home ---------- */
-function renderHome(){
-  const total = OBS.length;
-  const teachers = new Set(OBS.filter(o=>typeOf(o).subjectType==='teacher').map(o=>o.teacher.trim()).filter(Boolean)).size;
-  const completed = OBS.filter(o=>o.status==='complete');
-  /* A percentage, because reports on the 1-4 rubrics and reports on the
-     Seen/Partly/Not yet checklists are averaged together here. */
-  const avgPct = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).pct,0)/completed.length) : 0;
+/* ---------- Dashboard ---------- */
+let OV_INST = null;
+function setOvInst(k){ OV_INST = k; render(); }
 
-  let list = OBS.slice().sort((a,b)=> new Date(b.date)-new Date(a.date) || b.updatedAt-a.updatedAt);
+function renderOverview(){
+  const scope = scopedObs();
+  const done = scope.filter(o=>o.status==='complete');
+  const drafts = scope.filter(o=>o.status==='draft');
+  const avg = pooledPct(done);
+  const teachers = peopleSummary('teacher', scope);
+  const mentors  = peopleSummary('mentor', scope);
+  _PEOPLE = teachers.concat(mentors);
+  const attention = _PEOPLE.filter(p=>p.pct<50).sort((a,b)=>a.pct-b.pct);
 
-  let cards = list.map(o=>{
+  /* ---- KPI row ---- */
+  const months = monthlyBuckets(done, monthsInRange());
+  const sparkVals = months.map(m=> m.list.length? pooledPct(m.list) : null);
+  const b = avg===null? null : band(avg);
+  const kpis = `<div class="grid g4">
+    <div class="kpi"><div class="lab">Reports completed</div><b>${done.length}</b>
+      <div class="sub">${drafts.length? drafts.length+' still in progress' : 'None in progress'}</div></div>
+    <div class="kpi"><div class="lab">Average score</div><b>${avg===null?'—':avg+'<small>%</small>'}</b>
+      <div class="sub">${b? esc(b.label) : 'Nothing scored yet'}</div>${vizSpark(sparkVals)}</div>
+    <div class="kpi"><div class="lab">People observed</div><b>${_PEOPLE.length}</b>
+      <div class="sub">${teachers.length} teacher${teachers.length===1?'':'s'} · ${mentors.length} mentor${mentors.length===1?'':'s'}</div></div>
+    <div class="kpi"><div class="lab">Needs focused support</div><b>${attention.length}</b>
+      <div class="sub">${attention.length? 'Pooled score below 50%' : 'Nobody is below 50%'}</div></div>
+  </div>`;
+
+  /* ---- Two time charts. Never one chart with two scales. ---- */
+  const volRows = months.map(m=>({label:monthLabel(m.key), value:m.list.length,
+    tip:`${monthLabel(m.key)}\n${m.list.length} report${m.list.length===1?'':'s'} completed`}));
+  const scoreRows = months.map(m=>{
+    const p = m.list.length? pooledPct(m.list) : null;
+    return {label:monthLabel(m.key), value:p,
+      tip: p===null? `${monthLabel(m.key)}\nNo reports` : `${monthLabel(m.key)}\n${p}% across ${m.list.length} report${m.list.length===1?'':'s'}`};
+  });
+  const volTable = `<table class="dtable"><thead><tr><th>Month</th><th>Reports</th></tr></thead><tbody>
+    ${volRows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.value}</td></tr>`).join('')}</tbody></table>`;
+  const scoreTable = `<table class="dtable"><thead><tr><th>Month</th><th>Average</th></tr></thead><tbody>
+    ${scoreRows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.value===null?'—':r.value+'%'}</td></tr>`).join('')}</tbody></table>`;
+
+  const timeRow = `<div class="grid g2">
+    ${chartCard('vol','Reports completed','One column per month',
+      vizColumns(volRows,{alt:'Reports completed each month', empty:'No completed reports in this range.'}), volTable)}
+    ${chartCard('score','Average score','Share of each instrument’s own scale, so the two scales compare',
+      vizLine(scoreRows,{unit:'%', alt:'Average score each month', empty:'Nothing scored in this range.'}), scoreTable)}
+  </div>`;
+
+  /* ---- The answers themselves ---- */
+  const tal = answerTally(done);
+  const distCard = chartCard('dist','How the indicators were answered',
+    tal.any ? `Across every checklist report in range${tal.na?' · '+tal.na+' marked NA and left out':''}` : '',
+    tal.any ? segBar(tal.parts, tal.total)
+            : `<div class="chart-empty">No checklist reports in this range. The walkthrough and lesson plan reviews are rated 1–4 and are summarised in the chart beside this one.</div>`);
+
+  /* ---- Where the gaps are, per instrument ---- */
+  const insts = instrumentsInUse(done);
+  const cur = insts.find(i=>i.key===OV_INST) || insts[0];
+  let gapsBody = `<div class="chart-empty">Complete a report to see which sections are weakest.</div>`;
+  let gapsSub = '', gapChips = '';
+  if(cur){
+    const [tk,rv] = cur.key.split('|');
+    const inst = instrumentAt(tk,rv);
+    gapsSub = `${esc(inst.name)} · ${cur.n} report${cur.n===1?'':'s'} · weakest first`;
+    const doms = domainAvgsForInstrument(done, tk, rv).filter(d=>d.pct!==null).sort((a,b)=>a.pct-b.pct);
+    gapsBody = meterList(doms.map(d=>({
+      label:d.title, qual:d.group, value:d.avg.toFixed(1)+'/'+d.max, pct:d.pct,
+      tip:`${d.title}\n${d.avg.toFixed(1)} of ${d.max} · ${d.pct}%`
+    })), {empty:'Nothing scored on this instrument yet.'});
+    if(insts.length>1){
+      gapChips = `<div class="chip-row" style="margin:0 0 10px">${insts.map(i=>{
+        const [t2,r2]=i.key.split('|');
+        return `<span class="chip ${i.key===cur.key?'on':''}" onclick="setOvInst('${i.key}')">${esc(instrumentAt(t2,r2).short)} · ${i.n}</span>`;
+      }).join('')}</div>`;
+    }
+  }
+  const gapsCard = chartCard('gaps','Where the gaps are', gapsSub, gapChips + gapsBody);
+
+  /* ---- People ---- */
+  const lowRows = attention.slice(0,6).map(p=>({
+    label:p.name, qual:`${p.n} report${p.n===1?'':'s'} · last ${fmtDate(p.last)}`,
+    value:p.pct+'%', pct:p.pct, onclick:`openPersonAt(${_PEOPLE.indexOf(p)})`,
+    tip:`${p.name}\n${p.pct}% pooled across ${p.n} report${p.n===1?'':'s'}`
+  }));
+  const stale = _PEOPLE.filter(p=>(daysSince(p.last)||0)>=60).sort((a,b)=>daysSince(b.last)-daysSince(a.last)).slice(0,6);
+  const staleRows = stale.map(p=>{
+    const d = daysSince(p.last);
+    return {label:p.name, qual:`Last seen ${fmtDate(p.last)}`, value:d+' days', warn:d>=120,
+      onclick:`openPersonAt(${_PEOPLE.indexOf(p)})`, tip:`${p.name}\n${d} days since the last report`};
+  });
+  const peopleRow = `<div class="grid g2">
+    ${chartCard('low','Needs focused support','Pooled score below 50%, lowest first',
+      meterList(lowRows,{empty:'Nobody in this range is below 50%.'}))}
+    ${chartCard('stale','Not observed recently','Nobody seen for 60 days or more',
+      plainList(staleRows,{empty:'Everyone has been observed in the last 60 days.'}))}
+  </div>`;
+
+  const empty = !OBS.length ? `<div class="empty"><div class="ico">📊</div><h3>Nothing recorded yet</h3>
+      <p>Start a report and this dashboard fills in: how many have been done, how the scores move, which sections are weakest and who has not been seen.</p></div>` : '';
+
+  return `${brandBar('Dashboard')}<div class="page">
+    ${pageHead('Dashboard', OBS.length? 'Every figure below describes the reports left by the filters.' : 'No reports yet.')}
+    ${OBS.length? filterBar(scope.length, OBS.length, false) : ''}
+    ${empty || kpis + timeRow + `<div class="grid g2">${distCard}${gapsCard}</div>` + peopleRow}
+  </div>`;
+}
+
+/* ---------- Reports ---------- */
+function reportListHtml(){
+  const list = scopedObs().slice().sort((a,b)=> new Date(b.date)-new Date(a.date) || b.updatedAt-a.updatedAt);
+  if(!list.length){
+    return `<div class="empty"><div class="ico">🗂</div><h3>No reports match</h3>
+      <p>${OBS.length? 'Nothing here fits the current filters. Clear them to see every report.' : 'Tap New report to start the first one.'}</p></div>`;
+  }
+  return `<div class="obs-grid">${list.map(o=>{
     const type = typeOf(o);
     const inst = instrumentFor(o);
     const sc = computeScore(o);
@@ -1048,31 +1655,21 @@ function renderHome(){
       <div class="info">
         <div class="type-pill">${type.icon} ${esc(inst.short)}</div>
         <div class="name">${esc(o.teacher)||'Untitled report'}</div>
-        <div class="meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}${fmtDate(o.date)}</div>
+        <div class="meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}${fmtDate(o.date)}${o.observer?' · '+esc(o.observer):''}</div>
       </div>
       ${badge}
       <div class="chev">›</div>
     </div>`;
-  }).join('');
-
-  if(!list.length){
-    cards = `<div class="empty">
-      <div class="ico">📋</div>
-      <h3>No reports yet</h3>
-      <p>Tap the + button below to start your first report.</p>
-    </div>`;
-  }
-
-  return `${brandBar('Transformation Dashboard')}
-    <div class="wrap">
-      <div class="stats">
-        <div class="stat"><b>${total}</b><span>Reports</span></div>
-        <div class="stat"><b>${teachers}</b><span>Teachers</span></div>
-        <div class="stat"><b>${avgPct}%</b><span>Avg Score</span></div>
-      </div>
-      ${cards}
-    </div>
-    <div class="fab" onclick="openPicker()">+</div>`;
+  }).join('')}</div>`;
+}
+function renderReports(){
+  const shown = scopedObs().length;
+  return `${brandBar('Reports')}<div class="page">
+    ${pageHead('Reports', 'Every report on this device, newest first.',
+      `<button class="btn btn-p" style="flex:0 0 auto;padding:11px 18px" onclick="openPicker()">＋ New report</button>`)}
+    ${filterBar(shown, OBS.length, true)}
+    <div id="list-host">${reportListHtml()}</div>
+  </div>`;
 }
 
 /* ---------- New report picker ---------- */
@@ -1527,45 +2124,53 @@ function shareObservation(id){
 /* ---------- Teachers / Mentors ---------- */
 function renderTeachers(){
   const kind = PEOPLE_KIND;
-  const byName = {};
-  OBS.filter(o=>o.status==='complete' && typeOf(o).subjectType===kind).forEach(o=>{
-    const t = o.teacher.trim()||'Unnamed';
-    (byName[t]=byName[t]||[]).push(o);
-  });
-  const names = Object.keys(byName).sort();
-
-  let rows = names.map(name=>{
-    const list = byName[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-    /* Percentages, not raw averages: a 3-point checklist and a 4-point rubric
-       share this trend, and 2.4 means different things on the two scales. */
-    const pcts = list.map(o=>computeScore(o).pct);
-    const last = pcts[pcts.length-1];
-    const bars = pcts.slice(-10).map(p=>{
-      const c = scoreColor(p);
-      return `<div class="trend-bar" style="height:${Math.max(6, p/100*34)}px;background:${c}"></div>`;
-    }).join('');
-    return `<div class="teacher-row" onclick="openTeacherProfile('${esc(name).replace(/'/g,"\\'")}')">
-      <div class="teacher-top">
-        <div class="name">${esc(name)}</div>
-        <div class="cnt">${list.length} report${list.length>1?'s':''} · latest ${Math.round(last)}%</div>
-      </div>
-      <div class="trend">${bars}</div>
-    </div>`;
-  }).join('');
-
-  if(!names.length){
-    rows = kind==='mentor'
-      ? `<div class="empty"><div class="ico">🧭</div><h3>No completed mentor reviews yet</h3><p>Finish an Effective Mentoring Checklist to start tracking mentor progress here.</p></div>`
-      : `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports yet</h3><p>Finish a report to start tracking teacher progress here.</p></div>`;
-  }
+  const scope = scopedObs();
+  const people = peopleSummary(kind, scope);
+  _PEOPLE = people;
+  const label = kind==='mentor' ? 'Mentors' : 'Teachers';
 
   const toggle = `<div class="chip-row">
     <span class="chip ${kind==='teacher'?'on':''}" onclick="switchPeopleKind('teacher')">👩‍🏫 Teachers</span>
     <span class="chip ${kind==='mentor'?'on':''}" onclick="switchPeopleKind('mentor')">🧭 Mentors</span>
   </div>`;
 
-  return `${brandBar(kind==='mentor'?'Mentors':'Teachers')}
-    <div class="wrap">${toggle}${rows}</div>`;
+  let body;
+  if(!people.length){
+    body = kind==='mentor'
+      ? `<div class="empty"><div class="ico">🧭</div><h3>No completed mentor reviews</h3><p>Finish an Effective Mentoring Checklist and mentors appear here with their history.</p></div>`
+      : `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports</h3><p>Finish a report and teachers appear here with their history.</p></div>`;
+  } else {
+    const rows = people.map((p,i)=>{
+      const d = daysSince(p.last);
+      const trend = p.pcts.length<2
+        ? `<span style="color:var(--inkll);font-size:12px">Only one report</span>`
+        : `<div class="trend" data-tip="${esc(p.name+'\n'+p.pcts.slice(-12).map(v=>Math.round(v)+'%').join(' \u2192 '))}">`
+          + p.pcts.slice(-12).map(v=>
+              `<div class="trend-bar" style="height:${Math.max(3, v/100*30).toFixed(1)}px"></div>`).join('')
+          + `</div>`;
+      return `<tr onclick="openPersonAt(${i})">
+        <td><div class="nm">${esc(p.name)}</div><div style="font-size:11px;color:var(--inkl);margin-top:2px">${esc(p.observers.join(', ')||'—')}</div></td>
+        <td class="num">${p.n}</td>
+        <td class="num">${Math.round(p.latest)}%</td>
+        <td class="num">${p.pct}%</td>
+        <td style="min-width:120px">${trend}</td>
+        <td class="num" style="font-weight:600;color:${d>=60?'var(--r1)':'var(--inkm)'}">${fmtDate(p.last)}<div style="font-size:10.5px;color:var(--inkll);font-weight:600">${d} day${d===1?'':'s'} ago</div></td>
+      </tr>`;
+    }).join('');
+    body = `<div class="card" style="padding:4px 6px"><div class="tbl-wrap"><table class="wtable">
+      <thead><tr>
+        <th>${kind==='mentor'?'Mentor':'Teacher'}</th><th style="text-align:right">Reports</th>
+        <th style="text-align:right">Latest</th><th style="text-align:right">Pooled</th>
+        <th>Trend</th><th style="text-align:right">Last seen</th>
+      </tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+
+  return `${brandBar(label)}<div class="page">
+    ${pageHead(label, 'Pooled score is every indicator answered, as a share of its own scale. Click a row for the full history.')}
+    ${toggle}
+    ${OBS.length? filterBar(scope.length, OBS.length, false) : ''}
+    ${body}
+  </div>`;
 }
 
 /* ---------- Teacher profile (consolidated, date-wise) ---------- */
@@ -1670,7 +2275,7 @@ function renderTeacherProfile(name){
   const subjectLabel = kind==='mentor' ? 'Mentor / Coach' : 'Teacher';
   const observerLabel = kind==='mentor' ? 'Reviewed by' : 'Mentor/Coach';
   return `<div class="topbar"><div class="back" onclick="go('teachers')">←</div><div><h1>${esc(name)}</h1><div class="sub">Consolidated report history</div></div></div>
-    <div class="wrap">
+    <div class="page">
       <div class="card">
         <div class="score-hero" style="padding-top:2px">
           <div class="score-num" style="color:${scoreColor(overallPct)};font-size:36px">${overallPct}<small>%</small></div>
@@ -1691,7 +2296,8 @@ function renderTeacherProfile(name){
 /* ---------- Settings ---------- */
 function renderSettings(){
   return `${brandBar('Settings')}
-    <div class="wrap">
+    <div class="page narrow">
+      ${pageHead('Settings','Your default name on new reports, and the backup of everything stored in this browser.')}
       <div class="card">
         <div class="fld" style="margin-bottom:0"><label>Default observer name</label>
           <input value="${esc(SETTINGS.observer)}" placeholder="Your name" oninput="updateSettingsField('observer',this.value)">
@@ -1743,6 +2349,7 @@ function clearData(){
 }
 
 /* ---------- Init ---------- */
+initTips();
 render();
 </script>
 </body>

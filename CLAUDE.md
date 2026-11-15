@@ -2018,10 +2018,11 @@ that *is* appropriate.
 ## The Transformation Dashboard
 
 `transformation-dashboard.html` is its own app — four report types, stored in
-`localStorage` only, with no Supabase and no build-time substitution. The
-sidebar's Teachers/Mentors toggle is `PEOPLE_KIND`; `REPORT_TYPES` holds what is
-true of a *type* (icon, whether it is about a teacher or a mentor, which header
-fields it asks for), and `INSTRUMENTS` holds the rubric itself.
+`localStorage` only, with no Supabase and no build-time substitution.
+`REPORT_TYPES` holds what is true of a *type* (icon, whether it is about a
+teacher or a mentor, which header fields it asks for), and `INSTRUMENTS` holds
+the rubric itself. `PEOPLE_KIND` is which of Teachers/Mentors the people screen
+is showing.
 
 Two of the four are the checklists Holistify issues:
 
@@ -2031,6 +2032,80 @@ Two of the four are the checklists Holistify issues:
 | The Effective Mentoring Checklist | 11 sections, 33 indicators (Part A 22, Part B 11) | Seen / Partly / Not yet / NA |
 | Curriculum Pulse Walkthrough | 12 items | 1–4 |
 | Lesson Plan Checklist | behaviourally anchored | 1–4 |
+
+### One render path, two layouts
+
+`render()` produces one tree; whether it reads as a phone app or a desktop
+dashboard is CSS. Above 1024px `.app` becomes a grid with a sticky sidebar
+(`renderSide()`); below it the sidebar is hidden and the bottom nav and FAB come
+back. There is no second set of views to keep in step.
+
+Two things that broke on the way and are easy to break again:
+
+- **A back bar must survive the wide layout.** Hiding `.topbar` wholesale on
+  desktop took the Back button and the report's title with it. Only the mobile
+  brand header carries `.only-narrow`; every bar with a `.back` in it stays.
+- **The brand header names the app, `pageHead()` names the page.** When both
+  carried the title it was printed twice on every narrow screen.
+
+The form and summary keep a readable column (`.wrap`, 880px centred) at every
+width — a checklist is filled in on a phone in a corridor as often as at a desk.
+
+### The dashboard
+
+`renderOverview()` is the landing screen. Everything on it is counted from
+`scopedObs()`, so the tiles, the charts and the lists on one screen always
+describe the same set of reports: a date range, a report type, an observer, and
+on the Reports screen a search box. `filtersActive()` drives the Clear button,
+and the count beside the filters says how many of how many survived.
+
+| Block | What it answers |
+|---|---|
+| KPI row | how many reports, the average, how many people, how many below 50% |
+| Reports completed | a column per month |
+| Average score | a line per month, as a share of each instrument's own scale |
+| How the indicators were answered | Seen / Partly / Not yet across every checklist report in range |
+| Where the gaps are | that instrument's sections, weakest first |
+| Needs focused support / Not observed recently | who to go and see |
+
+### Charts: what is decided here
+
+Everything is inline SVG — the repo has no dependencies and this adds none.
+
+- **One hue, never green-against-red.** `--viz-1` … `--viz-4` is a single-hue
+  green ordinal ramp, validated for monotone lightness with its light end at
+  2.24:1 on white. Green and red are about four ΔE apart under deuteranopia, so
+  a chart whose meaning rests on telling them apart means nothing to one reader
+  in twelve. The **rating chips keep** `--r1`…`--r4`: there the colour sits on a
+  button that says "Not yet" or "NA" in words, so it never carries the answer
+  alone.
+- **Length carries magnitude; the ramp only carries order.** Meter bars and
+  columns are one colour. `scoreColor()` is for a labelled chip, not for a bar.
+- **Never two scales on one chart.** Report volume and average score are two
+  charts side by side, not one chart with two y-axes.
+- **An empty month comes back at zero**, not left out — a gap in the line would
+  read as a gap in the record when it means no report was done.
+- **A figure that is not a ratio gets no bar.** "201 days since the last report"
+  goes through `plainList()`, because a filled meter beside the score meters
+  would read as *more is better* when it means the opposite.
+- **A single report is not a trend.** One bar stretched across the cell reads as
+  a full bar; the people table prints "Only one report" instead.
+- **Every time chart carries its own numbers** behind a Table toggle, and every
+  legend names its classes, so nothing is reachable by colour alone.
+- Hover tooltips come from one delegated `[data-tip]` handler (`initTips()`),
+  bound once at boot rather than per chart.
+
+There is no dark mode: the app has never had one, and half of one would be worse
+than none. If one is ever added, the ramp has to be re-stepped against the dark
+surface and re-validated — a flipped light ramp is not a dark ramp.
+
+### Names reach handlers by index
+
+`_PEOPLE` holds the rows a people list is rendering and the click handler takes
+an index (`openPersonAt(i)`). Splicing a name into an `onclick` looked fine
+until someone was called `Daniel O'Brien`: `esc()` turns the apostrophe into
+`&#39;`, the parser turns it back into `'`, and the attribute becomes a syntax
+error. Same rule as the page-2 option values.
 
 ### A rubric is versioned, because replacing one must not rescore the past
 
