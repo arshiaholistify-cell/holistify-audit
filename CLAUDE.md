@@ -2015,6 +2015,101 @@ that *is* appropriate.
 - Exports go through `_csvRows()` / `_downloadCsv()`, like every other export
   here.
 
+## The Transformation Dashboard
+
+`transformation-dashboard.html` is its own app — four report types, stored in
+`localStorage` only, with no Supabase and no build-time substitution. The
+sidebar's Teachers/Mentors toggle is `PEOPLE_KIND`; `REPORT_TYPES` holds what is
+true of a *type* (icon, whether it is about a teacher or a mentor, which header
+fields it asks for), and `INSTRUMENTS` holds the rubric itself.
+
+Two of the four are the checklists Holistify issues:
+
+| Report | Rubric | Scale |
+|---|---|---|
+| The Effective Lesson Checklist | 7 sections, 23 indicators (1A–5A) | Seen / Partly / Not yet / NA |
+| The Effective Mentoring Checklist | 11 sections, 33 indicators (Part A 22, Part B 11) | Seen / Partly / Not yet / NA |
+| Curriculum Pulse Walkthrough | 12 items | 1–4 |
+| Lesson Plan Checklist | behaviourally anchored | 1–4 |
+
+### A rubric is versioned, because replacing one must not rescore the past
+
+`INSTRUMENTS[type][version]` holds each rubric, and **every report stores the
+version it was filled in against** (`o.rubric`, stamped by `newObsObj()` from
+`CURRENT_RUBRIC`). A report saved before this existed carries none and resolves
+to `v1` — which is the rubric it really was scored on.
+
+That is the property to preserve. The two checklists replaced rubrics with
+entirely different item ids, so without it every already-completed report would
+have looked up ids that no longer exist, rendered "no items answered" and
+reported **0.0** — silently destroying the record of every observation already
+carried out. `instrumentFor(obs)` is the only way to get a report's sections and
+scale; nothing should read `REPORT_TYPES[...].sections`, because that is no
+longer where a rubric lives.
+
+The old rubrics stay in the file as `LESSON_OBS_SECTIONS_V1` and
+`MENTOR_PERF_SECTIONS_V1`, untouched, for exactly that reason. Deleting them
+orphans the reports recorded on them.
+
+### NA is not a zero
+
+`SCALES` defines both scales, and a checklist option carries the score it is
+worth: Seen 3, Partly 2, Not yet 1, and **NA `null`**. NA means the indicator
+does not apply, so `computeScore()` counts it as *answered* — it is dealt with,
+and the progress bar should say so — and leaves it out of every average. Scoring
+it 0 would mark a school down for a question that was never asked of it. Same
+rule as an unscored standard in the audit app.
+
+`answerOf()` is the one place a stored answer becomes an option, and it reads
+`r.value` for a checklist and `r.score` for the 1–4 rubrics, so the two storage
+shapes never have to be known anywhere else.
+
+### Percentages are what let the two scales share a chart
+
+`computeScore()` returns `avg` in the instrument's **own** scale (`2.5/3`,
+`3.2/4`) and `pct` as a share of it. Anything comparing *across* reports — the
+home average, the trend bars, a teacher's pooled figure, `band()` and
+`scoreColor()` — takes the percentage, because 2.5 means different things on the
+two scales and averaging them raw would quietly weight one above the other.
+
+`band()`'s thresholds are the old 1–4 cut-offs (3.5, 2.75 and 2.0 out of 4)
+written as percentages, so **nothing already recorded on the 1–4 scale changes
+band**. `domainAvgsForInstrument()` is keyed on type *and* version for the same
+reason: two lesson reports on different rubrics have different sections, and
+pooling them would average indicators that are not the same indicators.
+
+### Page 2
+
+Both checklists have a second page that is not indicator-by-indicator — tick
+lists, an overall judgement, strengths and next steps, the lesson sheet's "plan
+detective" and commitment, the mentoring sheet's Part C records. `PAGE2` and
+`HEADER_BLOCKS` declare these, and `renderBlock()` / `renderBlockSummary()` are
+the form and read-only halves of one definition, so the form, the summary and
+the share text cannot drift.
+
+Three things decided here:
+
+- **The overall judgement is the observer's, not a figure this app computes.**
+  The sheet asks "how effective was this lesson?" and that answer is stored as
+  given; the hero figure beside it is the indicator tally. They answer different
+  questions and neither is derived from the other.
+- **Option values reach the handlers by index, never as text.** A label like
+  "Role play / simulation" cannot be spliced safely into an `onclick`
+  attribute; `blockDef()` looks it up in one line.
+- **Page-2 edits nudge the DOM rather than re-render.** A full `render()` would
+  collapse every open section and drop the caret out of whatever was being
+  typed — the same reason `setClComment()` in `index.html` does not re-render.
+
+A block the author left empty prints nothing, rather than an empty frame that
+reads as a section with no answer.
+
+### Printing
+
+These are documents that get printed, and on a checklist the coloured chip *is*
+the answer — "Seen" and "NA" are not decoration the way a numeral was. Browsers
+drop backgrounds when printing unless told otherwise, so the chips, bars and
+badges carry `print-color-adjust:exact` inside `@media print`.
+
 ## Database
 
 `supabase_schema.sql` defines three tables:

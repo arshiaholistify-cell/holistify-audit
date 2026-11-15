@@ -16,6 +16,7 @@
   --pu:#7030A0;--pul:#f3eaf9;
   --r4:#4a8000;--r3:#60A500;--r2:#E8A33D;--r1:#D64545;
   --r4l:#eaf3df;--r3l:#eef7e0;--r2l:#fdf1e0;--r1l:#fbe9e9;
+  --na:#948C7F;--nal:#efece7;
   --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkll:#948C7F;
   --sur:#F5F2EC;--card:#fff;--bdr:rgba(120,100,70,0.16);--bdrs:rgba(120,100,70,0.28);
   --rsm:8px;--rmd:12px;--rlg:18px;
@@ -108,10 +109,13 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .item-txt{font-size:13.5px;color:var(--inkm);line-height:1.45;margin-bottom:9px}
 .rate-group{display:flex;gap:6px;align-items:center}
 .rate-btn{flex:1;height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-weight:800;font-size:15px;color:var(--inkl);display:flex;align-items:center;justify-content:center}
-.rate-btn[data-score="4"].active{background:var(--r4);border-color:var(--r4);color:#fff}
-.rate-btn[data-score="3"].active{background:var(--r3);border-color:var(--r3);color:#fff}
-.rate-btn[data-score="2"].active{background:var(--r2);border-color:var(--r2);color:#fff}
-.rate-btn[data-score="1"].active{background:var(--r1);border-color:var(--r1);color:#fff}
+.rate-btn.lbl{font-size:11.5px;font-weight:700;letter-spacing:-.01em;padding:0 2px}
+.rate-btn[data-css="r4"].active{background:var(--r4);border-color:var(--r4);color:#fff}
+.rate-btn[data-css="r3"].active{background:var(--r3);border-color:var(--r3);color:#fff}
+.rate-btn[data-css="r2"].active{background:var(--r2);border-color:var(--r2);color:#fff}
+.rate-btn[data-css="r1"].active{background:var(--r1);border-color:var(--r1);color:#fff}
+.rate-btn[data-css="na"].active{background:var(--na);border-color:var(--na);color:#fff}
+.item-code{display:inline-block;font-size:10px;font-weight:800;color:var(--pu);background:var(--pul);border-radius:5px;padding:2px 6px;margin-right:7px;vertical-align:1px;letter-spacing:.02em}
 .cmt-btn{width:40px;height:40px;border-radius:9px;background:var(--sur);border:1.5px solid var(--bdr);font-size:15px;flex-shrink:0}
 .cmt-btn.has{background:var(--pul);border-color:var(--pu)}
 .cmt-wrap{margin-top:8px}
@@ -121,6 +125,33 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .info-wrap{margin-top:8px;background:var(--sur);border-radius:var(--rsm);padding:9px 10px}
 .info-row{display:flex;gap:8px;padding:5px 0;font-size:11.5px;color:var(--inkm);line-height:1.4}
 .info-row b{width:18px;height:18px;border-radius:5px;color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* Page 2 of the printed checklists */
+.p2-sub{font-size:10.5px;font-weight:700;color:var(--pu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.p2-block{padding:13px 0;border-bottom:1px solid var(--bdr)}
+.p2-block:last-child{border-bottom:none;padding-bottom:0}
+.p2-head{margin-bottom:9px}
+.p2-title{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35}
+.p2-hint{font-size:11px;color:var(--inkl);margin-top:2px;line-height:1.4}
+.p2-note{font-size:11px;color:var(--inkl);line-height:1.5;margin-top:12px;padding-top:11px;border-top:1px solid var(--bdr);font-style:italic}
+.tick-row{display:flex;flex-wrap:wrap;gap:7px}
+.tick{padding:7px 12px;border-radius:20px;background:#fff;border:1.5px solid var(--bdr);font-size:12px;font-weight:600;color:var(--inkm);line-height:1.2}
+.tick.on{background:var(--gl);border-color:var(--g);color:var(--gd)}
+.tick.on::before{content:'✓ ';font-weight:800}
+.tally{display:inline-block;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:20px}
+.choice-row{display:flex;gap:6px}
+.choice-row.one .choice-btn{flex:0 0 auto;min-width:128px}
+.choice-btn{flex:1;min-height:40px;border-radius:9px;background:#fff;border:1.5px solid var(--bdr);font-size:11.5px;font-weight:700;color:var(--inkl);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px 6px;line-height:1.25}
+.choice-btn.on[data-css="r4"]{background:var(--r4);border-color:var(--r4);color:#fff}
+.choice-btn.on[data-css="r3"]{background:var(--r3);border-color:var(--r3);color:#fff}
+.choice-btn.on[data-css="r2"]{background:var(--r2);border-color:var(--r2);color:#fff}
+.choice-btn.on[data-css="r1"]{background:var(--r1);border-color:var(--r1);color:#fff}
+.choice-btn.on[data-css="g"]{background:var(--g);border-color:var(--g);color:#fff}
+.line-row{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.line-row:last-child{margin-bottom:0}
+.line-n{width:20px;height:20px;border-radius:6px;background:var(--sur);color:var(--inkl);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.line-txt{flex:1;font-size:12.5px;color:var(--inkm);line-height:1.45}
+.commit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
 
 /* Progress bar (sticky) */
 .progress-wrap{position:sticky;top:calc(53px + var(--safe-t));z-index:40;background:var(--sur);padding:10px 14px 6px}
@@ -152,6 +183,7 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 .review-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .review-txt{font-size:12.5px;color:var(--inkm);flex:1;line-height:1.4}
 .review-score{width:26px;height:26px;border-radius:7px;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.review-score.wide{width:auto;min-width:54px;padding:0 9px;font-size:10.5px;font-weight:700;letter-spacing:.01em}
 .review-cmt{font-size:11.5px;color:var(--inkl);margin-top:5px;font-style:italic;background:var(--sur);padding:6px 8px;border-radius:6px}
 .review-lvl{font-size:11px;color:var(--inkl);margin-top:5px;background:var(--sur);padding:6px 8px;border-radius:6px;line-height:1.4}
 
@@ -191,6 +223,7 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 
 @media print{
   .nav,.fab,.topbar .back,.topbar .brand-txt{display:none!important}
+  .review-score,.score-band,.obs-badge,.tick.on,.choice-btn.on,.tally,.item-code,.sec-bar-fill,.sec-count,.line-n{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{max-width:100%;padding-bottom:0}
   .topbar{position:static;box-shadow:none}
   .card,.review-item{box-shadow:none!important}
@@ -205,7 +238,155 @@ details[open] .sec-arrow{transform:rotate(180deg)}
 function mk(prefix, arr){ return arr.map((t,i)=>({id:prefix+(i+1), text:t})); }
 function mkD(prefix, arr){ return arr.map((pair,i)=>({id:prefix+(i+1), text:pair[0], levels:pair[1]})); }
 
-const LESSON_OBS_SECTIONS = [
+/* ---------- Answer scales ---------- */
+/* rating4 is the behaviourally-anchored 1-4 scale the walkthrough and lesson-plan
+   reviews use. checklist is the Seen / Partly / Not yet / NA scale printed on the
+   Effective Lesson and Effective Mentoring checklists. NA means "not applicable",
+   not a low score, so it carries score:null and is left out of every average -
+   an unscored indicator is not a zero. */
+const SCALES = {
+  rating4: {
+    key: 'rating4', max: 4, showHint: true,
+    options: [
+      {v:4, label:'4', hint:'Extended',     score:4, css:'r4'},
+      {v:3, label:'3', hint:'Good',         score:3, css:'r3'},
+      {v:2, label:'2', hint:'Satisfactory', score:2, css:'r2'},
+      {v:1, label:'1', hint:'Needs Imp.',   score:1, css:'r1'}
+    ]
+  },
+  checklist: {
+    key: 'checklist', max: 3, showHint: false, evidence: true,
+    options: [
+      {v:'seen',   label:'Seen',    score:3,    css:'r4'},
+      {v:'partly', label:'Partly',  score:2,    css:'r2'},
+      {v:'not',    label:'Not yet', score:1,    css:'r1'},
+      {v:'na',     label:'NA',      score:null, css:'na'}
+    ]
+  }
+};
+function scaleOf(inst){ return SCALES[inst.scale] || SCALES.rating4; }
+/* The one place a stored answer becomes an option. rating4 answers are kept on
+   .score (as they always were); checklist answers on .value. */
+function answerOf(inst, r){
+  if(!r) return null;
+  const sc = scaleOf(inst);
+  const v = sc.key==='checklist' ? r.value : r.score;
+  if(v===undefined || v===null || v==='') return null;
+  return sc.options.find(o=>o.v===v) || null;
+}
+function answerScore(inst, r){ const a = answerOf(inst, r); return a ? a.score : null; }
+
+function mkC(prefix, arr){
+  return arr.map(([code, text])=>({ id: prefix+'_'+code.replace(/\./g,'_').toLowerCase(), code, text }));
+}
+
+/* ---------- The Effective Lesson Checklist (Holistify x Shaheen) ---------- */
+/* One line for every indicator on the Lesson Observation sheet. The focus groups
+   are the sheet's own: A covers 1A and 1B, B covers 2A, C covers 2B, D covers
+   3A, 4A and 5A. */
+const LESSON_CHECKLIST_SECTIONS = [
+  {key:'1a', group:'Focus A', title:'1A · Physical & organisational support', items: mkC('lc',[
+    ['1A.1', "Room is safe; seating is flexible and invites participation"],
+    ['1A.2', "Displays show children's work and current learning"],
+    ['1A.3', "Board shows date, class, subject and today's outcome"],
+    ['1A.4', "Teacher can make eye contact with every child"]
+  ])},
+  {key:'1b', group:'Focus A', title:'1B · Social-emotional support', items: mkC('lc',[
+    ['1B.1', "Children are greeted and spoken to warmly"],
+    ['1B.2', "Mistakes are treated as part of learning"],
+    ['1B.3', "Children speak and ask freely, without fear"],
+    ['1B.4', "Clear expectations; teacher models good habits"]
+  ])},
+  {key:'2a', group:'Focus B', title:'2A · Teaching & learning', items: mkC('lc',[
+    ['2A.1', "Outcome shared in child-friendly words, linked to prior learning"],
+    ['2A.2', "Materials match the outcome and reach every child"],
+    ['2A.3', "Children talk and work, alone and together"],
+    ['2A.4', "Explanations are accurate, clear and fluent"]
+  ])},
+  {key:'2b', group:'Focus C', title:'2B · Student engagement', items: mkC('lc',[
+    ['2B.1', 'Questions ask "why" and "how", not only "what"'],
+    ['2B.2', "Learning is linked to real life"],
+    ['2B.3', "No time is wasted; the lesson keeps moving"],
+    ['2B.4', "Teacher moves around and helps those who struggle"]
+  ])},
+  {key:'3a', group:'Focus D', title:'3A · Technology integration', items: mkC('lc',[
+    ['3A.1', "Technology, if used, helps children learn"]
+  ])},
+  {key:'4a', group:'Focus D', title:'4A · Assessment for learning', items: mkC('lc',[
+    ['4A.1', "Understanding is checked throughout the lesson"],
+    ['4A.2', "Children check their own or a partner's work"],
+    ['4A.3', "Lesson ends with a clear summary"],
+    ['4A.4', "Evidence is noted: observation, exit slip, quick check"]
+  ])},
+  {key:'5a', group:'Focus D', title:'5A · Continuity of learning', items: mkC('lc',[
+    ['5A.1', "A follow-up task reinforces or extends the lesson"],
+    ['5A.2', "The task is engaging and children can do it on their own"]
+  ])}
+];
+
+/* ---------- The Effective Mentoring Checklist (Holistify x Shaheen) ---------- */
+/* Part A is page 1 of the sheet; Part B is page 2. Both are rated on the same
+   Seen / Partly / Not yet / NA scale with a piece of evidence. */
+const MENTORING_CHECKLIST_SECTIONS = [
+  {key:'a1', group:'Part A · Supporting teachers', title:'A1 · Lesson observations', items: mkC('mc',[
+    ['A1.1', "Sets a clear focus for each observation, based on the teacher's previous target"],
+    ['A1.2', "Records specific, factual evidence rather than opinion"],
+    ['A1.3', "Grades consistently against the lesson observation sheet"]
+  ])},
+  {key:'a2', group:'Part A · Supporting teachers', title:'A2 · Learning walkthroughs', items: mkC('mc',[
+    ['A2.1', "Plans walkthroughs covering all classes, subjects and times of day"],
+    ['A2.2', "Identifies common patterns across classrooms"]
+  ])},
+  {key:'a3', group:'Part A · Supporting teachers', title:'A3 · Book / work scrutiny', items: mkC('mc',[
+    ['A3.1', "Samples books across ability groups (high, average, low)"],
+    ['A3.2', "Links book evidence to lesson plans and student progress"]
+  ])},
+  {key:'a4', group:'Part A · Supporting teachers', title:'A4 · Feedback to teachers', items: mkC('mc',[
+    ['A4.1', "Identifies strengths and one clear, actionable next step"],
+    ['A4.2', "Invites teacher reflection before giving feedback"],
+    ['A4.3', "Follows up agreed actions and records their impact"]
+  ])},
+  {key:'a5', group:'Part A · Supporting teachers', title:'A5 · Planning meetings', items: mkC('mc',[
+    ['A5.1', "Shares a clear, prioritised agenda in advance"],
+    ['A5.2', "Keeps discussion focused and ensures all teachers contribute"],
+    ['A5.3', "Records actions with owners and deadlines; reviews them at the next meeting"]
+  ])},
+  {key:'a6', group:'Part A · Supporting teachers', title:'A6 · Lesson plan monitoring', items: mkC('mc',[
+    ['A6.1', "Reviews plans for quality and differentiation, not only completion"],
+    ['A6.2', "Monitors syllabus delivery against the plan"],
+    ['A6.3', "Provides practical support to improve planning (models, examples)"]
+  ])},
+  {key:'a7', group:'Part A · Supporting teachers', title:'A7 · Active learning', items: mkC('mc',[
+    ['A7.1', "Models active learning strategies in the classroom"],
+    ['A7.2', "Coaches each teacher to apply one strategy in their subject"],
+    ['A7.3', "Monitors use of strategies and their effect on student engagement"]
+  ])},
+  {key:'a8', group:'Part A · Supporting teachers', title:'A8 · Attitude for learning', items: mkC('mc',[
+    ['A8.1', "Models and promotes positive attitudes to learning"],
+    ['A8.2', "Records evidence of student engagement and motivation"],
+    ['A8.3', "Coaches teachers to build resilience and a growth mindset in students"]
+  ])},
+  {key:'b1', group:'Part B · Supporting students and parents', title:'B1 · Student learning', items: mkC('mc',[
+    ['B1.1', "Identifies at-risk students early and escalates to Admin within 1 week"],
+    ['B1.2', "Provides written feedback within 5 working days of an assessment"],
+    ['B1.3', "Provides targeted support for students who need it and challenge for high achievers"]
+  ])},
+  {key:'b2', group:'Part B · Supporting students and parents', title:'B2 · Student wellbeing', items: mkC('mc',[
+    ['B2.1', "Holds a documented one-to-one session with each student every fortnight"],
+    ['B2.2', "Conducts at least one character or values activity each month"],
+    ['B2.3', "Addresses behaviour within 48 hours, using a restorative approach first"],
+    ['B2.4', "Provides regular opportunities for student voice and co-curricular participation"],
+    ['B2.5', "Reports safeguarding concerns to Admin within 24 hours"]
+  ])},
+  {key:'b3', group:'Part B · Supporting students and parents', title:'B3 · Parent partnership', items: mkC('mc',[
+    ['B3.1', "Updates each parent at least monthly; responds within 48 hours"],
+    ['B3.2', "Conducts PTMs as scheduled and records agreed actions"],
+    ['B3.3', "Involves parents in at least one activity each term and gathers feedback"]
+  ])}
+];
+
+
+const LESSON_OBS_SECTIONS_V1 = [
   {key:'phys', group:'Learning Environment', title:'Physical & Organisational Support', items: mk('phys',[
     "The classroom environment is safe, accessible and conducive to all students.",
     "The seating arrangement is flexible and allows free movement in class (semi-circle/rows/groups).",
@@ -419,7 +600,7 @@ const LESSON_PLAN_SECTIONS = [
   ])}
 ];
 
-const MENTOR_PERF_SECTIONS = [
+const MENTOR_PERF_SECTIONS_V1 = [
   {key:'lo', group:null, title:'Lesson Observations', items: mkD('mp_lo',[
     ["Observation Preparation & Focus", [
       "Enters lessons with no clear focus; unaware of what to look for or the class/teacher context.",
@@ -570,6 +751,105 @@ const MENTOR_PERF_SECTIONS = [
   ])}
 ];
 
+/* ---------- Page 2 of each checklist ---------- */
+/* The printed sheets carry a second page that is not indicator-by-indicator:
+   tick lists, an overall judgement, strengths and next steps. These are declared
+   rather than hand-built so the form, the summary and the share text all render
+   from one definition and cannot drift apart. Nothing here is scored - the
+   overall judgement is the observer's, not a figure this app computes. */
+const PAGE2 = {
+  lesson: {
+    title: 'Reflect on the whole lesson',
+    sub: 'Page 2 · The Effective Lesson Checklist',
+    note: 'Use this sheet again on your own lessons: before you teach as a plan check, and after you teach to reflect on three indicators.',
+    blocks: [
+      {type:'ticks', key:'strategies', title:'Active learning strategies seen', hint:'Tick all that apply', other:true,
+        options:['Think-Pair-Share','Cooperative learning','Inquiry','Discussion','Project-based','Hands-on activity','ICT integration','Peer teaching','Role play / simulation']},
+      {type:'choice', key:'effectiveness', title:'Overall, how effective was this lesson?',
+        options:[{v:4,label:'Outstanding',css:'r4'},{v:3,label:'Good',css:'r3'},{v:2,label:'Developing',css:'r2'},{v:1,label:'Needs support',css:'r1'}]},
+      {type:'lines', key:'strengths', title:'Strengths', hint:'The 3 indicators that made this lesson effective', n:3},
+      {type:'lines', key:'actions', title:'Action points', hint:'What would make this lesson even better?', n:3},
+      {type:'ticks', key:'plan', title:'Plan detective', hint:'Tick each part of the plan you can describe from evidence in the lesson',
+        options:['Outcome','Opening','Activity','Questions','Checking','Closure','Follow-up'],
+        tally:{bands:[{min:6,label:'Carefully planned',css:'r4'},{min:4,label:'Partly planned',css:'r2'},{min:0,label:'Loosely planned',css:'r1'}]}},
+      {type:'commit', key:'commitment', title:'My commitment', hint:'One thing I will plan into my next lesson',
+        fields:[{key:'commitIndicator',label:'Indicator'},{key:'commitLesson',label:'Lesson'},{key:'commitDate',label:'Date',type:'date'}]}
+    ]
+  },
+  mentor: {
+    title: 'Records and overall review',
+    sub: 'Page 2 · The Effective Mentoring Checklist',
+    blocks: [
+      {type:'ticks', key:'records', title:'Part C: Records maintained and up to date', hint:'Tick each one',
+        options:['Weekly lesson plan','Weekly progress update','Pastoral records','Parent communication log','Termly student report','Planning meeting MOM']},
+      {type:'choice', key:'level', title:'Overall mentoring level',
+        options:[{v:4,label:'Excellent',css:'r4'},{v:3,label:'Good',css:'r3'},{v:2,label:'Satisfactory',css:'r2'},{v:1,label:'Needs improvement',css:'r1'}]},
+      {type:'lines', key:'strengths', title:'Strengths', hint:'Indicators consistently seen', n:2},
+      {type:'lines', key:'development', title:'Areas for development', hint:'Priority indicators and agreed actions', n:2}
+    ]
+  }
+};
+
+/* The small sheet-header choices that are not ordinary text fields. */
+const HEADER_BLOCKS = {
+  lesson: [{type:'choice', key:'focus', title:'My focus', hint:'A: 1A and 1B · B: 2A · C: 2B · D: 3A, 4A and 5A',
+    options:[{v:'A',label:'A'},{v:'B',label:'B'},{v:'C',label:'C'},{v:'D',label:'D'}]}],
+  mentor: [{type:'choice', key:'usedAs', title:'Used as',
+    options:[{v:'self',label:'Self-check'},{v:'review',label:'Review'}]}]
+};
+
+/* ---------- Instruments ---------- */
+/* An observation is scored against the rubric that was on screen when it was
+   filled in, so replacing a rubric must not retro-score everything recorded on
+   the previous one. Each report stores its rubric version; reports saved before
+   this existed carry none and resolve to v1, which is the rubric they were
+   actually scored on. Its item ids are untouched, so those reports still open,
+   still total, and still read exactly as they did. */
+const INSTRUMENTS = {
+  lesson_obs: {
+    v2: {name:'The Effective Lesson Checklist', short:'Lesson Checklist',
+         desc:'Holistify x Shaheen · one line per indicator, with evidence.',
+         sections: LESSON_CHECKLIST_SECTIONS, scale:'checklist', page2:'lesson', header:'lesson'},
+    v1: {name:'Lesson Observation', short:'Observation',
+         desc:'Full classroom observation across 7 focus areas.',
+         sections: LESSON_OBS_SECTIONS_V1, scale:'rating4'}
+  },
+  mentor_perf: {
+    v2: {name:'The Effective Mentoring Checklist', short:'Mentoring Checklist',
+         desc:'Holistify x Shaheen · Part A teachers, Part B students and parents.',
+         sections: MENTORING_CHECKLIST_SECTIONS, scale:'checklist', page2:'mentor', header:'mentor'},
+    v1: {name:'Mentor Performance Review', short:'Mentor Review',
+         desc:'Behaviourally-anchored review of a mentor/coach across 8 domains.',
+         sections: MENTOR_PERF_SECTIONS_V1, scale:'rating4'}
+  },
+  walkthrough: {
+    v1: {name:'Curriculum Pulse Walkthrough', short:'Walkthrough',
+         desc:'Quick walkthrough of intended, taught & learned curriculum.',
+         sections: WALKTHROUGH_SECTIONS, scale:'rating4'}
+  },
+  lesson_plan: {
+    v1: {name:'Lesson Plan Checklist', short:'Lesson Plan',
+         desc:"Behaviourally-anchored review of a teacher's lesson plan.",
+         sections: LESSON_PLAN_SECTIONS, scale:'rating4'}
+  }
+};
+/* The version a NEW report of each type is created against. */
+const CURRENT_RUBRIC = { lesson_obs:'v2', mentor_perf:'v2', walkthrough:'v1', lesson_plan:'v1' };
+
+function rubricOf(obs){
+  const vers = INSTRUMENTS[obs.type] || INSTRUMENTS.lesson_obs;
+  return vers[obs.rubric] ? obs.rubric : (vers.v1 ? 'v1' : Object.keys(vers)[0]);
+}
+function instrumentFor(obs){
+  const vers = INSTRUMENTS[obs.type] || INSTRUMENTS.lesson_obs;
+  return vers[rubricOf(obs)];
+}
+function instrumentAt(typeKey, rubric){
+  const vers = INSTRUMENTS[typeKey] || INSTRUMENTS.lesson_obs;
+  return vers[rubric] || vers.v1 || vers[Object.keys(vers)[0]];
+}
+function currentInstrument(typeKey){ return instrumentAt(typeKey, CURRENT_RUBRIC[typeKey]); }
+
 const FIELD_DEFS = {
   teacher: {label:'Teacher name', placeholder:'e.g. Priya Menon'},
   grade: {label:'Grade', placeholder:'e.g. 4B'},
@@ -582,37 +862,26 @@ const FIELD_DEFS = {
 
 const REPORT_TYPES = {
   lesson_obs: {
-    key:'lesson_obs', name:'Lesson Observation', short:'Observation', icon:'📋',
-    desc:'Full classroom observation across 7 focus areas.',
-    subjectType:'teacher',
-    fields:['teacher','grade','subject','topic','date','observer'],
-    sections: LESSON_OBS_SECTIONS
+    key:'lesson_obs', icon:'📋', subjectType:'teacher',
+    fields:['teacher','grade','subject','topic','date','observer']
   },
   walkthrough: {
-    key:'walkthrough', name:'Curriculum Pulse Walkthrough', short:'Walkthrough', icon:'🚶',
-    desc:'Quick walkthrough of intended, taught & learned curriculum.',
-    subjectType:'teacher',
-    fields:['teacher','grade','subject','topic','duration','date','observer'], gradeLabel:'Class',
-    sections: WALKTHROUGH_SECTIONS
+    key:'walkthrough', icon:'🚶', subjectType:'teacher',
+    fields:['teacher','grade','subject','topic','duration','date','observer'], gradeLabel:'Class'
   },
   lesson_plan: {
-    key:'lesson_plan', name:'Lesson Plan Checklist', short:'Lesson Plan', icon:'📝',
-    desc:'Behaviourally-anchored review of a teacher\'s lesson plan.',
-    subjectType:'teacher',
-    fields:['teacher','grade','subject','date','observer'],
-    sections: LESSON_PLAN_SECTIONS
+    key:'lesson_plan', icon:'📝', subjectType:'teacher',
+    fields:['teacher','grade','subject','date','observer']
   },
   mentor_perf: {
-    key:'mentor_perf', name:'Mentor Performance Review', short:'Mentor Review', icon:'🧭',
-    desc:'Behaviourally-anchored review of a mentor/coach across 8 domains.',
-    subjectType:'mentor',
+    key:'mentor_perf', icon:'🧭', subjectType:'mentor',
     fields:['teacher','grade','date','observer'],
-    teacherLabel:'Mentor / Coach name', gradeLabel:'Branch / School', observerLabel:'Reviewed by',
-    sections: MENTOR_PERF_SECTIONS
+    teacherLabel:'Mentor / Coach name', gradeLabel:'Branch / School', observerLabel:'Reviewed by'
   }
 };
-function typeItems(typeKey){ return REPORT_TYPES[typeKey].sections.flatMap(s=>s.items.map(it=>({...it, section:s.key}))); }
-function typeTotal(typeKey){ return typeItems(typeKey).length; }
+function typeOf(obs){ return REPORT_TYPES[obs.type] || REPORT_TYPES.lesson_obs; }
+function instItems(inst){ return inst.sections.flatMap(s=>s.items.map(it=>({...it, section:s.key}))); }
+function instTotal(inst){ return instItems(inst).length; }
 const RATING = {4:"Extended",3:"Good",2:"Satisfactory",1:"Needs Improvement"};
 
 /* ---------- Storage ---------- */
@@ -658,36 +927,57 @@ function fmtDate(d){ if(!d) return ''; const dt=new Date(d+'T00:00:00'); return 
 function findObs(id){ return OBS.find(o=>o.id===id); }
 function newObsObj(typeKey){
   return {
-    id: uid(), type: typeKey, teacher:'', grade:'', subject:'', topic:'', duration:'', date: todayStr(), observer: SETTINGS.observer||'',
-    ratings:{}, targets:'', notes:'', status:'draft',
+    id: uid(), type: typeKey, rubric: CURRENT_RUBRIC[typeKey] || 'v1',
+    teacher:'', grade:'', subject:'', topic:'', duration:'', date: todayStr(), observer: SETTINGS.observer||'',
+    ratings:{}, extras:{}, targets:'', notes:'', status:'draft',
     createdAt: Date.now(), updatedAt: Date.now()
   };
 }
+/* The one place a report's figures are worked out. Everything downstream - the
+   progress bar, the bars, the bands, the trends, the share text - reads this, so
+   no two of them can disagree. avg stays in the instrument's own scale; pct is
+   what lets a 3-point checklist and a 4-point rubric sit on one chart. */
 function computeScore(obs){
-  const type = REPORT_TYPES[obs.type] || REPORT_TYPES.lesson_obs;
-  let sum=0, rated=0;
-  const sectionScores = type.sections.map(sec=>{
-    let ssum=0, scnt=0;
+  const inst = instrumentFor(obs);
+  const sc = scaleOf(inst);
+  let sum=0, scored=0, answered=0, na=0;
+  const tally = {};
+  sc.options.forEach(o=>{ tally[o.v]=0; });
+  const sectionScores = inst.sections.map(sec=>{
+    let ssum=0, scnt=0, sans=0;
     sec.items.forEach(it=>{
-      const r = obs.ratings[it.id];
-      if(r && r.score){ ssum+=r.score; scnt++; sum+=r.score; rated++; }
+      const a = answerOf(inst, obs.ratings[it.id]);
+      if(!a) return;
+      answered++; sans++; tally[a.v]++;
+      /* NA is "not applicable", not a low score: counted as answered, left out
+         of every average. An indicator that does not apply is not a zero. */
+      if(a.score===null){ na++; return; }
+      ssum+=a.score; scnt++; sum+=a.score; scored++;
     });
-    return { key:sec.key, title:sec.title, group:sec.group, count:scnt, total:sec.items.length,
-      avg: scnt? Math.round((ssum/scnt)*10)/10 : null };
+    return { key:sec.key, title:sec.title, group:sec.group,
+      count:sans, scored:scnt, total:sec.items.length,
+      avg: scnt? Math.round((ssum/scnt)*10)/10 : null,
+      pct: scnt? Math.round((ssum/scnt)/sc.max*1000)/10 : null };
   });
-  const total = typeTotal(obs.type);
-  return { rated, total, avg: rated? Math.round((sum/rated)*10)/10 : 0, sectionScores };
+  return { rated:answered, scored, na, total:instTotal(inst), max:sc.max,
+    avg: scored? Math.round((sum/scored)*10)/10 : 0,
+    pct: scored? Math.round((sum/scored)/sc.max*1000)/10 : 0,
+    tally, sectionScores };
 }
-function band(avg){
-  if(avg>=3.5) return {label:'Outstanding Practice', c:'var(--r4)', bg:'var(--r4l)'};
-  if(avg>=2.75) return {label:'Strong Practice', c:'var(--r3)', bg:'var(--r3l)'};
-  if(avg>=2.0) return {label:'Developing Practice', c:'var(--r2)', bg:'var(--r2l)'};
+/* Bands take a percentage of the instrument's own scale, so a 3-point checklist
+   and a 4-point rubric land on the same four bands. The thresholds are the old
+   1-4 cut-offs (3.5, 2.75 and 2.0 out of 4) written as percentages, so nothing
+   already recorded on the 1-4 scale changes band. */
+function band(pct){
+  if(pct>=87.5) return {label:'Outstanding Practice', c:'var(--r4)', bg:'var(--r4l)'};
+  if(pct>=68.75) return {label:'Strong Practice', c:'var(--r3)', bg:'var(--r3l)'};
+  if(pct>=50) return {label:'Developing Practice', c:'var(--r2)', bg:'var(--r2l)'};
   return {label:'Needs Focused Support', c:'var(--r1)', bg:'var(--r1l)'};
 }
-function scoreColor(avg){ return avg>=3.5?'var(--r4)':avg>=2.75?'var(--r3)':avg>=2.0?'var(--r2)':'var(--r1)'; }
+function scoreColor(pct){ return pct>=87.5?'var(--r4)':pct>=68.75?'var(--r3)':pct>=50?'var(--r2)':'var(--r1)'; }
 function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fieldSummary(o){
-  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const type = typeOf(o);
   const parts = [];
   if(o.subject && o.subject.trim()) parts.push(esc(o.subject));
   if(o.grade && o.grade.trim()) parts.push(esc((type.gradeLabel||'Grade')+' '+o.grade));
@@ -739,21 +1029,24 @@ function brandBar(title){
 /* ---------- Home ---------- */
 function renderHome(){
   const total = OBS.length;
-  const teachers = new Set(OBS.filter(o=>(REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType==='teacher').map(o=>o.teacher.trim()).filter(Boolean)).size;
+  const teachers = new Set(OBS.filter(o=>typeOf(o).subjectType==='teacher').map(o=>o.teacher.trim()).filter(Boolean)).size;
   const completed = OBS.filter(o=>o.status==='complete');
-  const avg = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).avg,0)/completed.length*10)/10 : 0;
+  /* A percentage, because reports on the 1-4 rubrics and reports on the
+     Seen/Partly/Not yet checklists are averaged together here. */
+  const avgPct = completed.length? Math.round(completed.reduce((a,o)=>a+computeScore(o).pct,0)/completed.length) : 0;
 
   let list = OBS.slice().sort((a,b)=> new Date(b.date)-new Date(a.date) || b.updatedAt-a.updatedAt);
 
   let cards = list.map(o=>{
-    const type = REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs;
+    const type = typeOf(o);
+    const inst = instrumentFor(o);
     const sc = computeScore(o);
     const badge = o.status==='draft'
       ? `<div class="obs-badge draft">DRAFT</div>`
-      : `<div class="obs-badge" style="background:${scoreColor(sc.avg)}">${sc.avg.toFixed(1)}<span>/4</span></div>`;
+      : `<div class="obs-badge" style="background:${scoreColor(sc.pct)}">${sc.avg.toFixed(1)}<span>/${sc.max}</span></div>`;
     return `<div class="obs-card" onclick="openObservation('${o.id}')">
       <div class="info">
-        <div class="type-pill">${type.icon} ${esc(type.short)}</div>
+        <div class="type-pill">${type.icon} ${esc(inst.short)}</div>
         <div class="name">${esc(o.teacher)||'Untitled report'}</div>
         <div class="meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}${fmtDate(o.date)}</div>
       </div>
@@ -775,7 +1068,7 @@ function renderHome(){
       <div class="stats">
         <div class="stat"><b>${total}</b><span>Reports</span></div>
         <div class="stat"><b>${teachers}</b><span>Teachers</span></div>
-        <div class="stat"><b>${avg.toFixed(1)}</b><span>Avg Rating</span></div>
+        <div class="stat"><b>${avgPct}%</b><span>Avg Score</span></div>
       </div>
       ${cards}
     </div>
@@ -784,21 +1077,79 @@ function renderHome(){
 
 /* ---------- New report picker ---------- */
 function renderPicker(){
-  const cards = Object.values(REPORT_TYPES).map(t=>`
+  const cards = Object.values(REPORT_TYPES).map(t=>{
+    const inst = currentInstrument(t.key);
+    return `
     <div class="type-card" onclick="createReport('${t.key}')">
       <div class="ico">${t.icon}</div>
-      <div class="tt"><b>${esc(t.name)}</b><span>${esc(t.desc)} · ${typeTotal(t.key)} items</span></div>
+      <div class="tt"><b>${esc(inst.name)}</b><span>${esc(inst.desc)} · ${instTotal(inst)} items</span></div>
       <div class="chev">›</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `<div class="topbar"><div class="back" onclick="goHome()">←</div><div><h1>New Report</h1><div class="sub">Choose a report type</div></div></div>
     <div class="wrap">${cards}</div>`;
+}
+
+/* ---------- Page-2 blocks ---------- */
+/* Rendered from the PAGE2 / HEADER_BLOCKS declarations so the form, the summary
+   and the share text cannot drift. Option values are passed to the handlers by
+   INDEX, never as text: a label like "Role play / simulation" cannot be spliced
+   safely into an onclick attribute, and looking it up is one line. */
+function extraOf(o, key){ return (o.extras||{})[key]; }
+function blockDef(o, key){
+  const inst = instrumentFor(o);
+  const head = HEADER_BLOCKS[inst.header] || [];
+  const p2 = (PAGE2[inst.page2] || {blocks:[]}).blocks;
+  return head.concat(p2).find(b=>b.key===key) || null;
+}
+function tallyBand(b, n){
+  return b.tally.bands.find(x=>n>=x.min) || b.tally.bands[b.tally.bands.length-1];
+}
+function tallyHtml(b, vals){
+  const n = (vals||[]).length, bd = tallyBand(b, n);
+  return `<span class="tally" id="tally-${b.key}" style="color:var(--${bd.css});background:var(--${bd.css}l)">${n} / ${b.options.length} · ${esc(bd.label)}</span>`;
+}
+function renderBlock(id, o, b){
+  const v = extraOf(o, b.key);
+  const head = `<div class="p2-head"><div class="p2-title">${esc(b.title)}</div>${b.hint?`<div class="p2-hint">${esc(b.hint)}</div>`:''}</div>`;
+  if(b.type==='ticks'){
+    const vals = Array.isArray(v)? v : [];
+    const chips = b.options.map((opt,i)=>
+      `<span class="tick${vals.indexOf(opt)>=0?' on':''}" onclick="toggleTick(this,'${id}','${b.key}',${i})">${esc(opt)}</span>`).join('');
+    const other = b.other
+      ? `<div class="fld" style="margin:9px 0 0"><input value="${esc(extraOf(o,b.key+'Other')||'')}" placeholder="Other…" oninput="updateExtra('${id}','${b.key}Other',this.value)"></div>`
+      : '';
+    const tally = b.tally? `<div style="margin-top:9px">${tallyHtml(b, vals)}</div>` : '';
+    return `<div class="p2-block">${head}<div class="tick-row">${chips}</div>${other}${tally}</div>`;
+  }
+  if(b.type==='choice'){
+    const btns = b.options.map((opt,i)=>
+      `<button class="choice-btn${v===opt.v?' on':''}" data-css="${opt.css||'g'}" onclick="setChoice(this,'${id}','${b.key}',${i})">${esc(opt.label)}</button>`).join('');
+    return `<div class="p2-block">${head}<div class="choice-row">${btns}</div></div>`;
+  }
+  if(b.type==='lines'){
+    const vals = Array.isArray(v)? v : [];
+    const rows = Array.from({length:b.n},(_,i)=>
+      `<div class="line-row"><span class="line-n">${i+1}</span><input value="${esc(vals[i]||'')}" oninput="updateExtraLine('${id}','${b.key}',${i},this.value)"></div>`).join('');
+    return `<div class="p2-block">${head}${rows}</div>`;
+  }
+  if(b.type==='commit'){
+    const fields = b.fields.map(f=>
+      `<div class="fld" style="margin-bottom:0"><label>${esc(f.label)}</label><input${f.type==='date'?' type="date"':''} value="${esc(extraOf(o,f.key)||'')}" oninput="updateExtra('${id}','${f.key}',this.value)"></div>`).join('');
+    return `<div class="p2-block">${head}
+      <textarea placeholder="${esc(b.hint||'')}…" oninput="updateExtra('${id}','${b.key}',this.value)">${esc(v||'')}</textarea>
+      <div class="commit-grid">${fields}</div></div>`;
+  }
+  return '';
 }
 
 /* ---------- Form (report entry) ---------- */
 function renderForm(id){
   const o = findObs(id);
   if(!o) { go('home'); return ''; }
-  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const type = typeOf(o);
+  const inst = instrumentFor(o);
+  const scale = scaleOf(inst);
   const sc = computeScore(o);
 
   const teacherLabel = type.teacherLabel || FIELD_DEFS.teacher.label;
@@ -816,30 +1167,38 @@ function renderForm(id){
     <div class="fld" style="margin-bottom:0"><label>${observerLabel}</label><input value="${esc(o.observer)}" placeholder="${FIELD_DEFS.observer.placeholder}" oninput="updateField('${id}','observer',this.value)"></div>
   </div>`;
 
-  const sectionsHtml = type.sections.map((sec,si)=>{
+  const headBlocks = HEADER_BLOCKS[inst.header] || [];
+  const headerHtml = headBlocks.length
+    ? `<div class="card">${headBlocks.map(b=>renderBlock(id,o,b)).join('')}</div>` : '';
+
+  const sectionsHtml = inst.sections.map((sec,si)=>{
     const itemsHtml = sec.items.map(it=>{
       const r = o.ratings[it.id] || {};
+      const a = answerOf(inst, r);
       const hasCmt = !!(r.comment && r.comment.trim());
-      const btns = [4,3,2,1].map(n=>`<button class="rate-btn${r.score===n?' active':''}" data-score="${n}" onclick="rate(this,'${id}','${it.id}',${n})">${n}</button>`).join('');
+      const btns = scale.options.map((opt,oi)=>
+        `<button class="rate-btn${scale.key==='checklist'?' lbl':''}${a&&a.v===opt.v?' active':''}" data-css="${opt.css}" onclick="setAnswer(this,'${id}','${it.id}',${oi})">${esc(opt.label)}</button>`).join('');
       const infoBtn = it.levels ? `<button class="cmt-btn" id="infobtn-${it.id}" onclick="toggleInfo('${it.id}')">ℹ️</button>` : '';
       const infoBlock = it.levels ? `<div class="info-wrap" id="infowrap-${it.id}" style="display:none">
         ${[4,3,2,1].map(n=>`<div class="info-row"><b style="background:var(--r${n})">${n}</b><span>${esc(it.levels[n-1])}</span></div>`).join('')}
       </div>` : '';
+      const hint = scale.showHint
+        ? `<div class="scale-hint">${scale.options.map(opt=>`<span>${esc(opt.hint)}</span>`).join('')}</div>` : '';
       return `<div class="item" id="item-${it.id}">
-        <div class="item-txt">${esc(it.text)}</div>
+        <div class="item-txt">${it.code?`<span class="item-code">${esc(it.code)}</span>`:''}${esc(it.text)}</div>
         <div class="rate-group">
           ${btns}
           <button class="cmt-btn ${hasCmt?'has':''}" id="cmtbtn-${it.id}" onclick="toggleComment('${it.id}')">💬</button>
           ${infoBtn}
         </div>
-        <div class="scale-hint"><span>Extended</span><span>Good</span><span>Satisfactory</span><span>Needs Imp.</span></div>
+        ${hint}
         ${infoBlock}
         <div class="cmt-wrap" id="cmtwrap-${it.id}" style="display:${hasCmt?'block':'none'}">
-          <textarea placeholder="Optional note or evidence..." oninput="updateComment(this,'${id}','${it.id}')">${esc(r.comment||'')}</textarea>
+          <textarea placeholder="${scale.evidence?'Evidence: what you saw or heard…':'Optional note or evidence…'}" oninput="updateComment(this,'${id}','${it.id}')">${esc(r.comment||'')}</textarea>
         </div>
       </div>`;
     }).join('');
-    const cnt = sec.items.filter(it=>o.ratings[it.id]&&o.ratings[it.id].score).length;
+    const cnt = sec.items.filter(it=>answerOf(inst, o.ratings[it.id])).length;
     return `<details class="sec" ${si<2?'open':''}>
       <summary>
         <div class="sec-tt">
@@ -853,22 +1212,33 @@ function renderForm(id){
     </details>`;
   }).join('');
 
+  const p2 = inst.page2 ? PAGE2[inst.page2] : null;
+  const page2Html = p2 ? `<div class="card">
+      <div class="p2-sub">${esc(p2.sub)}</div>
+      <div class="section-title" style="margin-top:0">${esc(p2.title)}</div>
+      ${p2.blocks.map(b=>renderBlock(id,o,b)).join('')}
+      ${p2.note?`<div class="p2-note">${esc(p2.note)}</div>`:''}
+    </div>` : '';
+
+  const targetsLabel = type.subjectType==='mentor' ? 'Targets for the mentor' : 'Targets for the teacher';
   const notesHtml = `<div class="card">
-    <div class="fld"><label>Targets for the teacher</label><textarea placeholder="Key next steps to focus on..." oninput="updateField('${id}','targets',this.value)">${esc(o.targets)}</textarea></div>
+    <div class="fld"><label>${targetsLabel}</label><textarea placeholder="Key next steps to focus on..." oninput="updateField('${id}','targets',this.value)">${esc(o.targets)}</textarea></div>
     <div class="fld" style="margin-bottom:0"><label>Discussion / follow-up notes</label><textarea placeholder="Notes from the debrief conversation..." oninput="updateField('${id}','notes',this.value)">${esc(o.notes)}</textarea></div>
   </div>`;
 
   return `<div class="topbar">
       <div class="back" onclick="goHome()">←</div>
-      <div><h1>${esc(o.teacher)||'New Report'}</h1><div class="sub">${type.icon} ${esc(type.name)} · ${o.status==='draft'?'Draft · autosaved':'Completed'}</div></div>
+      <div><h1>${esc(o.teacher)||'New Report'}</h1><div class="sub">${type.icon} ${esc(inst.name)} · ${o.status==='draft'?'Draft · autosaved':'Completed'}</div></div>
     </div>
     <div class="progress-wrap">
-      <div class="progress-top"><span id="progress-label">${sc.rated}/${sc.total} items rated</span><span id="progress-avg">${sc.avg.toFixed(1)}/4</span></div>
+      <div class="progress-top"><span id="progress-label">${sc.rated}/${sc.total} answered</span><span id="progress-avg">${sc.avg.toFixed(1)}/${sc.max}</span></div>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="transform:scaleX(${sc.rated?sc.rated/sc.total:0})"></div></div>
     </div>
     <div class="wrap" style="padding-top:8px">
       ${fieldsHtml}
+      ${headerHtml}
       ${sectionsHtml}
+      ${page2Html}
       ${notesHtml}
       <div class="btn-row">
         <button class="btn btn-o" onclick="goHome()">Save &amp; Exit</button>
@@ -882,16 +1252,69 @@ function updateField(id, field, val){
   o[field]=val; o.updatedAt=Date.now(); saveObs(OBS);
   if(field==='teacher'){ const h=document.querySelector('.topbar h1'); if(h) h.textContent = val || 'New Report'; }
 }
-function rate(btn, obsId, itemId, score){
+/* Page-2 answers are written straight into o.extras and the DOM is nudged in
+   place rather than re-rendered: a re-render would collapse every open section
+   and throw away the caret in whatever was being typed. */
+function updateExtra(id, key, val){
+  const o = findObs(id); if(!o) return;
+  o.extras = o.extras || {};
+  o.extras[key] = val; o.updatedAt = Date.now(); saveObs(OBS);
+}
+function updateExtraLine(id, key, i, val){
+  const o = findObs(id); if(!o) return;
+  o.extras = o.extras || {};
+  const cur = Array.isArray(o.extras[key]) ? o.extras[key].slice() : [];
+  cur[i] = val; o.extras[key] = cur; o.updatedAt = Date.now(); saveObs(OBS);
+}
+function toggleTick(el, id, key, idx){
+  const o = findObs(id); if(!o) return;
+  const b = blockDef(o, key); if(!b) return;
+  const opt = b.options[idx];
+  o.extras = o.extras || {};
+  const cur = Array.isArray(o.extras[key]) ? o.extras[key].slice() : [];
+  const at = cur.indexOf(opt);
+  if(at>=0) cur.splice(at,1); else cur.push(opt);
+  o.extras[key] = cur; o.updatedAt = Date.now(); saveObs(OBS);
+  el.classList.toggle('on', at<0);
+  const t = document.getElementById('tally-'+key);
+  if(t && b.tally){
+    const bd = tallyBand(b, cur.length);
+    t.textContent = cur.length+' / '+b.options.length+' · '+bd.label;
+    t.style.color = 'var(--'+bd.css+')';
+    t.style.background = 'var(--'+bd.css+'l)';
+  }
+}
+function setChoice(el, id, key, idx){
+  const o = findObs(id); if(!o) return;
+  const b = blockDef(o, key); if(!b) return;
+  const v = b.options[idx].v;
+  o.extras = o.extras || {};
+  const next = (o.extras[key]===v) ? null : v;
+  o.extras[key] = next; o.updatedAt = Date.now(); saveObs(OBS);
+  const row = el.closest('.choice-row');
+  if(row) row.querySelectorAll('.choice-btn').forEach(b2=>b2.classList.remove('on'));
+  if(next!==null) el.classList.add('on');
+}
+/* One handler for both scales. The option is passed by index into the
+   instrument's own scale, so the same button markup serves 1-4 and
+   Seen/Partly/Not yet/NA. Tapping the chosen option again clears it. */
+function setAnswer(btn, obsId, itemId, optIdx){
   const o = findObs(obsId); if(!o) return;
+  const inst = instrumentFor(o);
+  const scale = scaleOf(inst);
+  const opt = scale.options[optIdx]; if(!opt) return;
   if(!o.ratings[itemId]) o.ratings[itemId]={};
-  o.ratings[itemId].score = (o.ratings[itemId].score===score)? null : score;
+  const r = o.ratings[itemId];
+  const cur = scale.key==='checklist' ? r.value : r.score;
+  const next = (cur===opt.v) ? null : opt.v;
+  if(scale.key==='checklist') r.value = next; else r.score = next;
   o.updatedAt = Date.now(); saveObs(OBS);
   const group = btn.closest('.rate-group');
   group.querySelectorAll('.rate-btn').forEach(b=>b.classList.remove('active'));
-  if(o.ratings[itemId].score) btn.classList.add('active');
+  if(next!==null) btn.classList.add('active');
   updateProgressUI(obsId);
 }
+
 function toggleComment(itemId){
   const wrap = document.getElementById('cmtwrap-'+itemId);
   wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
@@ -912,8 +1335,8 @@ function updateComment(ta, obsId, itemId){
 function updateProgressUI(obsId){
   const o = findObs(obsId); if(!o) return;
   const sc = computeScore(o);
-  const lbl = document.getElementById('progress-label'); if(lbl) lbl.textContent = sc.rated+'/'+sc.total+' items rated';
-  const avgEl = document.getElementById('progress-avg'); if(avgEl) avgEl.textContent = sc.avg.toFixed(1)+'/4';
+  const lbl = document.getElementById('progress-label'); if(lbl) lbl.textContent = sc.rated+'/'+sc.total+' answered';
+  const avgEl = document.getElementById('progress-avg'); if(avgEl) avgEl.textContent = sc.avg.toFixed(1)+'/'+sc.max;
   const fill = document.getElementById('progress-fill'); if(fill) fill.style.transform = 'scaleX('+(sc.rated?sc.rated/sc.total:0)+')';
   sc.sectionScores.forEach(s=>{
     const el = document.getElementById('seccount-'+s.key);
@@ -927,33 +1350,76 @@ function finishObservation(id){
 }
 
 /* ---------- Summary ---------- */
+function answerChip(inst, a){
+  const wide = scaleOf(inst).key==='checklist';
+  return `<div class="review-score${wide?' wide':''}" style="background:var(--${a.css})">${esc(a.label)}</div>`;
+}
+/* The read-only twin of renderBlock, from the same declaration. A block the
+   author left empty prints nothing rather than an empty frame. */
+function renderBlockSummary(o, b){
+  const v = extraOf(o, b.key);
+  const title = `<div class="p2-title">${esc(b.title)}</div>`;
+  if(b.type==='ticks'){
+    const picked = Array.isArray(v)? v.slice() : [];
+    const other = extraOf(o, b.key+'Other');
+    if(other && String(other).trim()) picked.push(String(other).trim());
+    if(!picked.length) return '';
+    const chips = picked.map(t=>`<span class="tick on">${esc(t)}</span>`).join('');
+    const tally = b.tally? `<div style="margin-top:8px">${tallyHtml(b, Array.isArray(v)?v:[])}</div>` : '';
+    return `<div class="p2-block">${title}<div class="tick-row">${chips}</div>${tally}</div>`;
+  }
+  if(b.type==='choice'){
+    const opt = b.options.find(x=>x.v===v);
+    if(!opt) return '';
+    return `<div class="p2-block">${title}<div class="choice-row one"><span class="choice-btn on" data-css="${opt.css||'g'}">${esc(opt.label)}</span></div></div>`;
+  }
+  if(b.type==='lines'){
+    const vals = (Array.isArray(v)? v : []).map(x=>(x||'').trim()).filter(Boolean);
+    if(!vals.length) return '';
+    const rows = vals.map((t,i)=>`<div class="line-row"><span class="line-n">${i+1}</span><div class="line-txt">${esc(t)}</div></div>`).join('');
+    return `<div class="p2-block">${title}${rows}</div>`;
+  }
+  if(b.type==='commit'){
+    const txt = (v||'').trim();
+    const meta = b.fields.map(f=>{
+      const x = extraOf(o, f.key);
+      return (x && String(x).trim()) ? esc(f.label)+': '+esc(f.type==='date'? fmtDate(x) : x) : '';
+    }).filter(Boolean).join(' · ');
+    if(!txt && !meta) return '';
+    return `<div class="p2-block">${title}${txt?`<div class="line-txt">${esc(txt)}</div>`:''}${meta?`<div class="p2-hint" style="margin-top:6px">${meta}</div>`:''}</div>`;
+  }
+  return '';
+}
+
 function renderSummary(id){
   const o = findObs(id);
   if(!o){ go('home'); return ''; }
-  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const type = typeOf(o);
+  const inst = instrumentFor(o);
+  const scale = scaleOf(inst);
   const sc = computeScore(o);
-  const b = band(sc.avg);
+  const b = band(sc.pct);
 
   const secBars = sc.sectionScores.map(s=>{
-    const a = s.avg===null? 0 : s.avg;
-    const c = scoreColor(a);
+    const p = s.pct===null? 0 : s.pct;
+    const c = scoreColor(p);
     return `<div class="sec-bar-row">
       <div class="sec-bar-label">${esc(s.title)}</div>
-      <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${a/4*100}%;background:${c}"></div></div>
+      <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${p}%;background:${c}"></div></div>
       <div class="sec-bar-pct">${s.avg===null?'—':s.avg.toFixed(1)}</div>
     </div>`;
   }).join('');
 
-  const reviewHtml = type.sections.map(sec=>{
+  const reviewHtml = inst.sections.map(sec=>{
     const rows = sec.items.map(it=>{
       const r = o.ratings[it.id]||{};
-      if(!r.score) return '';
-      const c = scoreColor(r.score);
-      const lvlText = it.levels ? `<div class="review-lvl">${esc(it.levels[r.score-1])}</div>` : '';
+      const a = answerOf(inst, r);
+      if(!a) return '';
+      const lvlText = (it.levels && a.score) ? `<div class="review-lvl">${esc(it.levels[a.score-1])}</div>` : '';
       return `<div class="review-item">
         <div class="review-top">
-          <div class="review-txt">${esc(it.text)}</div>
-          <div class="review-score" style="background:${c}">${r.score}</div>
+          <div class="review-txt">${it.code?`<span class="item-code">${esc(it.code)}</span>`:''}${esc(it.text)}</div>
+          ${answerChip(inst, a)}
         </div>
         ${lvlText}
         ${r.comment?`<div class="review-cmt">${esc(r.comment)}</div>`:''}
@@ -963,31 +1429,46 @@ function renderSummary(id){
     return `<div class="section-title">${sec.group?esc(sec.group)+' · ':''}${esc(sec.title)}</div>${rows}`;
   }).join('');
 
+  const tallyLine = scale.key==='checklist'
+    ? `<div class="score-sub">${scale.options.map(opt=>`${sc.tally[opt.v]||0} ${esc(opt.label)}`).join(' · ')}</div>` : '';
+  const countLine = scale.key==='checklist'
+    ? `${sc.scored} of ${sc.total} indicators scored${sc.na?' · '+sc.na+' NA':''} · Observed by ${esc(o.observer)||'—'}`
+    : `${sc.rated}/${sc.total} items rated · Observed by ${esc(o.observer)||'—'}`;
+
+  const headBlocks = (HEADER_BLOCKS[inst.header]||[]).map(bl=>renderBlockSummary(o,bl)).join('');
+  const p2 = inst.page2 ? PAGE2[inst.page2] : null;
+  const p2Body = p2 ? p2.blocks.map(bl=>renderBlockSummary(o,bl)).join('') : '';
+  const p2Html = p2Body
+    ? `<div class="card"><div class="section-title" style="margin-top:0">${esc(p2.title)}</div>${p2Body}</div>` : '';
+
   return `<div class="topbar">
       <div class="back" onclick="goHome()">←</div>
-      <div><h1>${esc(o.teacher)||'Report'}</h1><div class="sub">${type.icon} ${esc(type.name)} · ${fmtDate(o.date)}</div></div>
+      <div><h1>${esc(o.teacher)||'Report'}</h1><div class="sub">${type.icon} ${esc(inst.name)} · ${fmtDate(o.date)}</div></div>
     </div>
     <div class="wrap">
       <div class="card">
         ${logoImg('report-logo')}
-        <div class="report-title">${esc(type.name)}</div>
+        <div class="report-title">${esc(inst.name)}</div>
         <div class="report-head">
           <div class="report-teacher">${esc(o.teacher)||'—'}</div>
           <div class="report-date">Date: ${fmtDate(o.date)}</div>
         </div>
         <div class="score-hero">
-          <div class="score-num" style="color:${b.c}">${sc.avg.toFixed(1)}<small>/4</small></div>
+          <div class="score-num" style="color:${b.c}">${sc.avg.toFixed(1)}<small>/${sc.max}</small></div>
           <div class="score-band" style="color:${b.c};background:${b.bg}">${b.label}</div>
           ${fieldSummary(o)? `<div class="score-sub">${fieldSummary(o)}</div>` : ''}
-          <div class="score-sub">${sc.rated}/${sc.total} items rated · Observed by ${esc(o.observer)||'—'}</div>
+          ${tallyLine}
+          <div class="score-sub">${countLine}</div>
         </div>
         ${secBars}
+        ${headBlocks}
       </div>
 
+      ${p2Html}
       ${o.targets? `<div class="card"><div class="section-title" style="margin-top:0">Targets</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.targets)}</div></div>` : ''}
       ${o.notes? `<div class="card"><div class="section-title" style="margin-top:0">Discussion / Follow-up Notes</div><div style="font-size:13px;color:var(--inkm);line-height:1.5;white-space:pre-wrap">${esc(o.notes)}</div></div>` : ''}
 
-      <div class="card">${reviewHtml || '<div style="font-size:13px;color:var(--inkl)">No items rated.</div>'}</div>
+      <div class="card">${reviewHtml || '<div style="font-size:13px;color:var(--inkl)">No items answered.</div>'}</div>
 
       <div class="btn-row">
         <button class="btn btn-o" onclick="editObservation('${id}')">Edit</button>
@@ -1003,13 +1484,35 @@ function renderSummary(id){
 
 function shareObservation(id){
   const o = findObs(id); if(!o) return;
-  const type = REPORT_TYPES[o.type] || REPORT_TYPES.lesson_obs;
+  const type = typeOf(o);
+  const inst = instrumentFor(o);
+  const scale = scaleOf(inst);
   const sc = computeScore(o);
-  const b = band(sc.avg);
-  let txt = `Holistify – ${type.name}\n`;
-  txt += `Teacher: ${o.teacher||'—'}\nGrade/Class: ${o.grade||'—'} | Subject: ${o.subject||'—'} | Topic: ${o.topic||'—'}\nDate: ${fmtDate(o.date)}\nObserver: ${o.observer||'—'}\n\n`;
-  txt += `Overall Rating: ${sc.avg.toFixed(1)}/4 (${b.label})\n\n`;
-  sc.sectionScores.forEach(s=>{ txt += `${s.title}: ${s.avg===null?'—':s.avg.toFixed(1)+'/4'}\n`; });
+  const b = band(sc.pct);
+  let txt = `Holistify – ${inst.name}\n`;
+  txt += `${type.subjectType==='mentor'?'Mentor':'Teacher'}: ${o.teacher||'—'}\n`;
+  txt += `${type.gradeLabel||'Grade/Class'}: ${o.grade||'—'} | Subject: ${o.subject||'—'} | Topic: ${o.topic||'—'}\nDate: ${fmtDate(o.date)}\nObserver: ${o.observer||'—'}\n\n`;
+  txt += `Overall: ${sc.avg.toFixed(1)}/${sc.max} (${b.label})\n`;
+  if(scale.key==='checklist'){
+    txt += scale.options.map(opt=>`${sc.tally[opt.v]||0} ${opt.label}`).join(' · ')+`\n`;
+  }
+  txt += `\n`;
+  sc.sectionScores.forEach(s=>{ txt += `${s.title}: ${s.avg===null?'—':s.avg.toFixed(1)+'/'+sc.max}\n`; });
+  /* Page 2 travels with the summary: the overall judgement and the agreed next
+     steps are the part a school acts on. */
+  const p2 = inst.page2 ? PAGE2[inst.page2] : null;
+  if(p2){
+    p2.blocks.forEach(bl=>{
+      const v = extraOf(o, bl.key);
+      if(bl.type==='choice'){
+        const opt = bl.options.find(x=>x.v===v);
+        if(opt) txt += `\n${bl.title}: ${opt.label}\n`;
+      } else if(bl.type==='lines'){
+        const vals = (Array.isArray(v)? v : []).map(x=>(x||'').trim()).filter(Boolean);
+        if(vals.length) txt += `\n${bl.title}:\n`+vals.map((t,i)=>`${i+1}. ${t}`).join('\n')+`\n`;
+      }
+    });
+  }
   if(o.targets) txt += `\nTargets:\n${o.targets}\n`;
   if(o.notes) txt += `\nDiscussion Notes:\n${o.notes}\n`;
 
@@ -1025,7 +1528,7 @@ function shareObservation(id){
 function renderTeachers(){
   const kind = PEOPLE_KIND;
   const byName = {};
-  OBS.filter(o=>o.status==='complete' && (REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType===kind).forEach(o=>{
+  OBS.filter(o=>o.status==='complete' && typeOf(o).subjectType===kind).forEach(o=>{
     const t = o.teacher.trim()||'Unnamed';
     (byName[t]=byName[t]||[]).push(o);
   });
@@ -1033,16 +1536,18 @@ function renderTeachers(){
 
   let rows = names.map(name=>{
     const list = byName[name].slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const scores = list.map(o=>computeScore(o).avg);
-    const last = scores[scores.length-1];
-    const bars = scores.slice(-10).map(a=>{
-      const c = scoreColor(a);
-      return `<div class="trend-bar" style="height:${Math.max(6,a*8.5)}px;background:${c}"></div>`;
+    /* Percentages, not raw averages: a 3-point checklist and a 4-point rubric
+       share this trend, and 2.4 means different things on the two scales. */
+    const pcts = list.map(o=>computeScore(o).pct);
+    const last = pcts[pcts.length-1];
+    const bars = pcts.slice(-10).map(p=>{
+      const c = scoreColor(p);
+      return `<div class="trend-bar" style="height:${Math.max(6, p/100*34)}px;background:${c}"></div>`;
     }).join('');
     return `<div class="teacher-row" onclick="openTeacherProfile('${esc(name).replace(/'/g,"\\'")}')">
       <div class="teacher-top">
         <div class="name">${esc(name)}</div>
-        <div class="cnt">${list.length} report${list.length>1?'s':''} · latest ${last.toFixed(1)}/4</div>
+        <div class="cnt">${list.length} report${list.length>1?'s':''} · latest ${Math.round(last)}%</div>
       </div>
       <div class="trend">${bars}</div>
     </div>`;
@@ -1050,7 +1555,7 @@ function renderTeachers(){
 
   if(!names.length){
     rows = kind==='mentor'
-      ? `<div class="empty"><div class="ico">🧭</div><h3>No completed mentor reviews yet</h3><p>Finish a Mentor Performance Review to start tracking mentor progress here.</p></div>`
+      ? `<div class="empty"><div class="ico">🧭</div><h3>No completed mentor reviews yet</h3><p>Finish an Effective Mentoring Checklist to start tracking mentor progress here.</p></div>`
       : `<div class="empty"><div class="ico">👩‍🏫</div><h3>No completed reports yet</h3><p>Finish a report to start tracking teacher progress here.</p></div>`;
   }
 
@@ -1064,50 +1569,73 @@ function renderTeachers(){
 }
 
 /* ---------- Teacher profile (consolidated, date-wise) ---------- */
-function pooledAvg(list){
+/* Pooled as a share of each instrument's own scale, so reports answered on
+   Seen/Partly/Not yet and reports rated 1-4 can be averaged together without
+   one of them quietly counting for more. */
+function pooledPct(list){
   let sum=0, n=0;
-  list.forEach(o=>{ Object.values(o.ratings).forEach(r=>{ if(r && r.score){ sum+=r.score; n++; } }); });
-  return n? Math.round(sum/n*10)/10 : null;
+  list.forEach(o=>{
+    const inst = instrumentFor(o);
+    const mx = scaleOf(inst).max;
+    Object.keys(o.ratings||{}).forEach(k=>{
+      const s = answerScore(inst, o.ratings[k]);
+      if(s!==null){ sum += s/mx; n++; }
+    });
+  });
+  return n? Math.round(sum/n*100) : null;
 }
-function domainAvgsForType(list, typeKey){
-  const type = REPORT_TYPES[typeKey];
-  const subset = list.filter(o=>o.type===typeKey);
-  return type.sections.map(sec=>{
+/* Keyed on type AND rubric version: two lesson reports answered on different
+   rubrics have different sections, so pooling them under one heading would
+   average indicators that are not the same indicators. */
+function domainAvgsForInstrument(list, typeKey, rubric){
+  const inst = instrumentAt(typeKey, rubric);
+  const mx = scaleOf(inst).max;
+  const subset = list.filter(o=>o.type===typeKey && rubricOf(o)===rubric);
+  return inst.sections.map(sec=>{
     let sum=0, n=0;
-    subset.forEach(o=>{ sec.items.forEach(it=>{ const r=o.ratings[it.id]; if(r && r.score){ sum+=r.score; n++; } }); });
-    return { key:sec.key, title:sec.title, group:sec.group, avg: n? Math.round(sum/n*10)/10 : null };
+    subset.forEach(o=>{ sec.items.forEach(it=>{
+      const s = answerScore(inst, o.ratings[it.id]);
+      if(s!==null){ sum+=s; n++; }
+    }); });
+    return { key:sec.key, title:sec.title, group:sec.group, max:mx,
+      avg: n? Math.round(sum/n*10)/10 : null,
+      pct: n? Math.round(sum/n/mx*1000)/10 : null };
   });
 }
 function uniqueObservers(list){ return [...new Set(list.map(o=>(o.observer||'').trim()).filter(Boolean))]; }
 
 function renderTeacherProfile(name){
   const kind = PEOPLE_KIND;
-  const list = OBS.filter(o=>o.status==='complete' && (o.teacher.trim()||'Unnamed')===name && (REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs).subjectType===kind)
+  const list = OBS.filter(o=>o.status==='complete' && (o.teacher.trim()||'Unnamed')===name && typeOf(o).subjectType===kind)
     .slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
 
-  const overallAvg = pooledAvg(list) || 0;
+  const overallPct = pooledPct(list) || 0;
   const mentors = uniqueObservers(list);
   const counts = {};
-  list.forEach(o=>{ counts[o.type]=(counts[o.type]||0)+1; });
-  const typeKeysPresent = Object.keys(counts);
-  const countChips = typeKeysPresent.map(k=>{
-    const t = REPORT_TYPES[k]||REPORT_TYPES.lesson_obs;
-    return `<span class="chip">${t.icon} ${counts[k]} ${esc(t.short)}</span>`;
+  list.forEach(o=>{ const k=o.type+'|'+rubricOf(o); counts[k]=(counts[k]||0)+1; });
+  const instKeys = Object.keys(counts);
+  const countChips = instKeys.map(k=>{
+    const [tk,rv] = k.split('|');
+    const t = REPORT_TYPES[tk]||REPORT_TYPES.lesson_obs;
+    const inst = instrumentAt(tk,rv);
+    return `<span class="chip">${t.icon} ${counts[k]} ${esc(inst.short)}</span>`;
   }).join('');
 
-  const domainCards = typeKeysPresent.map(typeKey=>{
-    const t = REPORT_TYPES[typeKey]||REPORT_TYPES.lesson_obs;
-    const domains = domainAvgsForType(list, typeKey).filter(d=>d.avg!==null);
+  const domainCards = instKeys.map(k=>{
+    const [tk,rv] = k.split('|');
+    const t = REPORT_TYPES[tk]||REPORT_TYPES.lesson_obs;
+    const inst = instrumentAt(tk,rv);
+    const domains = domainAvgsForInstrument(list, tk, rv).filter(d=>d.avg!==null);
     if(!domains.length) return '';
     const bars = domains.map(d=>{
-      const c = scoreColor(d.avg);
+      const c = scoreColor(d.pct);
       return `<div class="sec-bar-row">
         <div class="sec-bar-label">${d.group?esc(d.group)+' · ':''}${esc(d.title)}</div>
-        <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${d.avg/4*100}%;background:${c}"></div></div>
+        <div class="sec-bar-track"><div class="sec-bar-fill" style="width:${d.pct}%;background:${c}"></div></div>
         <div class="sec-bar-pct">${d.avg.toFixed(1)}</div>
       </div>`;
     }).join('');
-    return `<div class="card"><div class="section-title" style="margin-top:0">${t.icon} ${esc(t.name)} — Consolidated Domain Averages</div>${bars}</div>`;
+    return `<div class="card"><div class="section-title" style="margin-top:0">${t.icon} ${esc(inst.name)} — Consolidated Domain Averages <span class="p2-hint" style="display:inline">(out of ${inst.sections.length?scaleOf(inst).max:4})</span></div>${bars}</div>`;
   }).join('');
 
   const byDate = {};
@@ -1116,23 +1644,24 @@ function renderTeacherProfile(name){
 
   const timeline = dates.map(d=>{
     const dayList = byDate[d];
-    const combined = dayList.length>1 ? pooledAvg(dayList) : null;
+    const combined = dayList.length>1 ? pooledPct(dayList) : null;
     const items = dayList.map(o=>{
-      const type = REPORT_TYPES[o.type]||REPORT_TYPES.lesson_obs;
+      const type = typeOf(o);
+      const inst = instrumentFor(o);
       const sc = computeScore(o);
       return `<div class="timeline-item" onclick="openObservation('${o.id}')" style="cursor:pointer">
         <div class="timeline-dot">${type.icon}</div>
         <div class="timeline-body">
-          <div class="timeline-top"><span class="timeline-type">${esc(type.name)}</span><span class="timeline-avg" style="color:${scoreColor(sc.avg)}">${sc.avg.toFixed(1)}/4</span></div>
+          <div class="timeline-top"><span class="timeline-type">${esc(inst.name)}</span><span class="timeline-avg" style="color:${scoreColor(sc.pct)}">${sc.avg.toFixed(1)}/${sc.max}</span></div>
           <div class="timeline-meta">${fieldSummary(o)? fieldSummary(o)+' · ' : ''}by ${esc(o.observer)||'—'}</div>
-          <div class="timeline-score" style="color:${scoreColor(sc.avg)}">${band(sc.avg).label}</div>
+          <div class="timeline-score" style="color:${scoreColor(sc.pct)}">${band(sc.pct).label}</div>
         </div>
       </div>`;
     }).join('');
     return `<div class="day-group">
       <div class="day-head">
         <span class="day-date">${fmtDate(d)}</span>
-        ${combined!==null? `<span class="day-combined">${dayList.length} reports · combined ${combined.toFixed(1)}/4</span>`:''}
+        ${combined!==null? `<span class="day-combined">${dayList.length} reports · combined ${combined}%</span>`:''}
       </div>
       ${items}
     </div>`;
@@ -1144,7 +1673,7 @@ function renderTeacherProfile(name){
     <div class="wrap">
       <div class="card">
         <div class="score-hero" style="padding-top:2px">
-          <div class="score-num" style="color:${scoreColor(overallAvg)};font-size:36px">${overallAvg.toFixed(1)}<small>/4</small></div>
+          <div class="score-num" style="color:${scoreColor(overallPct)};font-size:36px">${overallPct}<small>%</small></div>
           <div class="score-sub">${list.length} report${list.length!==1?'s':''} across all types</div>
         </div>
         <div class="profile-meta"><b>${subjectLabel}:</b> ${esc(name)}</div>
